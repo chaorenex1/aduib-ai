@@ -1,0 +1,134 @@
+from typing import Any
+
+from pydantic import BaseModel
+from pymilvus import MilvusClient, DataType, Function, FunctionType
+from pymilvus.orm.types import infer_dtype_bydata
+from typing_extensions import Optional
+
+from ....runtime.entities.document import Document
+from ..base_vector import BaseVector
+from ..fields import Field
+from ..vector_type import VectorType
+
+class MilvusConfig(BaseModel):
+    uri: str
+    token: str
+    user: str
+    password: str
+    database: str="milvus"
+    enable_hybrid: bool=False
+
+class MilvusVector(BaseVector):
+    def __init__(self, collection_name,config: MilvusConfig):
+        super().__init__(collection_name)
+        self.collection_name = collection_name
+        self.config = config
+        self.client = MilvusClient(uri=self.config.uri,token=self.config.token,user=config.user,password=config.password,database=config.database)
+        self.enable_hybrid = config.enable_hybrid
+        self.fields = []
+        self.consisency_level = "session"
+
+    def get_type(self) -> str:
+        return VectorType.MILVUS
+
+    def save(self, texts: list[Document], embeddings: list[list[float]], **kwargs):
+        index_params = {"metric_type": "IP", "index_type": "HNSW", "params": {"M": 8, "efConstruction": 64}}
+        metadatas = [d.metadata if d.metadata is not None else {} for d in texts]
+        self.create_collection(embeddings, metadatas, index_params)
+        self.add_texts(texts, embeddings)
+
+    def delete_by_ids(self, ids: list[str]):
+        res= self.client.query(self.collection_name, filter=f'metadata["doc_id"] in {ids}', output_fields=['id'])
+        if res:
+            self.client.delete(collection_name=self.collection_name, ids=[r["id"] for r in res])
+
+    def exists(self, id: str) -> bool:
+        res= self.client.query(self.collection_name, filter=f'metadata["doc_id"] == "{id}"', output_fields=['id'])
+        return len(res)>0
+
+    def delete_all(self):
+        self.client.drop_collection(self.collection_name)
+
+    def search_by_vector(self, vector: list[float], **kwargs) -> list[Document]:
+        results = self.client.search(
+            collection_name=self.collection_name,
+            data=[vector],
+            anns_field=Field.VECTOR.value,
+            limit=kwargs.get("top_k", 4),
+            output_fields=[Field.CONTENT_KEY.value, Field.METADATA_KEY.value],
+        )
+
+        return self.process_search_results(
+            results,
+            output_fields=[Field.CONTENT_KEY.value, Field.METADATA_KEY.value],
+            score_threshold=float(kwargs.get("score_threshold") or 0.0),
+        )
+
+    def search_by_full_text(self, text: str, **kwargs) -> list[Document]:
+        results = self.client.search(
+            collection_name=self.collection_name,
+            data=[text],
+            anns_field=Field.SPARSE_VECTOR.value,
+            limit=kwargs.get("top_k", 4),
+            output_fields=[Field.CONTENT_KEY.value, Field.METADATA_KEY.value],
+        )
+
+        return self.process_search_results(
+            results,
+            output_fields=[Field.CONTENT_KEY.value, Field.METADATA_KEY.value],
+            score_threshold=float(kwargs.get("score_threshold") or 0.0),
+        )
+
+    def create_collection(self, embeddings, metadatas:Optional[list[dict]]=None, index_params:Optional[dict]=None):
+        if not self.client.has_collection(self.collection_name):
+            dimension = len(embeddings[0])
+            # Create schema
+            schema = self.client.create_schema(auto_id=True, enable_dynamic_field=True)
+            if metadatas:
+                    schema.add_field(field_name=Field.METADATA_KEY.value, datatype=DataType.JSON, max_length=65535)
+            schema.add_field(field_name=Field.PRIMARY_KEY.value, datatype=DataType.INT64, auto_id=True,is_primary=True)
+            schema.add_field(field_name=Field.CONTENT_KEY.value, datatype=DataType.VARCHAR, max_length=65535,enable_analyzer=self.enable_hybrid)
+
+            schema.add_field(field_name=Field.VECTOR.value, datatype=infer_dtype_bydata(embeddings[0]), dim=dimension)
+            if self.enable_hybrid:
+                schema.add_field(field_name=Field.SPARSE_VECTOR, datatype=DataType.SPARSE_FLOAT_VECTOR)
+                schema.add_function(Function(
+                    name="text_bm25",
+                    input_field_names=[Field.CONTENT_KEY.value],
+                    output_field_names=[Field.SPARSE_VECTOR.value],
+                    function_type=FunctionType.BM25
+                ))
+            # Create index
+            index_params_obj = self.client.prepare_index_params()
+            index_params_obj.add_index(Field.VECTOR,**index_params)
+            if self.enable_hybrid:
+                index_params_obj.add_index(field_name=Field.SPARSE_VECTOR,index_type="AUTOINDEX", metric_type="BM25")
+            return self.client.create_collection(collection_name=self.collection_name, schema=schema,
+                                                 index_params=index_params_obj,
+                                                 consistency_level=self.consisency_level,)
+
+    def add_texts(self, texts: list[Document], embeddings: list[list[float]]):
+        insert_data_list = []
+        for i, text in enumerate(texts):
+            insert_data = {
+                Field.CONTENT_KEY.value: text.content,
+                Field.METADATA_KEY.value: text.metadata,
+                Field.VECTOR.value: embeddings[i]
+            }
+            insert_data_list.append(insert_data)
+
+        return self.client.insert(collection_name=self.collection_name, data=insert_data_list)
+
+    def process_search_results(
+        self, results: list[Any], output_fields: list[str], score_threshold: float = 0.0
+    ) -> list[Document]:
+        docs = []
+        for result in results[0]:
+            metadata = result["entity"].get(output_fields[1], {})
+            metadata["score"] = result["distance"]
+
+            if result["distance"] > score_threshold:
+                doc = Document(content=result["entity"].get(output_fields[0], ""), metadata=metadata)
+                docs.append(doc)
+
+        return docs
