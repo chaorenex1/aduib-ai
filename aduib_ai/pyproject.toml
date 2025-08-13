@@ -3,14 +3,11 @@ name = "aduib-ai"
 version = "0.1.0"
 description = "Aduib AI - A Python library for building AI applications with Aduib."
 readme = "README.md"
-requires-python = "<=3.12"
+requires-python = ">=3.11,<3.13"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "chaorenex1", email = "24537608z@gmail.com"},
     ]
-[[tool.uv.index]]
-url = "https://test.pypi.org/simple"
-default = true
 dependencies = [
     "bcrypt==4.3.0",
     "boto3==1.37.11",
@@ -48,3 +45,7 @@ dependencies = [
 dev= [
     "alembic==1.16.4",
 ]
+
+[[tool.uv.index]]
+url = "http://mirrors.aliyun.com/pypi/simple/"
+default = true
