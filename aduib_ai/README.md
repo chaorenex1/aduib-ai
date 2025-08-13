@@ -60,6 +60,6 @@
 3. 初始化数据库
    ```bash
     uv pip install alembic
-    alembic -c .\alembic\alembic.ini revision --autogenerate -m "init table"
-    alembic -c .\alembic\alembic.ini upgrade head
+    alembic -c ./alembic/alembic.ini revision --autogenerate -m "init table"
+    alembic -c ./alembic/alembic.ini upgrade head
    ```
