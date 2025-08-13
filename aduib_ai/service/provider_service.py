@@ -4,9 +4,9 @@ from typing import Optional
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from ..models import get_db
-from ..models.provider import Provider
-from ..utils.snowflake_id import id_generator
+from models import get_db
+from models.provider import Provider
+from utils.snowflake_id import id_generator
 
 
 class ProviderService:

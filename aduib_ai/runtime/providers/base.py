@@ -11,7 +11,7 @@ class AiModel(BaseModel):
     provider_name: str=Field(description="Provider name")
     model_provider: ProviderEntity=Field(description="Model provider")
 
-    model_config: ConfigDict =Field(description="Model config", protected_namespaces=())
+    # model_config: ConfigDict =Field(description="Model config", protected_namespaces=())
 
 
     def get_model_schema(self, model: str, credentials: Optional[dict] = None) -> Optional[AIModelEntity]:

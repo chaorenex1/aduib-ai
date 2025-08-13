@@ -2,11 +2,11 @@ from typing import Optional, Any
 
 from .model_service import ModelService
 from .provider_service import ProviderService
-from ..controllers.params import CompletionRequest
-from ..models.model import Model
-from ..models.provider import Provider
-from ..runtime.entities.model_entities import ModelType
-from ..runtime.model_manager import ModelManager
+from controllers.params import CompletionRequest
+from models.model import Model
+from models.provider import Provider
+from runtime.entities.model_entities import ModelType
+from runtime.model_manager import ModelManager
 
 
 class CompletionService:

@@ -12,7 +12,7 @@ from ..entities import PromptMessage, PromptMessageTool, LLMResult, LLMResultChu
 from ..entities.message_entities import PromptMessageContentUnionTypes
 from ..entities.model_entities import ModelType, PriceType
 from .base import AiModel
-from ...configs import config
+from configs import config
 
 logger = logging.getLogger(__name__)
 
