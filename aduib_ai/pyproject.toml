@@ -41,7 +41,11 @@ dependencies = [
     "transformers>=4.48.1",
     "uvicorn>=0.35.0",
 ]
+[tool.setuptools]
+packages = []
 
+[tool.uv]
+[dependency-groups]
 dev= [
     "alembic==1.16.4",
 ]

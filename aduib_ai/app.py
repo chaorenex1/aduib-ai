@@ -1,7 +1,7 @@
 import logging
 from multiprocessing.spawn import freeze_support
 
-from aduib_ai.app_factory import create_app
+from .app_factory import create_app
 
 app=create_app()
 logger = logging.getLogger(__name__)
