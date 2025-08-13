@@ -44,7 +44,18 @@
   工具类，如 API Key 工具、网络工具、雪花 ID 生成等。
 
 ## 快速开始
-
-1. 安装依赖  
+1. 安装环境
+    ```bash
+    pip install uv
+    # Or on macOS
+    brew install uv
+2. 安装依赖  
    ```bash
-   pip install -r requirements.txt -i http://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+   uv pip install -r requirements.txt -i http://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+  
+3. 初始化数据库
+   ```bash
+    uv pip install alembic
+    alembic -c .\alembic\alembic.ini revision --autogenerate -m "init table"
+    alembic -c .\alembic\alembic.ini upgrade head
+   ```
