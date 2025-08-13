@@ -50,9 +50,12 @@ class NacosClient:
     """
     def get_all_dicts(self, data_id: str):
         data = self.cache.get(data_id)
-        if data is None:
+        # data is none or is ''
+        if data is None or data == '':
             data = asyncio.run(self.config_client.get_config(ConfigParam(data_id=data_id, group=self.group)))
-            self.cache[data_id] = json.loads(data)
+            # ''
+            if data is not None and data != '':
+                self.cache[data_id] = json.loads(data)
         return self.cache.get(data_id)
 
     def register_config_listener(self,data_id: str):
