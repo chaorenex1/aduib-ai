@@ -8,6 +8,7 @@ from component.log.app_logging import init_logging
 from configs import config
 from controllers.route import api_router
 from utils.snowflake_id import init_idGenerator
+from libs.context import LoggingMiddleware
 
 log=logging.getLogger(__name__)
 
@@ -22,7 +23,10 @@ def create_app_with_configs()->AduibAIApp:
         debug=config.DEBUG,
     )
     app.config=config
-    app.include_router(api_router, prefix="/aduib_ai/v1")
+    app.include_router(api_router, prefix="/v1")
+    if config.DEBUG:
+        log.warning("Running in debug mode, this is not recommended for production use.")
+        app.add_middleware(LoggingMiddleware)
     return app
 
 
