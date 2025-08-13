@@ -31,7 +31,7 @@ ollama
 openai>=1.79.0
 #db
 SQLAlchemy==2.0.39
-psycopg2
+psycopg2-binary
 pgvector
 neomodel==5.4.5
 #deploy

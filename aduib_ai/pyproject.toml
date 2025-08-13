@@ -26,7 +26,7 @@ dependencies = [
     "opendal==0.45.16",
     "peft==0.14.0",
     "pgvector>=0.4.1",
-    "psycopg2>=2.9.10",
+    "psycopg2-binary>=2.9.10",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
     "pymilvus[model]==2.5.4",
