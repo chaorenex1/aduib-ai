@@ -4,10 +4,10 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from .error.error import ApiKeyNotFound
-from ..models import get_db
-from ..models.api_key import ApiKey
-from ..utils.api_key import generate_api_key, hash_api_key, verify_api_key
-from ..utils.snowflake_id import id_generator
+from models import get_db
+from models.api_key import ApiKey
+from utils.api_key import generate_api_key, hash_api_key, verify_api_key
+from utils.snowflake_id import id_generator
 
 
 class ApiKeyService:

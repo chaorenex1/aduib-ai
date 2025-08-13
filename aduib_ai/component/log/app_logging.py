@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from ...configs import config
+from configs import config
 
 def init_logging():
     log_handlers: list[logging.Handler] = []

@@ -2,9 +2,9 @@
 from fastapi import Depends
 from fastapi.security import APIKeyHeader
 
-from aduib_ai.controllers.common.error import ApiNotCurrentlyAvailableError
-from aduib_ai.service.api_key_service import ApiKeyService
-from aduib_ai.service.error.error import ApiKeyNotFound
+from controllers.common.error import ApiNotCurrentlyAvailableError
+from service.api_key_service import ApiKeyService
+from service.error.error import ApiKeyNotFound
 
 API_KEY_HEADER = "X-API-Key"  # 你希望客户端发送的 API Key 的请求头字段名称
 api_key_header = APIKeyHeader(name=API_KEY_HEADER)

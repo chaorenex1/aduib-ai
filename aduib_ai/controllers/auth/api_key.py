@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
-from ...libs.deps import CurrentApiKeyDep
-from ...models.api_key import ApiKey
-from ...service.api_key_service import ApiKeyService
+from libs.deps import CurrentApiKeyDep
+from models.api_key import ApiKey
+from service.api_key_service import ApiKeyService
 
 router = APIRouter(tags=['auth'],prefix='/api_key')
 

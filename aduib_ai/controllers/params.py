@@ -2,9 +2,9 @@ from typing import Optional, Sequence, Union, Mapping, Any, List
 
 from pydantic import BaseModel, field_validator
 
-from ..runtime.entities import PromptMessage, PromptMessageRole, UserPromptMessage, \
+from runtime.entities import PromptMessage, PromptMessageRole, UserPromptMessage, \
     AssistantPromptMessage, SystemPromptMessage, ToolPromptMessage
-from ..runtime.entities.message_entities import PromptMessageFunction
+from runtime.entities.message_entities import PromptMessageFunction
 
 
 class CompletionRequest(BaseModel):

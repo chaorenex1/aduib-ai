@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from ..params import CompletionRequest
-from ...service.completion_service import CompletionService
+from service.completion_service import CompletionService
 
 router = APIRouter(tags=['completion'])
 

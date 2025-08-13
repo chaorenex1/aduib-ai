@@ -1,4 +1,4 @@
-from aduib_ai.controllers.common.base import BaseHttpException
+from controllers.common.base import BaseHttpException
 
 
 class ApiNotCurrentlyAvailableError(BaseHttpException):

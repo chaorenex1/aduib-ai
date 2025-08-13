@@ -4,8 +4,8 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from .error.error import ModelNotFound
-from ..models import get_db
-from ..models.model import Model
+from models import get_db
+from models.model import Model
 
 
 class ModelService:

@@ -3,8 +3,13 @@ from .base import Base
 
 
 from .api_key import ApiKey
+from .model import Model
+from .provider import Provider
 
 __all__ = ["get_db",
            "engine",
            "Base",
-           "ApiKey"]
+           "ApiKey",
+           "Model",
+           "Provider",
+              ]

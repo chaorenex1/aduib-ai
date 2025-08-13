@@ -1,6 +1,4 @@
 import logging
-import os
-import sys
 from logging.config import fileConfig
 
 from alembic import context
@@ -8,16 +6,16 @@ from alembic import context
 logger = logging.getLogger('alembic.env')
 
 # 获取父目录的绝对路径
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+# parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 # 将 models 目录添加到 sys.path 中
-models_dir = os.path.join(parent_dir, 'models')
-configs_dir = os.path.join(parent_dir, 'configs')
-sys.path.append(models_dir)
-sys.path.append(configs_dir)
+# models_dir = os.path.join(parent_dir, 'models')
+# configs_dir = os.path.join(parent_dir, 'configs')
+# sys.path.append(models_dir)
+# sys.path.append(configs_dir)
 
 # 导入模块
-from models import Base
+from models.base import Base
 from models import engine
 
 # this is the Alembic Config object, which provides
@@ -55,6 +53,7 @@ def get_metadata():
     return base_metadata
 
 def include_object(object, name, type_, reflected, compare_to):
+    logger.debug(f"include_object:{name}, {type_}, {reflected}, {compare_to}")
     if type_ == "foreign_key_constraint":
         return False
     else:
