@@ -3,11 +3,11 @@ from typing import Optional
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from .error.error import ApiKeyNotFound
 from models import get_db
 from models.api_key import ApiKey
+from models.engine import get_session
 from utils.api_key import generate_api_key, hash_api_key, verify_api_key
-from utils.snowflake_id import id_generator
+from .error.error import ApiKeyNotFound
 
 
 class ApiKeyService:
@@ -32,22 +32,21 @@ class ApiKeyService:
 
     @staticmethod
     def create_api_key(name:str,
-                       description:Optional[str],
-                       session: Session = Depends(get_db),
+                       description:Optional[str]
                        ) -> ApiKey:
         """
         create the api key
         """
-        key = generate_api_key()
-        hash_key = hash_api_key(key)
-        api_key = ApiKey(id=id_generator.generate(),
-                         api_key=key,
-                         hash_key=hash_key[0],
-                         salt=hash_key[1],
-                         name=name,
-                         description=description)
-        session.add(api_key)
-        session.commit()
+        with get_session() as session:
+            key = generate_api_key()
+            hash_key = hash_api_key(key)
+            api_key = ApiKey(api_key=key,
+                             hash_key=hash_key[0],
+                             salt=hash_key[1],
+                             name=name,
+                             description=description)
+            session.add(api_key)
+            session.commit()
         return api_key
 
     def get_by_api_key(api_key:str,session: Session = Depends(get_db)) -> Optional[ApiKey]:

@@ -5,6 +5,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from models import get_db
+from models.engine import get_session
 from models.provider import Provider
 from utils.snowflake_id import id_generator
 
@@ -23,7 +24,7 @@ class ProviderService:
 
 
     @staticmethod
-    def create_provider(provider_name: str, support_model_types:dict,provider_type:str,provider_config:dict, session: Session = Depends(get_db))->Optional[Provider]:
+    def create_provider(provider_name: str, support_model_types:list[str],provider_type:str,provider_config:dict)->Optional[Provider]:
         """
         Create provider by name.
         :param provider_name: provider name
@@ -33,15 +34,15 @@ class ProviderService:
         :param session: database session
         :return: provider
         """
-        if support_model_types is None:
-            support_model_types = {}
-        if provider_config is None:
-            provider_config = {}
-        provider = Provider(id=id_generator.generate(),
-                            name=provider_name,
-                            support_model_type=json.dumps(support_model_types),provider_type=provider_type,provider_config=json.dumps(provider_config))
-        session.add(provider)
-        session.commit()
+        with get_session() as session:
+            if support_model_types is None:
+                support_model_types = {}
+            if provider_config is None:
+                provider_config = {}
+            provider = Provider(name=provider_name,
+                                support_model_type=support_model_types,provider_type=provider_type,provider_config=provider_config)
+            session.add(provider)
+            session.commit()
         return provider
 
     @staticmethod

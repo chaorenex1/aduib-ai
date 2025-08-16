@@ -3,8 +3,10 @@ from typing import Optional
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from .error.error import ModelNotFound
-from models import get_db
+from controllers.params import CreateModelRequest
+from models.engine import get_session
+from .error.error import ModelNotFound, ModelProviderNotFound
+from models import get_db, Provider
 from models.model import Model
 
 
@@ -25,21 +27,27 @@ class ModelService:
 
 
     @staticmethod
-    def create_model(model_name:str, provider_name:str, model_type:str,max_tokens:int, model_config:dict,model_feature:dict, session: Session = Depends(get_db)) -> Optional[Model]:
+    def create_model(req: CreateModelRequest) -> Optional[Model]:
         """
         Create model by name.
-        :param model_name: model name
-        :param provider_name: provider name
-        :param model_type: model type
-        :param max_tokens: max tokens
-        :param model_config: model config
-        :param model_feature: model feature
-        :param session: database session
+        :param req: CreateModelRequest
         :return: model
         """
-        model = Model(name=model_name, provider_name=provider_name, type=model_type,max_tokens=max_tokens, model_params=model_config,feature=model_feature)
-        session.add(model)
-        session.commit()
+        with get_session() as session:
+            provider:Optional[Provider]=session.query(Provider).filter_by(name=req.provider_name).first()
+            if not provider:
+                raise ModelProviderNotFound("Provider not found")
+            model = Model(name=req.model_name,
+                          provider_name=req.provider_name,
+                          type=req.model_type,
+                          max_tokens=req.max_tokens,
+                          model_params=req.model_configs,
+                          feature=req.model_feature,
+                          input_price=req.input_price,
+                            output_price=req.output_price,
+                          provider_id=provider.id)
+            session.add(model)
+            session.commit()
         return model
 
 

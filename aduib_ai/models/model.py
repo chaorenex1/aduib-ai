@@ -14,7 +14,7 @@ class Model(Base):
     name = Column(String, index=True, comment="Model Name")
     type = Column(String, index=True, comment="Model Type")
     provider_name = Column(String, index=True, comment="Model Provider")
-    provider_id = Column(String, index=True, comment="Model Provider ID")
+    provider_id = Column(Integer, index=True, comment="Model Provider ID")
     max_tokens = Column(Integer, index=True, comment="Max Tokens")
     input_price = Column(DECIMAL(10,2), comment="Input Price",default=0.00)
     output_price = Column(DECIMAL(10,2), comment="Output Price",default=0.00)

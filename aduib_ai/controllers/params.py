@@ -47,3 +47,22 @@ class EmbeddingRequest(BaseModel):
 
 class EmbeddingsResponse(BaseModel):
     embedding: Optional[List[float]] = None
+
+
+
+class CreateModelRequest(BaseModel):
+    model_name: str
+    provider_name: str
+    model_type: str
+    max_tokens: int
+    input_price: float | None = 0.0
+    output_price: float | None = 0.0
+    model_configs: dict[str, Any]| None = {}
+    model_feature: list[str] | None = []
+
+
+class CreateProviderRequest(BaseModel):
+    provider_name: str
+    supported_model_types: list[str]
+    provider_type: str
+    provider_config: dict[str, Any]
