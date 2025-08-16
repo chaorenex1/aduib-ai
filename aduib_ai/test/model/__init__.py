@@ -35,3 +35,19 @@ def test_add_provider():
     data = response.json()
     assert data["code"] == 200
     assert data["msg"] == "模型提供者创建成功"
+
+
+def test_get_models():
+    """
+    Test to get the list of models add Header api_key: testkey
+    """
+    response = client.get(
+        "v1/models",
+        headers={"X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+    for model in data:
+        print(model)

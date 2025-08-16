@@ -1,10 +1,13 @@
+import time
+from datetime import datetime
 from typing import Optional, Sequence, Union, Mapping, Any, List
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 
 from runtime.entities import PromptMessage, PromptMessageRole, UserPromptMessage, \
     AssistantPromptMessage, SystemPromptMessage, ToolPromptMessage
 from runtime.entities.message_entities import PromptMessageFunction
+from utils import random_uuid
 
 
 class CompletionRequest(BaseModel):
@@ -66,3 +69,34 @@ class CreateProviderRequest(BaseModel):
     supported_model_types: list[str]
     provider_type: str
     provider_config: dict[str, Any]
+
+
+class ModelPermission(BaseModel):
+    id: str = Field(default_factory=lambda: f"modelperm-{random_uuid()}")
+    object: str = "model_permission"
+    created: int = Field(default_factory=lambda: int(time.time()))
+    allow_create_engine: bool = False
+    allow_sampling: bool = True
+    allow_logprobs: bool = True
+    allow_search_indices: bool = False
+    allow_view: bool = True
+    allow_fine_tuning: bool = False
+    organization: str = "*"
+    group: Optional[str] = None
+    is_blocking: bool = False
+
+
+class ModelCard(BaseModel):
+    id: str
+    object: str = "model"
+    created: int = Field(default_factory=lambda: int(time.time()))
+    owned_by: str = "vllm"
+    root: Optional[str] = None
+    parent: Optional[str] = None
+    max_model_len: Optional[int] = None
+    permission: list[ModelPermission] = Field(default_factory=list)
+
+
+class ModelList(BaseModel):
+    object: str = "list"
+    data: list[ModelCard] = Field(default_factory=list)

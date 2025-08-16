@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from controllers.params import CreateModelRequest
+from controllers.params import CreateModelRequest, ModelCard, ModelList
 from models.engine import get_session
 from .error.error import ModelNotFound, ModelProviderNotFound
 from models import get_db, Provider
@@ -65,3 +65,20 @@ class ModelService:
         session.delete(model)
         session.commit()
         return model
+
+    @staticmethod
+    def get_models()-> Optional[ModelList]:
+        """
+        Get all models.
+        :return: list of models
+        """
+        with get_session() as session:
+            models = session.query(Model).all()
+            if not models:
+                return None
+            models = [ModelCard(id=model.name,
+                                root=model.provider_name+"/"+model.name,
+                                         object="model",
+                                         created=int(model.created_at.timestamp()),
+                                         owned_by=model.provider_name,max_model_len=model.max_tokens) for model in models]
+            return ModelList(object="list", data=models)

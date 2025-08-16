@@ -15,19 +15,20 @@ class ApiKeyService:
     Api Key Service
     """
     @staticmethod
-    def validate_api_key(api_hash_key: str,session: Session = Depends(get_db)) -> Optional[bool]:
+    def validate_api_key(api_hash_key: str) -> Optional[bool]:
         """
         validate the api key
         """
-        api_Key_model = session.query(ApiKey).filter(ApiKey.api_key == api_hash_key).first()
-        if api_Key_model:
-            raise ApiKeyNotFound("Api Key not correct")
-        if api_Key_model.hash_key!=api_hash_key:
-            raise ApiKeyNotFound("Api Key not correct")
-        if verify_api_key(api_Key_model.api_key, api_hash_key):
-            return True
-        else:
-            raise ApiKeyNotFound("Api Key not correct")
+        with get_session() as session:
+            api_Key_model = session.query(ApiKey).filter(ApiKey.hash_key == api_hash_key).first()
+            if not api_Key_model:
+                raise ApiKeyNotFound("Api Key not correct")
+            if api_Key_model.hash_key!=api_hash_key:
+                raise ApiKeyNotFound("Api Key not correct")
+            if verify_api_key(api_Key_model.api_key, api_hash_key):
+                return True
+            else:
+                raise ApiKeyNotFound("Api Key not correct")
 
 
     @staticmethod

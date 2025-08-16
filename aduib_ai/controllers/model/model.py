@@ -2,12 +2,13 @@ from fastapi import APIRouter
 
 from controllers.common.base import BaseResponse
 from controllers.params import CreateModelRequest, CreateProviderRequest
+from libs.deps import CurrentApiKeyDep
 from service.model_service import ModelService
 from service.provider_service import ProviderService
 
 router = APIRouter(tags=["models"])
 
-@router.post('/models/add', response_model=None)
+@router.post('/models/add')
 def create_model(req: CreateModelRequest)-> BaseResponse:
     """
     创建一个新的模型
@@ -17,7 +18,7 @@ def create_model(req: CreateModelRequest)-> BaseResponse:
         return BaseResponse(code=500, msg="模型创建失败")
     return BaseResponse(code=200, msg="模型创建成功")
 
-@router.post('/providers/add', response_model=None)
+@router.post('/providers/add')
 def create_model(req: CreateProviderRequest)-> BaseResponse:
     """
     创建一个新的模型提供者
@@ -29,3 +30,14 @@ def create_model(req: CreateProviderRequest)-> BaseResponse:
     if not provider:
         return BaseResponse(code=500, msg="模型提供者创建失败")
     return BaseResponse(code=200, msg="模型提供者创建成功")
+
+
+@router.get('/models')
+def get_models(current_key:CurrentApiKeyDep):
+    """
+    获取模型信息
+    """
+    models = ModelService.get_models()
+    if not models:
+        return BaseResponse(code=404, msg="模型未找到")
+    return models
