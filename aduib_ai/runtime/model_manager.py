@@ -1,19 +1,20 @@
 import logging
-from typing import Sequence, Optional, Literal, Generator, overload, Union, cast, Callable, Any, IO, Iterable
+from typing import Optional, Generator, overload, Union, cast, Callable, Any, IO, Iterable
+from fastapi import Request
 
+from controllers.params import ChatCompletionRequest, CompletionRequest
+from models import Provider, Model
 from .callbacks.base_callback import Callback
-from .entities import PromptMessage, PromptMessageTool, LLMResult
+from .entities import ChatCompletionResponse
 from .entities.embedding_type import EmbeddingInputType
-from .entities.message_entities import PromptMessageFunction
-from .entities.model_entities import ModelType
+from .entities.model_entities import AIModelEntity, ModelType
 from .entities.provider_entities import ProviderEntity
 from .entities.rerank_entities import RerankResult
 from .entities.text_embedding_entities import TextEmbeddingResult
 from .provider_manager import ProviderManager
 from .providers.audio2text_model import Audio2TextModel
 from .providers.base import AiModel
-from .providers.large_language_model import LlmModel
-from .providers.model_provider_factory import ModelProviderFactory
+from .providers.large_language_model import LlMModel
 from .providers.rerank_model import RerankModel
 from .providers.text_embedding_model import TextEmbeddingModel
 from .providers.tts_model import TTSModel
@@ -30,77 +31,33 @@ class ModelInstance:
         self.provider = provider
         self.model_instance = model_instance
         self.credentials= provider.provider_credential.credentials
-        self.credentials["sdkType"] = provider.provider_credential.sdk_type
+        self.credentials["sdk_type"] = provider.provider_credential.sdk_type
         self.model = model
 
-    @overload
     def invoke_llm(
             self,
-            prompt_messages: Sequence[PromptMessage],
-            model_parameters: Optional[dict] = None,
-            tools: Sequence[PromptMessageFunction] | None = None,
-            stop: Optional[list[str]] = None,
-            stream: Literal[True] = True,
+            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+            raw_request: Request,
             callbacks: Optional[list[Callback]] = None,
-    ) -> Generator: ...
-
-    @overload
-    def invoke_llm(
-            self,
-            prompt_messages: list[PromptMessage],
-            model_parameters: Optional[dict] = None,
-            tools: Sequence[PromptMessageFunction] | None = None,
-            stop: Optional[list[str]] = None,
-            stream: Literal[False] = False,
-            callbacks: Optional[list[Callback]] = None,
-    ) -> LLMResult: ...
-
-    @overload
-    def invoke_llm(
-            self,
-            prompt_messages: list[PromptMessage],
-            model_parameters: Optional[dict] = None,
-            tools: Sequence[PromptMessageFunction] | None = None,
-            stop: Optional[list[str]] = None,
-            stream: bool = True,
-            callbacks: Optional[list[Callback]] = None,
-    ) -> Union[LLMResult, Generator]: ...
-
-    def invoke_llm(
-            self,
-            prompt_messages: Sequence[PromptMessage],
-            model_parameters: Optional[dict] = None,
-            tools: Sequence[PromptMessageFunction] | None = None,
-            stop: Optional[Sequence[str]] = None,
-            stream: bool = True,
-            callbacks: Optional[list[Callback]] = None,
-    ) -> Union[LLMResult, Generator]:
+    ) -> Union[ChatCompletionResponse, Generator]:
         """
         Invoke large language model
 
         :param prompt_messages: prompt messages
-        :param model_parameters: model parameters
-        :param tools: tools for tool calling
-        :param stop: stop words
-        :param stream: is stream response
         :param callbacks: callbacks
         :return: full response or stream response chunk generator result
         """
-        if not isinstance(self.model_instance, LlmModel):
+        if not isinstance(self.model_instance, LlMModel):
             raise Exception("Model type instance is not LargeLanguageModel")
 
-        self.model_type_instance = cast(LlmModel, self.model_instance)
+        self.model_type_instance = cast(LlMModel, self.model_instance)
         return cast(
-            Union[LLMResult, Generator],
-            self._round_robin_invoke(
+            Union[ChatCompletionResponse, Generator],
+            self._invoke(
                 function=self.model_type_instance.invoke,
-                model=self.model,
+                prompt_messages= prompt_messages,
                 credentials=self.credentials,
-                prompt_messages=prompt_messages,
-                model_parameters=model_parameters,
-                tools=tools,
-                stop=stop,
-                stream=stream,
+                raw_request=raw_request,
                 callbacks=callbacks,
             ),
         )
@@ -123,7 +80,7 @@ class ModelInstance:
         self.model_instance = cast(TextEmbeddingModel, self.model_type_instance)
         return cast(
             TextEmbeddingResult,
-            self._round_robin_invoke(
+            self._invoke(
                 function=self.model_instance.invoke,
                 model=self.model,
                 credentials=self.credentials,
@@ -155,7 +112,7 @@ class ModelInstance:
         self.model_instance = cast(RerankModel, self.model_type_instance)
         return cast(
             RerankResult,
-            self._round_robin_invoke(
+            self._invoke(
                 function=self.model_type_instance.invoke,
                 model=self.model,
                 credentials=self.credentials,
@@ -190,7 +147,7 @@ class ModelInstance:
         self.model_instance = cast(Audio2TextModel, self.model_type_instance)
         return cast(
             str,
-            self._round_robin_invoke(
+            self._invoke(
                 function=self.model_instance.invoke,
                 model=self.model,
                 credentials=self.credentials,
@@ -214,7 +171,7 @@ class ModelInstance:
         self.model_instance = cast(TTSModel, self.model_type_instance)
         return cast(
             Iterable[bytes],
-            self._round_robin_invoke(
+            self._invoke(
                 function=self.model_instance.invoke,
                 model=self.model,
                 credentials=self.credentials,
@@ -223,7 +180,7 @@ class ModelInstance:
             ),
         )
 
-    def _round_robin_invoke(self, function: Callable[..., Any], *args, **kwargs) -> Any:
+    def _invoke(self, function: Callable[..., Any], *args, **kwargs) -> Any:
         """
         Round-robin invoke
         :param function: function to invoke
@@ -246,9 +203,7 @@ class ModelManager:
 
     def __init__(self):
         self.provider = ProviderManager()
-        self.provider_factory = ModelProviderFactory()
-
-    def get_model_instance(self, provider: str, model_type: ModelType, model: str) -> ModelInstance:
+    def get_model_instance(self, provider: Provider, model: Model, model_list: list[AIModelEntity]) -> ModelInstance:
         """
         Get model instance
         :param provider: provider name
@@ -256,6 +211,6 @@ class ModelManager:
         :param model: model name
         :return:
         """
-        model_instance = self.provider_factory.get_model_type_instance(provider, model_type)
-        provider_entity = self.provider.get_provider_entity(provider)
-        return ModelInstance(provider_entity,model_instance, model)
+        provider_entity = self.provider.get_provider_entity(provider,model_list)
+        model_instance = self.provider.provider_factory.get_model_type_instance(provider_entity, ModelType.value_of(model.type))
+        return ModelInstance(provider_entity,model_instance, model.name)

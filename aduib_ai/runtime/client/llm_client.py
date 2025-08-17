@@ -5,7 +5,7 @@ from ollama import Message, Tool, ChatResponse
 from openai import Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
-from ..entities import LLMResult, LLMResultChunk, PromptMessage
+from ..entities import ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessage
 from ..entities.message_entities import PromptMessageFunction
 from ..entities.provider_entities import ProviderSDKType
 
@@ -19,7 +19,7 @@ class ModelClient:
         model_parameters: Optional[dict] = None,
         tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[list[str]] = None,
-        stream: bool = True)->Union[LLMResult, Generator[LLMResultChunk, None, None]]:
+        stream: bool = True)->Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
 
         """
         Invoke LLM model

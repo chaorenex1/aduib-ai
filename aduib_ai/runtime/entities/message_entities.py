@@ -1,9 +1,44 @@
 from abc import ABC
 from enum import StrEnum, Enum
-from typing import Optional, Sequence, Annotated, Union
+from typing import Optional, Sequence, Annotated, Union, Literal, Any
 
 from pydantic import BaseModel, Field, field_validator
 
+class StreamOptions(BaseModel):
+    include_usage: Optional[bool] = True
+    continuous_usage_stats: Optional[bool] = False
+
+class JsonSchemaResponseFormat(BaseModel):
+    name: str
+    description: Optional[str] = None
+    # schema is the field in openai but that causes conflicts with pydantic so
+    # instead use json_schema with an alias
+    json_schema: Optional[dict[str, Any]] = Field(default=None, alias='schema')
+    strict: Optional[bool] = None
+
+
+class StructuralTag(BaseModel):
+    begin: str
+    # schema is the field, but that causes conflicts with pydantic so
+    # instead use structural_tag_schema with an alias
+    structural_tag_schema: Optional[dict[str, Any]] = Field(default=None,
+                                                            alias="schema")
+    end: str
+
+
+class StructuralTagResponseFormat(BaseModel):
+    type: Literal["structural_tag"]
+    structures: list[StructuralTag]
+    triggers: list[str]
+
+
+class ResponseFormat(BaseModel):
+    # type must be "json_schema", "json_object", or "text"
+    type: Literal["text", "json_object", "json_schema"]
+    json_schema: Optional[JsonSchemaResponseFormat] = None
+
+
+AnyResponseFormat = Union[ResponseFormat, StructuralTagResponseFormat]
 
 class PromptMessageRole(Enum):
     """
@@ -48,6 +83,14 @@ class PromptMessageFunction(BaseModel):
 
     type: str = "function"
     function: PromptMessageTool
+
+class PromptMessageNamedFunction(BaseModel):
+    name: str
+
+
+class PromptMessageToolChoiceParam(BaseModel):
+    function: PromptMessageNamedFunction
+    type: Literal["function"] = "function"
 
 
 class PromptMessageContentType(StrEnum):

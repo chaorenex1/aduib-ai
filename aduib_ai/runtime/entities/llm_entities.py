@@ -100,7 +100,7 @@ class LLMUsage(ModelUsage):
         return self.plus(other)
 
 
-class LLMResult(BaseModel):
+class ChatCompletionResponse(BaseModel):
     """
     Model class for llm result.
     """
@@ -113,7 +113,7 @@ class LLMResult(BaseModel):
     system_fingerprint: Optional[str] = None
 
 
-class LLMResultChunkDelta(BaseModel):
+class ChatCompletionResponseChunkDelta(BaseModel):
     """
     Model class for llm result chunk delta.
     """
@@ -124,7 +124,7 @@ class LLMResultChunkDelta(BaseModel):
     finish_reason: Optional[str] = None
 
 
-class LLMResultChunk(BaseModel):
+class ChatCompletionResponseChunk(BaseModel):
     """
     Model class for llm result chunk.
     """
@@ -132,7 +132,7 @@ class LLMResultChunk(BaseModel):
     model: str
     prompt_messages: list[PromptMessage]
     system_fingerprint: Optional[str] = None
-    delta: LLMResultChunkDelta
+    delta: ChatCompletionResponseChunkDelta
 
 
 class NumTokensResult(PriceInfo):

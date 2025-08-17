@@ -145,8 +145,8 @@ class PriceConfig(BaseModel):
 
     input: Decimal
     output: Optional[Decimal] = None
-    unit: Decimal
-    currency: str
+    unit: Decimal = Decimal("1.0")
+    currency: str= "USD"
 
 
 class AIModelEntity(ProviderModel):

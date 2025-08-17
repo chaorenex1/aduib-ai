@@ -5,24 +5,35 @@ from sqlalchemy.orm import Session
 
 from controllers.params import CreateModelRequest, ModelCard, ModelList
 from models.engine import get_session
+from runtime.entities.model_entities import AIModelEntity, ModelFeature, ModelType, PriceConfig
 from .error.error import ModelNotFound, ModelProviderNotFound
 from models import get_db, Provider
 from models.model import Model
 
+def get_model_features(model: Model) -> list[ModelFeature]:
+    """
+    Get model features
+    :param model: Model
+    :return: list[ModelFeature]
+    """
+    if not model.feature:
+        return []
+    return [ModelFeature(feature) for feature in model.feature]
 
 class ModelService:
 
     @staticmethod
-    def get_model(model_name:str, session: Session = Depends(get_db)) -> Optional[Model]:
+    def get_model(model_name:str) -> Optional[Model]:
         """
         Get model by name.
         :param model_name: model name
         :param session: database session
         :return: model
         """
-        model = session.query(Model).filter_by(name=model_name).first()
-        if not model:
-            raise ModelNotFound("Model not found")
+        with get_session() as session:
+            model = session.query(Model).filter_by(name=model_name).first()
+            if not model:
+                raise ModelNotFound("Model not found")
         return model
 
 
@@ -82,3 +93,20 @@ class ModelService:
                                          created=int(model.created_at.timestamp()),
                                          owned_by=model.provider_name,max_model_len=model.max_tokens) for model in models]
             return ModelList(object="list", data=models)
+
+
+    @staticmethod
+    def get_ai_models(provider_name:str)-> Optional[list[AIModelEntity]]:
+        """
+        Get all AI models.
+        :return: list of AI models
+        """
+        with get_session() as session:
+            models = session.query(Model).filter_by(provider_name=provider_name).all()
+            if not models:
+                return []
+            return [AIModelEntity(model=model.name, model_type=ModelType.value_of(model.type),
+                           features=get_model_features(model), model_properties={},
+                           parameter_rules=[], pricing=PriceConfig(
+                    input=model.input_price,
+                    output=model.output_price), deprecated=False) for model in models]

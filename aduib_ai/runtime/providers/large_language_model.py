@@ -3,11 +3,13 @@ import time
 from typing import Optional, Union, Generator, Sequence
 
 from pydantic import ConfigDict
+from fastapi import Request
 
+from controllers.params import ChatCompletionRequest, CompletionRequest
 from ..callbacks.base_callback import Callback
 from ..callbacks.console_callback import LoggingCallback
 from ..client.llm_client import ModelClient
-from ..entities import PromptMessage, PromptMessageTool, LLMResult, LLMResultChunk, LLMUsage, AssistantPromptMessage, \
+from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk, LLMUsage, AssistantPromptMessage, \
     TextPromptMessageContent
 from ..entities.message_entities import PromptMessageContentUnionTypes
 from ..entities.model_entities import ModelType, PriceType
@@ -17,7 +19,7 @@ from configs import config
 logger = logging.getLogger(__name__)
 
 
-class LlmModel(AiModel):
+class LlMModel(AiModel):
     """
     Base class for all LLM models.
     """
@@ -27,34 +29,37 @@ class LlmModel(AiModel):
 
     def invoke(
         self,
-        model: str,
+        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         credentials: dict,
-        prompt_messages: list[PromptMessage],
-        model_parameters: Optional[dict] = None,
-        tools: Optional[list[PromptMessageTool]] = None,
-        stop: Optional[list[str]] = None,
-        stream: bool = True,
+        raw_request: Request,
         callbacks: Optional[list[Callback]] = None,
-    ) -> Union[LLMResult, Generator[LLMResultChunk, None, None]]:
+    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
         """
         Invoke large language model
 
-        :param model: model name
-        :param credentials: model credentials
         :param prompt_messages: prompt messages
-        :param model_parameters: model parameters
-        :param tools: tools for tool calling
-        :param stop: stop words
-        :param stream: is stream response
+        :param raw_request: raw request
         :param callbacks: callbacks
         :return: full response or stream response chunk generator result
         """
-        if model_parameters is None:
-            model_parameters = {}
 
-        self.started_at = time.perf_counter()
+        # self.started_at = time.perf_counter()
 
         callbacks = callbacks or []
+        stream: bool = prompt_messages.stream
+        model: str = prompt_messages.model
+        tools: Optional[list[PromptMessageTool]] = prompt_messages.tools
+        stop: Optional[Sequence[str]] = prompt_messages.stop
+        parameters = {
+            "temperature": prompt_messages.temperature,
+            "top_p": prompt_messages.top_p,
+            "max_tokens": prompt_messages.max_tokens,
+            "max_completion_tokens": prompt_messages.max_completion_tokens,
+            "top_k": prompt_messages.top_k,
+            "presence_penalty": prompt_messages.presence_penalty,
+            "frequency_penalty": prompt_messages.frequency_penalty,
+            "response_format": prompt_messages.response_format,
+        }
 
         if config.DEBUG:
             callbacks.append(LoggingCallback())
@@ -64,14 +69,14 @@ class LlmModel(AiModel):
             model=model,
             credentials=credentials,
             prompt_messages=prompt_messages,
-            model_parameters=model_parameters,
+            model_parameters=parameters,
             tools=tools,
             stop=stop,
             stream=stream,
             callbacks=callbacks,
         )
 
-        result: Union[LLMResult, Generator[LLMResultChunk, None, None]]
+        result: Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]
 
         try:
             # invoke model
@@ -79,7 +84,7 @@ class LlmModel(AiModel):
                 model=model,
                 credentials=credentials,
                 prompt_messages=prompt_messages,
-                model_parameters=model_parameters,
+                model_parameters={},
                 tools=tools,
                 stop=stop,
                 stream=stream
@@ -105,7 +110,7 @@ class LlmModel(AiModel):
                     system_fingerprint = chunk.system_fingerprint
                     break
 
-                result = LLMResult(
+                result = ChatCompletionResponse(
                     model=model,
                     prompt_messages=prompt_messages,
                     message=AssistantPromptMessage(
@@ -121,7 +126,7 @@ class LlmModel(AiModel):
                 ex=e,
                 credentials=credentials,
                 prompt_messages=prompt_messages,
-                model_parameters=model_parameters,
+                model_parameters=parameters,
                 tools=tools,
                 stop=stop,
                 stream=stream,
@@ -135,19 +140,19 @@ class LlmModel(AiModel):
                 result=result,
                 credentials=credentials,
                 prompt_messages=prompt_messages,
-                model_parameters=model_parameters,
+                model_parameters=parameters,
                 tools=tools,
                 stop=stop,
                 stream=stream,
                 callbacks=callbacks,
             )
-        elif isinstance(result, LLMResult):
+        elif isinstance(result, ChatCompletionResponse):
             self._trigger_after_invoke_callbacks(
                 model=model,
                 result=result,
                 credentials=credentials,
                 prompt_messages=prompt_messages,
-                model_parameters=model_parameters,
+                model_parameters=parameters,
                 tools=tools,
                 stop=stop,
                 stream=stream,
@@ -160,7 +165,7 @@ class LlmModel(AiModel):
     def _invoke_result_generator(
         self,
         model: str,
-        result: Generator[LLMResultChunk, None, None],
+        result: Generator[ChatCompletionResponseChunk, None, None],
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
         model_parameters: dict,
@@ -169,7 +174,7 @@ class LlmModel(AiModel):
         stream: bool = True,
         user: Optional[str] = None,
         callbacks: Optional[list[Callback]] = None,
-    ) -> Generator[LLMResultChunk, None, None]:
+    ) -> Generator[ChatCompletionResponseChunk, None, None]:
         """
         Invoke result generator
 
@@ -224,7 +229,7 @@ class LlmModel(AiModel):
         assistant_message = AssistantPromptMessage(content=message_content)
         self._trigger_after_invoke_callbacks(
             model=model,
-            result=LLMResult(
+            result=ChatCompletionResponse(
                 model=real_model,
                 prompt_messages=prompt_messages,
                 message=assistant_message,
@@ -306,7 +311,7 @@ class LlmModel(AiModel):
 
     def _trigger_new_chunk_callbacks(
         self,
-        chunk: LLMResultChunk,
+        chunk: ChatCompletionResponseChunk,
         model: str,
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
@@ -354,7 +359,7 @@ class LlmModel(AiModel):
     def _trigger_after_invoke_callbacks(
         self,
         model: str,
-        result: LLMResult,
+        result: ChatCompletionResponse,
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
         model_parameters: dict,

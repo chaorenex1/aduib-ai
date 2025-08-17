@@ -4,7 +4,7 @@ import sys
 from typing import Optional, Sequence, cast
 
 from .base_callback import Callback
-from ..entities import PromptMessage, PromptMessageTool, LLMResultChunk, LLMResult
+from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponseChunk, ChatCompletionResponse
 from ..providers.base import AiModel
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,7 @@ class LoggingCallback(Callback):
     def on_new_chunk(
         self,
         llm_instance: AiModel,
-        chunk: LLMResultChunk,
+        chunk: ChatCompletionResponseChunk,
         model: str,
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
@@ -99,7 +99,7 @@ class LoggingCallback(Callback):
     def on_after_invoke(
         self,
         llm_instance: AiModel,
-        result: LLMResult,
+        result: ChatCompletionResponse,
         model: str,
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Sequence
 
-from ..entities import PromptMessage, PromptMessageTool, LLMResultChunk, LLMResult
+from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponseChunk, ChatCompletionResponse
 from ..providers.base import AiModel
 
 
@@ -45,7 +45,7 @@ class Callback(ABC):
     def on_new_chunk(
         self,
         llm_instance: AiModel,
-        chunk: LLMResultChunk,
+        chunk: ChatCompletionResponseChunk,
         model: str,
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
@@ -75,7 +75,7 @@ class Callback(ABC):
     def on_after_invoke(
         self,
         llm_instance: AiModel,
-        result: LLMResult,
+        result: ChatCompletionResponse,
         model: str,
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],

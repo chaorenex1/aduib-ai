@@ -1,4 +1,4 @@
-from .llm_entities import LLMMode, LLMResult, LLMResultChunk, LLMResultChunkDelta, LLMUsage
+from .llm_entities import LLMMode, ChatCompletionResponse, ChatCompletionResponseChunk, ChatCompletionResponseChunkDelta, LLMUsage
 from .message_entities import (
     AssistantPromptMessage,
     AudioPromptMessageContent,
@@ -24,9 +24,9 @@ __all__ = [
     "DocumentPromptMessageContent",
     "ImagePromptMessageContent",
     "LLMMode",
-    "LLMResult",
-    "LLMResultChunk",
-    "LLMResultChunkDelta",
+    "ChatCompletionResponse",
+    "ChatCompletionResponseChunk",
+    "ChatCompletionResponseChunkDelta",
     "LLMUsage",
     "ModelProperty",
     "MultiModalPromptMessageContent",

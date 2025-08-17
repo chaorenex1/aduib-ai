@@ -1,4 +1,3 @@
-import json
 from typing import Optional
 
 from fastapi import Depends
@@ -7,20 +6,24 @@ from sqlalchemy.orm import Session
 from models import get_db
 from models.engine import get_session
 from models.provider import Provider
-from utils.snowflake_id import id_generator
+from service.error.error import ModelProviderNotFound
 
 
 class ProviderService:
 
     @staticmethod
-    def get_provider(provider_name: str,session: Session = Depends(get_db))->Optional[Provider]:
+    def get_provider(provider_name: str)->Optional[Provider]:
         """
         Get provider by name.
         :param provider_name: provider name
         :param session: database session
         :return: provider
         """
-        return session.query(Provider).filter(Provider.name == provider_name).first()
+        with get_session() as session:
+            provider = session.query(Provider).filter(Provider.name == provider_name).first()
+            if not provider:
+                raise ModelProviderNotFound("Provider not found")
+        return provider
 
 
     @staticmethod
