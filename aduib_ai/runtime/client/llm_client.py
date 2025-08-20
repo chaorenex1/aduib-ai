@@ -32,7 +32,7 @@ class ModelClient(BaseClient):
         api_key = credentials["api_key"]
         path = base_url + raw_request.url.path
         user_agent = raw_request.headers.get("User-Agent")
-        if isinstance(prompt_messages, ChatCompletionRequest) and stream:
+        if stream:
             response = self._stream_request_with_model(method="post",
                                                           path=path,
                                                           type=ChatCompletionResponseChunk,
@@ -53,7 +53,7 @@ class ModelClient(BaseClient):
             response = self._request_with_model(method="post",
                                                 path=path,
                                                 type=ChatCompletionResponse,
-                                                data=jsonable_encoder(prompt_messages),
+                                                data=jsonable_encoder(prompt_messages,exclude_none=True),
                                                 headers={"User-Agent": user_agent,"Content-Type": "application/json","X-Api-Key": api_key},
             )
             def handle_no_stream_response() -> ChatCompletionResponse:

@@ -99,4 +99,5 @@ class BaseClient:
         """
         response = self._request(method, path, headers, data, params, files)
         json = response.json()
+        print(f"Response JSON: {json}")
         return type(**json)  # type: ignore

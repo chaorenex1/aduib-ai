@@ -9,25 +9,7 @@ from service.completion_service import CompletionService
 router = APIRouter(tags=['completion'])
 
 
-
-@router.post('/completions')
-def completion(req:CompletionRequest,raw_request: Request) -> Any:
-    """
-    Completion endpoint
-    """
-    response = CompletionService.create_completion(req, raw_request)
-    if isinstance(response, Generator):
-        return StreamingResponse(response, media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
-    else:
-        return response
-
-
-
-@router.post('/chat/completions')
-def completion(req:ChatCompletionRequest,raw_request: Request) -> Any:
-    """
-    Completion endpoint
-    """
+def _completion(raw_request, req):
     response = CompletionService.create_completion(req, raw_request)
     if isinstance(response, Generator) and req.stream:
         def handle() -> Generator[bytes, None, None]:
@@ -35,6 +17,22 @@ def completion(req:ChatCompletionRequest,raw_request: Request) -> Any:
                 yield f'data: {chunk.model_dump_json(exclude_none=True)}\n\n'
                 if chunk.done:
                     break
+
         return StreamingResponse(handle(), media_type="text/event-stream")
-    else :
+    else:
         return response
+
+@router.post('/completions')
+def completion(req:CompletionRequest,raw_request: Request) -> Any:
+    """
+    Completion endpoint
+    """
+    return _completion(raw_request, req)
+
+
+@router.post('/chat/completions')
+def completion(req:ChatCompletionRequest,raw_request: Request) -> Any:
+    """
+    Completion endpoint
+    """
+    return _completion(raw_request, req)

@@ -1,6 +1,6 @@
 from decimal import Decimal
 from enum import StrEnum
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel
 
@@ -121,7 +121,7 @@ class ChatCompletionResponseChunk(BaseModel):
     object: Optional[str] = None
     created: Optional[int] = None
     model: str= None
-    prompt_messages: list[PromptMessage]= None
+    prompt_messages: Union[list[PromptMessage], str]= None
     system_fingerprint: Optional[str] = None
     choices: list[ChatCompletionResponseChunkDelta]= None
     delta: ChatCompletionResponseChunkDelta= None
@@ -136,7 +136,7 @@ class ChatCompletionResponse(BaseModel):
 
     id: Optional[str] = None
     model: str
-    prompt_messages: list[PromptMessage] = None
+    prompt_messages: Union[list[PromptMessage], str] = None
     message: AssistantPromptMessage = None
     usage: LLMUsage
     system_fingerprint: Optional[str] = None

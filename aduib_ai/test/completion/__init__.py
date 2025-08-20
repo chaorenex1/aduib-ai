@@ -74,3 +74,24 @@ def test_completion_no_stream():
     assert response.status_code == 200
     data = response.json()
     print(data)
+
+
+
+def test_completion_stream():
+    response = client.post(
+        "/v1/completions",
+        json={
+    "model": "modelscope.cn/unsloth/Qwen3-30B-A3B-GGUF:latest",
+    "prompt": "1+1=？",
+    "temperature": 1,
+    "top_p": 1,
+    "stream": "true",
+    "stream_options": {
+        "include_usage": "true"
+    }
+},
+        headers={"X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"}
+    )
+    assert response.status_code == 200
+    data = response.text
+    print(data)

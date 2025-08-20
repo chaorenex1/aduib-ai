@@ -198,7 +198,7 @@ class LlMModel(AiModel):
 
         try:
             for chunk in result:
-                chunk.prompt_messages = prompt_messages.messages
+                chunk.prompt_messages = self.get_messages(prompt_messages)
                 yield chunk
 
                 if chunk.choices:
@@ -208,7 +208,7 @@ class LlMModel(AiModel):
                     chunk=chunk,
                     model=model,
                     credentials=credentials,
-                    prompt_messages=prompt_messages.messages,
+                    prompt_messages=self.get_messages(prompt_messages),
                     model_parameters=model_parameters,
                     tools=tools,
                     stop=stop,
@@ -227,17 +227,18 @@ class LlMModel(AiModel):
             raise e
         finally:
             assistant_message = AssistantPromptMessage(content=message_content)
+            messages = self.get_messages(prompt_messages)
             self._trigger_after_invoke_callbacks(
                 model=model,
                 result=ChatCompletionResponse(
                     model=real_model,
-                    prompt_messages=prompt_messages.messages,
+                    prompt_messages=messages,
                     message=assistant_message,
                     usage=usage or LLMUsage.empty_usage(),
                     system_fingerprint=system_fingerprint,
                 ),
                 credentials=credentials,
-                prompt_messages=prompt_messages.messages,
+                prompt_messages=messages,
                 model_parameters=model_parameters,
                 tools=tools,
                 stop=stop,
@@ -293,11 +294,7 @@ class LlMModel(AiModel):
         if callbacks:
             for callback in callbacks:
                 try:
-                    messages: Union[list[PromptMessage], str]
-                    if isinstance(prompt_messages, ChatCompletionRequest):
-                        messages = prompt_messages.messages
-                    elif isinstance(prompt_messages, CompletionRequest):
-                        messages = prompt_messages.prompt
+                    messages = self.get_messages(prompt_messages)
                     callback.on_before_invoke(
                         llm_instance=self,
                         model=model,
@@ -315,6 +312,7 @@ class LlMModel(AiModel):
                         raise e
                     else:
                         logger.warning(f"Callback {callback.__class__.__name__} on_before_invoke failed with error {e}")
+
 
     def _trigger_new_chunk_callbacks(
         self,
