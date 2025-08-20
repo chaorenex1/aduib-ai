@@ -1,25 +1,20 @@
-import json
-from typing import Union, Generator, Optional
+from typing import Union, Generator
 
-from ollama import Message, Tool, ChatResponse
-from openai import Stream
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from fastapi import Request
 
-from ..entities import ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessage
-from ..entities.message_entities import PromptMessageFunction
-from ..entities.provider_entities import ProviderSDKType
+from controllers.common.error import InnerError
+from controllers.params import ChatCompletionRequest, CompletionRequest
+from utils.encoders import jsonable_encoder
+from .base import BaseClient
+from ..entities import ChatCompletionResponse, ChatCompletionResponseChunk
 
 
-class ModelClient:
+class ModelClient(BaseClient):
 
-    @staticmethod
-    def completion_request(model: str,
+    def completion_request(self,prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         credentials: dict,
-        prompt_messages: list[PromptMessage],
-        model_parameters: Optional[dict] = None,
-        tools: Optional[list[PromptMessageFunction]] = None,
-        stop: Optional[list[str]] = None,
-        stream: bool = True)->Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
+        raw_request: Request,
+        stream:bool)->Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
 
         """
         Invoke LLM model
@@ -33,37 +28,26 @@ class ModelClient:
         :param user: unique user id
         """
         sdk_type = credentials["sdk_type"]
-        functions=[Tool(type="function", function=json.load(tool.function.model_dump())) for tool in tools] if tools else []
-        if ProviderSDKType.OLLAMA.to_model_type() == sdk_type:
-            base_url = credentials["base_url"] if "base_url" in credentials else "http://localhost:11434"
-            from ollama import Client
-            ollama = Client(host=base_url, headers={
-                'api_key': credentials["api_key"] if "api_key" in credentials else None,
-            })
-            messages=[Message(role=message.role.value, content=message.content) for message in prompt_messages]
-            response:ChatResponse = ollama.chat(model=model, messages=messages, tools=functions, stream=stream,
-                               format="json" if model_parameters and "response_format" in model_parameters else None,
-                               options=None, keep_alive=None)
-            print(response)
-        else:
-            base_url = credentials["base_url"] if "base_url" in credentials else "http://localhost:11434"
-            api_key= credentials["api_key"] if "api_key" in credentials else None
-            from openai import OpenAI
-            openai = OpenAI(api_key=api_key, base_url=base_url)
-            messages=[{
-                "role": message.role.value,
-                "content": message.content
-            } for message in prompt_messages]
-            response:ChatCompletion | Stream[ChatCompletionChunk]=openai.chat.completions.create(
-                model=model,
-                messages=messages,
-                stream=stream,
-                tools=functions,
-                stop=stop,
-                temperature=model_parameters["temperature"] if model_parameters and "temperature" in model_parameters else 1,
-                max_tokens=model_parameters["max_tokens"] if model_parameters and "max_tokens" in model_parameters else 1000,
-                top_p=model_parameters["top_p"] if model_parameters and "top_p" in model_parameters else 1,
-                frequency_penalty=model_parameters["frequency_penalty"] if model_parameters and "frequency_penalty" in model_parameters else 0,
-                presence_penalty=model_parameters["presence_penalty"] if model_parameters and "presence_penalty" in model_parameters else 0,
+        base_url = credentials["api_base"]
+        api_key = credentials["api_key"]
+        path = base_url + raw_request.url.path
+        user_agent = raw_request.headers.get("User-Agent")
+        if isinstance(prompt_messages, ChatCompletionRequest) and stream:
+            response = self._stream_request_with_model(method="post",
+                                                          path=path,
+                                                          type=ChatCompletionResponseChunk,
+                                                          data=jsonable_encoder(obj=prompt_messages,exclude_none=True),
+                                                          headers={"User-Agent": user_agent,"Content-Type": "application/json","X-Api-Key": api_key},
             )
-            print(response)
+            try:
+                yield from response
+            except InnerError as e:
+                raise ValueError(e.message+str(e.code)) from e
+        else:
+            response = self._request_with_model(method="post",
+                                                path=path,
+                                                type=ChatCompletionResponse,
+                                                data=jsonable_encoder(prompt_messages),
+                                                headers={"User-Agent": user_agent,"Content-Type": "application/json","X-Api-Key": api_key},
+            )
+            return response

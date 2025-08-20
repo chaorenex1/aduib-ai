@@ -1,7 +1,7 @@
 import json
 import logging
 import sys
-from typing import Optional, Sequence, cast
+from typing import Optional, Sequence, cast, Union
 
 from .base_callback import Callback
 from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponseChunk, ChatCompletionResponse
@@ -16,11 +16,12 @@ class LoggingCallback(Callback):
         llm_instance: AiModel,
         model: str,
         credentials: dict,
-        prompt_messages: list[PromptMessage],
+        prompt_messages: Union[list[PromptMessage],str],
         model_parameters: dict,
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
+        include_reasoning: bool = False,
         user: Optional[str] = None,
     ) -> None:
         """
@@ -34,6 +35,7 @@ class LoggingCallback(Callback):
         :param tools: tools for tool calling
         :param stop: stop words
         :param stream: is stream response
+        :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
         self.print_text("\n[on_llm_before_invoke]\n", color="blue")
@@ -51,17 +53,20 @@ class LoggingCallback(Callback):
                 self.print_text(f"\t\t{tool.name}\n", color="blue")
 
         self.print_text(f"Stream: {stream}\n", color="blue")
-
+        self.print_text(f"Include reasoning: {include_reasoning}\n", color="blue")
         if user:
             self.print_text(f"User: {user}\n", color="blue")
 
         self.print_text("Prompt messages:\n", color="blue")
-        for prompt_message in prompt_messages:
-            if prompt_message.name:
-                self.print_text(f"\tname: {prompt_message.name}\n", color="blue")
+        if isinstance(prompt_messages, str):
+            self.print_text(f"\t{prompt_messages}\n", color="blue")
+        else:
+            for prompt_message in prompt_messages:
+                if prompt_message.name:
+                    self.print_text(f"\tname: {prompt_message.name}\n", color="blue")
 
-            self.print_text(f"\trole: {prompt_message.role.value}\n", color="blue")
-            self.print_text(f"\tcontent: {prompt_message.content}\n", color="blue")
+                self.print_text(f"\trole: {prompt_message.role.value}\n", color="blue")
+                self.print_text(f"\tcontent: {prompt_message.content}\n", color="blue")
 
         if stream:
             self.print_text("\n[on_llm_new_chunk]")
@@ -77,6 +82,7 @@ class LoggingCallback(Callback):
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
+        include_reasoning: bool = False,
         user: Optional[str] = None,
     ):
         """
@@ -91,10 +97,12 @@ class LoggingCallback(Callback):
         :param tools: tools for tool calling
         :param stop: stop words
         :param stream: is stream response
+        :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
-        sys.stdout.write(cast(str, chunk.delta.message.content))
-        sys.stdout.flush()
+        if chunk.choices and len(chunk.choices)>0:
+            self.print_text("\n[on_llm_new_chunk]\n", color="blue")
+            self.print_text(f"Content: {chunk.choices[0].delta.content}\n", color="blue")
 
     def on_after_invoke(
         self,
@@ -107,6 +115,7 @@ class LoggingCallback(Callback):
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
+        include_reasoning: bool = False,
         user: Optional[str] = None,
     ) -> None:
         """
@@ -121,6 +130,7 @@ class LoggingCallback(Callback):
         :param tools: tools for tool calling
         :param stop: stop words
         :param stream: is stream response
+        :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
         self.print_text("\n[on_llm_after_invoke]\n", color="yellow")
@@ -148,6 +158,7 @@ class LoggingCallback(Callback):
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
+        include_reasoning: bool = False,
         user: Optional[str] = None,
     ) -> None:
         """
@@ -162,6 +173,7 @@ class LoggingCallback(Callback):
         :param tools: tools for tool calling
         :param stop: stop words
         :param stream: is stream response
+        :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
         self.print_text("\n[on_llm_invoke_error]\n", color="red")

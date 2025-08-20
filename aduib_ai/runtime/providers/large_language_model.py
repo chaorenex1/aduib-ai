@@ -47,6 +47,7 @@ class LlMModel(AiModel):
 
         callbacks = callbacks or []
         stream: bool = prompt_messages.stream
+        include_reasoning: bool = prompt_messages.include_reasoning
         model: str = prompt_messages.model
         tools: Optional[list[PromptMessageTool]] = prompt_messages.tools
         stop: Optional[Sequence[str]] = prompt_messages.stop
@@ -73,6 +74,7 @@ class LlMModel(AiModel):
             tools=tools,
             stop=stop,
             stream=stream,
+            include_reasoning=include_reasoning,
             callbacks=callbacks,
         )
 
@@ -80,14 +82,12 @@ class LlMModel(AiModel):
 
         try:
             # invoke model
-            result= ModelClient.completion_request(
-                model=model,
+            model_client = ModelClient()
+            result= model_client.completion_request(
                 credentials=credentials,
                 prompt_messages=prompt_messages,
-                model_parameters={},
-                tools=tools,
-                stop=stop,
-                stream=stream
+                raw_request=raw_request,
+                stream=stream,
             )
 
             if not stream:
@@ -167,7 +167,7 @@ class LlMModel(AiModel):
         model: str,
         result: Generator[ChatCompletionResponseChunk, None, None],
         credentials: dict,
-        prompt_messages: Sequence[PromptMessage],
+        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         model_parameters: dict,
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
@@ -182,12 +182,12 @@ class LlMModel(AiModel):
         :return: result generator
         """
         callbacks = callbacks or []
-        message_content: list[PromptMessageContentUnionTypes] = []
+        message_content= []
         usage = None
         system_fingerprint = None
         real_model = model
 
-        def _update_message_content(content: str | list[PromptMessageContentUnionTypes] | None):
+        def _update_message_content(content: str | None):
             if not content:
                 return
             if isinstance(content, list):
@@ -199,14 +199,17 @@ class LlMModel(AiModel):
 
         try:
             for chunk in result:
-                chunk.prompt_messages = prompt_messages
+                chunk.prompt_messages = prompt_messages.messages
                 yield chunk
+
+                if chunk.choices:
+                    _update_message_content(chunkContent.delta.content for chunkContent in chunk.choices)
 
                 self._trigger_new_chunk_callbacks(
                     chunk=chunk,
                     model=model,
                     credentials=credentials,
-                    prompt_messages=prompt_messages,
+                    prompt_messages=prompt_messages.messages,
                     model_parameters=model_parameters,
                     tools=tools,
                     stop=stop,
@@ -215,29 +218,27 @@ class LlMModel(AiModel):
                     callbacks=callbacks,
                 )
 
-                _update_message_content(chunk.delta.message.content)
-
-                real_model = chunk.model
-                if chunk.delta.usage:
+                if chunk.delta and chunk.delta.usage:
                     usage = chunk.delta.usage
-
+                if chunk.usage:
+                    usage  = chunk.usage
                 if chunk.system_fingerprint:
                     system_fingerprint = chunk.system_fingerprint
         except Exception as e:
-            raise self._transform_invoke_error(e)
+            raise e
 
         assistant_message = AssistantPromptMessage(content=message_content)
         self._trigger_after_invoke_callbacks(
             model=model,
             result=ChatCompletionResponse(
                 model=real_model,
-                prompt_messages=prompt_messages,
+                prompt_messages=prompt_messages.messages,
                 message=assistant_message,
                 usage=usage or LLMUsage.empty_usage(),
                 system_fingerprint=system_fingerprint,
             ),
             credentials=credentials,
-            prompt_messages=prompt_messages,
+            prompt_messages=prompt_messages.messages,
             model_parameters=model_parameters,
             tools=tools,
             stop=stop,
@@ -268,11 +269,12 @@ class LlMModel(AiModel):
         self,
         model: str,
         credentials: dict,
-        prompt_messages: list[PromptMessage],
+        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         model_parameters: dict,
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
+        include_reasoning:bool=False,
         user: Optional[str] = None,
         callbacks: Optional[list[Callback]] = None,
     ) -> None:
@@ -296,11 +298,12 @@ class LlMModel(AiModel):
                         llm_instance=self,
                         model=model,
                         credentials=credentials,
-                        prompt_messages=prompt_messages,
+                        prompt_messages=prompt_messages.messages if prompt_messages.messages else prompt_messages.prompt,
                         model_parameters=model_parameters,
                         tools=tools,
                         stop=stop,
                         stream=stream,
+                        include_reasoning=include_reasoning,
                         user=user,
                     )
                 except Exception as e:

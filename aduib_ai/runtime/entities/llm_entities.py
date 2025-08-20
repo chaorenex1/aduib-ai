@@ -35,18 +35,18 @@ class LLMUsage(ModelUsage):
     Model class for llm usage.
     """
 
-    prompt_tokens: int
-    prompt_unit_price: Decimal
-    prompt_price_unit: Decimal
-    prompt_price: Decimal
-    completion_tokens: int
-    completion_unit_price: Decimal
-    completion_price_unit: Decimal
-    completion_price: Decimal
-    total_tokens: int
-    total_price: Decimal
-    currency: str
-    latency: float
+    prompt_tokens: int = 0
+    prompt_unit_price: Decimal= Decimal("0.0")
+    prompt_price_unit: Decimal= Decimal("0.0")
+    prompt_price: Decimal = Decimal("0.0")
+    completion_tokens: int = 0
+    completion_unit_price: Decimal = Decimal("0.0")
+    completion_price_unit: Decimal = Decimal("0.0")
+    completion_price: Decimal = Decimal("0.0")
+    total_tokens: int = 0
+    total_price: Decimal = Decimal("0.0")
+    currency: str = "USD"
+    latency: float = 0.0
 
     @classmethod
     def empty_usage(cls):
@@ -119,20 +119,25 @@ class ChatCompletionResponseChunkDelta(BaseModel):
     """
 
     index: int
-    message: AssistantPromptMessage
+    message: AssistantPromptMessage= None
     usage: Optional[LLMUsage] = None
     finish_reason: Optional[str] = None
+    delta: Optional[AssistantPromptMessage] = None
 
 
 class ChatCompletionResponseChunk(BaseModel):
     """
     Model class for llm result chunk.
     """
-
-    model: str
-    prompt_messages: list[PromptMessage]
+    id: Optional[str] = None
+    object: Optional[str] = None
+    created: Optional[int] = None
+    model: str= None
+    prompt_messages: list[PromptMessage]= None
     system_fingerprint: Optional[str] = None
-    delta: ChatCompletionResponseChunkDelta
+    choices: list[ChatCompletionResponseChunkDelta]= None
+    delta: ChatCompletionResponseChunkDelta= None
+    usage: Optional[LLMUsage] = None
 
 
 class NumTokensResult(PriceInfo):

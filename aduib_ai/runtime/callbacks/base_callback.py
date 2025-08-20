@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Union
 
 from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponseChunk, ChatCompletionResponse
 from ..providers.base import AiModel
@@ -19,11 +19,12 @@ class Callback(ABC):
         llm_instance: AiModel,
         model: str,
         credentials: dict,
-        prompt_messages: list[PromptMessage],
+        prompt_messages: Union[list[PromptMessage],str],
         model_parameters: dict,
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
+        include_reasoning: bool = False,
         user: Optional[str] = None,
     ) -> None:
         """
@@ -37,6 +38,7 @@ class Callback(ABC):
         :param tools: tools for tool calling
         :param stop: stop words
         :param stream: is stream response
+        :param include_reasoning: include reasoning in the response
         :param user: unique user id
         """
         raise NotImplementedError()
@@ -53,6 +55,7 @@ class Callback(ABC):
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
+        include_reasoning: bool = False,
         user: Optional[str] = None,
     ):
         """
@@ -67,6 +70,7 @@ class Callback(ABC):
         :param tools: tools for tool calling
         :param stop: stop words
         :param stream: is stream response
+        :param include_reasoning: include reasoning in the response
         :param user: unique user id
         """
         raise NotImplementedError()
@@ -83,6 +87,7 @@ class Callback(ABC):
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
+        include_reasoning: bool = False,
         user: Optional[str] = None,
     ) -> None:
         """
@@ -97,6 +102,7 @@ class Callback(ABC):
         :param tools: tools for tool calling
         :param stop: stop words
         :param stream: is stream response
+        :param include_reasoning: include reasoning in the response
         :param user: unique user id
         """
         raise NotImplementedError()
@@ -113,6 +119,7 @@ class Callback(ABC):
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
+        include_reasoning: bool = False,
         user: Optional[str] = None,
     ) -> None:
         """
@@ -127,6 +134,7 @@ class Callback(ABC):
         :param tools: tools for tool calling
         :param stop: stop words
         :param stream: is stream response
+        :param include_reasoning: include reasoning in the response
         :param user: unique user id
         """
         raise NotImplementedError()
