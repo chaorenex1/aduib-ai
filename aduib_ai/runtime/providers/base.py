@@ -10,3 +10,4 @@ class AiModel(BaseModel):
     model_type: str=Field(description="Model type")
     provider_name: str=Field(description="Provider name")
     model_provider: ProviderEntity=Field(description="Model provider")
+    started_at: float = Field(description="Invoke start time", default=0)

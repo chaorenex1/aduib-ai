@@ -111,6 +111,7 @@ class ChatCompletionResponse(BaseModel):
     message: AssistantPromptMessage
     usage: LLMUsage
     system_fingerprint: Optional[str] = None
+    done: bool = False
 
 
 class ChatCompletionResponseChunkDelta(BaseModel):
@@ -138,6 +139,7 @@ class ChatCompletionResponseChunk(BaseModel):
     choices: list[ChatCompletionResponseChunkDelta]= None
     delta: ChatCompletionResponseChunkDelta= None
     usage: Optional[LLMUsage] = None
+    done: bool = False
 
 
 class NumTokensResult(PriceInfo):

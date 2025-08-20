@@ -1,11 +1,11 @@
 import json
 import logging
-import sys
-from typing import Optional, Sequence, cast, Union
+from typing import Optional, Sequence, Union
 
 from .base_callback import Callback
 from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponseChunk, ChatCompletionResponse
 from ..providers.base import AiModel
+from configs import config
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +100,11 @@ class LoggingCallback(Callback):
         :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
-        if chunk.choices and len(chunk.choices)>0:
-            self.print_text("\n[on_llm_new_chunk]\n", color="blue")
-            self.print_text(f"Content: {chunk.choices[0].delta.content}\n", color="blue")
+        # if not config.DEBUG:
+        #     return
+        # if chunk.choices and len(chunk.choices)>0:
+        #     self.print_text("\n[on_llm_new_chunk]\n", color="blue")
+        #     self.print_text(f"Content: {chunk.choices[0].delta.content}\n", color="blue")
 
     def on_after_invoke(
         self,

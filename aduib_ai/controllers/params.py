@@ -44,7 +44,7 @@ class ChatCompletionRequest(BaseModel):
     seed: Optional[int] = None
     user: Optional[str] = None
     reasoning_effort: Optional[Literal["low", "medium", "high"]] = None
-    include_reasoning: bool = True
+    include_reasoning: bool = None
 
 
     @field_validator("messages", mode="before")

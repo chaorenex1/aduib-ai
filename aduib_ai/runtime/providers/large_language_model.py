@@ -43,7 +43,7 @@ class LlMModel(AiModel):
         :return: full response or stream response chunk generator result
         """
 
-        # self.started_at = time.perf_counter()
+        self.started_at = time.perf_counter()
 
         callbacks = callbacks or []
         stream: bool = prompt_messages.stream
@@ -182,7 +182,7 @@ class LlMModel(AiModel):
         :return: result generator
         """
         callbacks = callbacks or []
-        message_content= []
+        message_content=  []
         usage = None
         system_fingerprint = None
         real_model = model
@@ -226,26 +226,26 @@ class LlMModel(AiModel):
                     system_fingerprint = chunk.system_fingerprint
         except Exception as e:
             raise e
-
-        assistant_message = AssistantPromptMessage(content=message_content)
-        self._trigger_after_invoke_callbacks(
-            model=model,
-            result=ChatCompletionResponse(
-                model=real_model,
+        finally:
+            assistant_message = AssistantPromptMessage(content=message_content)
+            self._trigger_after_invoke_callbacks(
+                model=model,
+                result=ChatCompletionResponse(
+                    model=real_model,
+                    prompt_messages=prompt_messages.messages,
+                    message=assistant_message,
+                    usage=usage or LLMUsage.empty_usage(),
+                    system_fingerprint=system_fingerprint,
+                ),
+                credentials=credentials,
                 prompt_messages=prompt_messages.messages,
-                message=assistant_message,
-                usage=usage or LLMUsage.empty_usage(),
-                system_fingerprint=system_fingerprint,
-            ),
-            credentials=credentials,
-            prompt_messages=prompt_messages.messages,
-            model_parameters=model_parameters,
-            tools=tools,
-            stop=stop,
-            stream=stream,
-            user=user,
-            callbacks=callbacks,
-        )
+                model_parameters=model_parameters,
+                tools=tools,
+                stop=stop,
+                stream=stream,
+                user=user,
+                callbacks=callbacks,
+            )
 
     def get_num_tokens(
         self,

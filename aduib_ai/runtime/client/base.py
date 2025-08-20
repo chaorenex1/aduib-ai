@@ -79,10 +79,10 @@ class BaseClient:
         Make a stream request to the plugin daemon inner API and yield the response as a model.
         """
         for line in self._stream_request(method, path, params, headers, data, files):
-            # [DONE]
             if line == "[DONE]":
-                continue
-            yield type(**json.loads(line))  # type: ignore
+                yield type(done=True)  # type: ignore
+            else:
+                yield type(**json.loads(line))  # type: ignore
 
     def _request_with_model(
         self,
@@ -99,5 +99,4 @@ class BaseClient:
         """
         response = self._request(method, path, headers, data, params, files)
         json = response.json()
-        logger.debug("Received line: %s", json)
         return type(**json)  # type: ignore
