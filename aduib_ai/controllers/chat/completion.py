@@ -29,7 +29,7 @@ def completion(req:ChatCompletionRequest,raw_request: Request) -> Any:
     Completion endpoint
     """
     response = CompletionService.create_completion(req, raw_request)
-    if isinstance(response, Generator):
+    if isinstance(response, Generator) and req.stream:
         def handle() -> Generator[bytes, None, None]:
             for chunk in response:
                 yield f'data: {chunk.model_dump_json(exclude_none=True)}\n\n'

@@ -100,20 +100,6 @@ class LLMUsage(ModelUsage):
         return self.plus(other)
 
 
-class ChatCompletionResponse(BaseModel):
-    """
-    Model class for llm result.
-    """
-
-    id: Optional[str] = None
-    model: str
-    prompt_messages: list[PromptMessage]
-    message: AssistantPromptMessage
-    usage: LLMUsage
-    system_fingerprint: Optional[str] = None
-    done: bool = False
-
-
 class ChatCompletionResponseChunkDelta(BaseModel):
     """
     Model class for llm result chunk delta.
@@ -121,6 +107,7 @@ class ChatCompletionResponseChunkDelta(BaseModel):
 
     index: int
     message: AssistantPromptMessage= None
+    text: Optional[str] = None
     usage: Optional[LLMUsage] = None
     finish_reason: Optional[str] = None
     delta: Optional[AssistantPromptMessage] = None
@@ -140,6 +127,21 @@ class ChatCompletionResponseChunk(BaseModel):
     delta: ChatCompletionResponseChunkDelta= None
     usage: Optional[LLMUsage] = None
     done: bool = False
+
+
+class ChatCompletionResponse(BaseModel):
+    """
+    Model class for llm result.
+    """
+
+    id: Optional[str] = None
+    model: str
+    prompt_messages: list[PromptMessage] = None
+    message: AssistantPromptMessage = None
+    usage: LLMUsage
+    system_fingerprint: Optional[str] = None
+    done: bool = False
+    choices: list[ChatCompletionResponseChunkDelta] = None
 
 
 class NumTokensResult(PriceInfo):

@@ -39,10 +39,16 @@ class ModelClient(BaseClient):
                                                           data=jsonable_encoder(obj=prompt_messages,exclude_none=True),
                                                           headers={"User-Agent": user_agent,"Content-Type": "application/json","X-Api-Key": api_key},
             )
-            try:
-                yield from response
-            except InnerError as e:
-                raise ValueError(e.message+str(e.code)) from e
+            def handle_stream_response() -> Generator[ChatCompletionResponse, None, None]:
+                """
+                Handle the stream response and yield the final response
+                """
+                try:
+                    yield from response
+                except InnerError as e:
+                    raise ValueError(e.message + str(e.code)) from e
+
+            return handle_stream_response()
         else:
             response = self._request_with_model(method="post",
                                                 path=path,
@@ -50,4 +56,11 @@ class ModelClient(BaseClient):
                                                 data=jsonable_encoder(prompt_messages),
                                                 headers={"User-Agent": user_agent,"Content-Type": "application/json","X-Api-Key": api_key},
             )
-            return response
+            def handle_no_stream_response() -> ChatCompletionResponse:
+                """
+                Handle the non-stream response and return the final response
+                """
+                if isinstance(response, InnerError):
+                    raise ValueError(response.message + str(response.code))
+                yield response
+            return handle_no_stream_response()

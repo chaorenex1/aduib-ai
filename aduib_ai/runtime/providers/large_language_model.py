@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Optional, Union, Generator, Sequence
+from typing import Optional, Union, Generator, Sequence, cast
 
 from pydantic import ConfigDict
 from fastapi import Request
@@ -47,9 +47,12 @@ class LlMModel(AiModel):
 
         callbacks = callbacks or []
         stream: bool = prompt_messages.stream
-        include_reasoning: bool = prompt_messages.include_reasoning
         model: str = prompt_messages.model
-        tools: Optional[list[PromptMessageTool]] = prompt_messages.tools
+        tools: Optional[list[PromptMessageTool]]=[]
+        include_reasoning: bool =False
+        if isinstance(prompt_messages, ChatCompletionRequest):
+            include_reasoning = prompt_messages.include_reasoning
+            tools = prompt_messages.tools
         stop: Optional[Sequence[str]] = prompt_messages.stop
         parameters = {
             "temperature": prompt_messages.temperature,
@@ -92,34 +95,30 @@ class LlMModel(AiModel):
 
             if not stream:
                 content = ""
-                content_list = []
-                usage = LLMUsage.empty_usage()
-                system_fingerprint = None
-                tools_calls: list[AssistantPromptMessage.ToolCall] = []
-
+                # content_list = []
+                # usage = LLMUsage.empty_usage()
+                # system_fingerprint = None
+                # tools_calls: list[AssistantPromptMessage.ToolCall] = []
                 for chunk in result:
-                    if isinstance(chunk.delta.message.content, str):
-                        content += chunk.delta.message.content
-                    elif isinstance(chunk.delta.message.content, list):
-                        content_list.extend(chunk.delta.message.content)
-                    if chunk.delta.message.tool_calls:
-                        # _increase_tool_call(chunk.delta.message.tool_calls, tools_calls)
-                     pass
-
-                    usage = chunk.delta.usage or LLMUsage.empty_usage()
-                    system_fingerprint = chunk.system_fingerprint
-                    break
-
-                result = ChatCompletionResponse(
-                    model=model,
-                    prompt_messages=prompt_messages,
-                    message=AssistantPromptMessage(
-                        content=content or content_list,
-                        tool_calls=tools_calls,
-                    ),
-                    usage=usage,
-                    system_fingerprint=system_fingerprint,
-                )
+                #     if isinstance(chunk.delta.message.content, str):
+                #         content += chunk.delta.message.content
+                #     elif isinstance(chunk.delta.message.content, list):
+                #         content_list.extend(chunk.delta.message.content)
+                #     if chunk.delta.message.tool_calls:
+                #         # _increase_tool_call(chunk.delta.message.tool_calls, tools_calls)
+                #      pass
+                #
+                #     usage = chunk.delta.usage or LLMUsage.empty_usage()
+                #     system_fingerprint = chunk.system_fingerprint
+                #     break
+                    for chunkContent in chunk.choices:
+                        if chunkContent.delta and chunkContent.delta.content:
+                            if isinstance(chunkContent.delta.content, PromptMessageContentUnionTypes):
+                                content += chunkContent.delta.content.data
+                            elif isinstance(chunkContent.delta.content, list):
+                                content += "".join([c.data for c in chunkContent.delta.content])
+                    chunk.message= AssistantPromptMessage(content=content)
+                    result = cast(ChatCompletionResponse, chunk)
         except Exception as e:
             self._trigger_invoke_error_callbacks(
                 model=model,
@@ -294,11 +293,16 @@ class LlMModel(AiModel):
         if callbacks:
             for callback in callbacks:
                 try:
+                    messages: Union[list[PromptMessage], str]
+                    if isinstance(prompt_messages, ChatCompletionRequest):
+                        messages = prompt_messages.messages
+                    elif isinstance(prompt_messages, CompletionRequest):
+                        messages = prompt_messages.prompt
                     callback.on_before_invoke(
                         llm_instance=self,
                         model=model,
                         credentials=credentials,
-                        prompt_messages=prompt_messages.messages if prompt_messages.messages else prompt_messages.prompt,
+                        prompt_messages=messages,
                         model_parameters=model_parameters,
                         tools=tools,
                         stop=stop,
