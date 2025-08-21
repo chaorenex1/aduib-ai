@@ -53,11 +53,23 @@ def get_metadata():
     return base_metadata
 
 def include_object(object, name, type_, reflected, compare_to):
+    print(f"include_object:{name}, {type_}, {reflected}, {compare_to}")
     logger.debug(f"include_object:{name}, {type_}, {reflected}, {compare_to}")
-    if type_ == "foreign_key_constraint":
-        return False
-    else:
+    if type_ == "index" and name.startswith("ix_"):
         return True
+    if type_ == "index" and name.startswith("ag_"):
+        return False
+    if type_ == "table":
+        schema = getattr(object, "schema", None)
+        print(f"schema:{schema}, name:{name}, type_:{type_}")
+        if schema in ("ag_catalog", "pg_jieba", "information_schema", "pg_catalog"):
+            return False
+
+        # 例子2：忽略掉某些特定表
+    if type_ == "table" and name.startswith("ag_"):
+        return False
+
+    return True
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

@@ -25,5 +25,7 @@ class Model(Base):
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="api key create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="api key update time")
     deleted = Column(Integer, default=0, comment="api key delete flag")
-    UniqueConstraint('name', 'provider', name='uq_model_name_provider')
-    ForeignKeyConstraint(['name','provider_id'], ['name','provider_id'])
+    __table_args__ = (
+        UniqueConstraint('name', 'provider_name', name='uq_model_name_provider'),
+        ForeignKeyConstraint(['provider_id'], ['provider.id'], name='fk_model_provider_id'),
+    )

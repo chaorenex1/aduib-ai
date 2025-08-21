@@ -4,11 +4,12 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from controllers.params import CreateModelRequest, ModelCard, ModelList
+from models import get_db, Provider
 from models.engine import get_session
+from models.model import Model
 from runtime.entities.model_entities import AIModelEntity, ModelFeature, ModelType, PriceConfig
 from .error.error import ModelNotFound, ModelProviderNotFound
-from models import get_db, Provider
-from models.model import Model
+
 
 def get_model_features(model: Model) -> list[ModelFeature]:
     """

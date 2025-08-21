@@ -3,6 +3,7 @@ from typing import Optional, Any, Union
 from controllers.params import CompletionRequest, ChatCompletionRequest
 from models.model import Model
 from models.provider import Provider
+from runtime.callbacks.message_record_callback import MessageRecordCallback
 from runtime.entities.model_entities import AIModelEntity
 from runtime.model_manager import ModelManager
 from .model_service import ModelService
@@ -20,5 +21,7 @@ class CompletionService:
         model_manager = ModelManager()
         model_instance = model_manager.get_model_instance(provider,model, model_list)
         llm_result = model_instance.invoke_llm(prompt_messages=req,
-                                               raw_request=raw_request)
+                                               raw_request=raw_request,
+                                               callbacks=[MessageRecordCallback()]
+                                               )
         return llm_result

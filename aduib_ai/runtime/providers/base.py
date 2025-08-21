@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from controllers.params import ChatCompletionRequest, CompletionRequest
 from service.model_service import ModelService
+from utils.uuid import message_uuid
 from ..entities import PromptMessage
 from ..entities.model_entities import AIModelEntity
 from ..entities.provider_entities import ProviderEntity
@@ -33,3 +34,11 @@ class AiModel(BaseModel):
         :rtype: Optional[AIModelEntity]
         """
         return ModelService.get_ai_model(model)
+
+
+    def get_message_id(self)-> str:
+        """
+        Get message id
+        :return: message id
+        """
+        return message_uuid()

@@ -53,11 +53,13 @@ class LlMModel(AiModel):
         model: str = prompt_messages.model
         tools: Optional[list[PromptMessageTool]]=[]
         include_reasoning: bool =False
+        message_id: Optional[int] = None
         if isinstance(prompt_messages, ChatCompletionRequest):
             include_reasoning = prompt_messages.include_reasoning
             tools = prompt_messages.tools
         stop: Optional[Sequence[str]] = prompt_messages.stop
         parameters = {
+            "message_id": self.get_message_id(),
             "temperature": prompt_messages.temperature,
             "top_p": prompt_messages.top_p,
             "max_tokens": prompt_messages.max_tokens,
@@ -116,8 +118,8 @@ class LlMModel(AiModel):
                 #     break
                     for chunkContent in chunk.choices:
                         if chunkContent.delta and chunkContent.delta.content:
-                            if isinstance(chunkContent.delta.content, PromptMessageContentUnionTypes):
-                                content += chunkContent.delta.content.data
+                            if isinstance(chunkContent.delta.content, str):
+                                content += chunkContent.delta.content
                             elif isinstance(chunkContent.delta.content, list):
                                 content += "".join([c.data for c in chunkContent.delta.content])
                     chunk.message= AssistantPromptMessage(content=content)
@@ -192,11 +194,13 @@ class LlMModel(AiModel):
         def _update_message_content(content: str | None):
             if not content:
                 return
-            if isinstance(content, list):
-                message_content.extend(content)
-                return
-            if isinstance(content, str):
-                message_content.append(TextPromptMessageContent(data=content))
+
+            if isinstance(content, Generator):
+                for c in content:
+                    if isinstance(c, str):
+                        message_content.append(TextPromptMessageContent(data=c))
+                    elif isinstance(c, list):
+                        message_content.extend(c)
                 return
 
         try:
@@ -216,7 +220,6 @@ class LlMModel(AiModel):
                     tools=tools,
                     stop=stop,
                     stream=stream,
-                    user=user,
                     callbacks=callbacks,
                 )
 
@@ -246,7 +249,6 @@ class LlMModel(AiModel):
                 tools=tools,
                 stop=stop,
                 stream=stream,
-                user=user,
                 callbacks=callbacks,
             )
 
@@ -357,7 +359,6 @@ class LlMModel(AiModel):
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         include_reasoning:bool=False,
-        user: Optional[str] = None,
         callbacks: Optional[list[Callback]] = None,
     ) -> None:
         """
@@ -387,7 +388,6 @@ class LlMModel(AiModel):
                         stop=stop,
                         stream=stream,
                         include_reasoning=include_reasoning,
-                        user=user,
                     )
                 except Exception as e:
                     if callback.raise_error:
@@ -406,7 +406,6 @@ class LlMModel(AiModel):
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
-        user: Optional[str] = None,
         callbacks: Optional[list[Callback]] = None,
     ) -> None:
         """
@@ -435,7 +434,6 @@ class LlMModel(AiModel):
                         tools=tools,
                         stop=stop,
                         stream=stream,
-                        user=user,
                     )
                 except Exception as e:
                     if callback.raise_error:
@@ -453,7 +451,6 @@ class LlMModel(AiModel):
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
-        user: Optional[str] = None,
         callbacks: Optional[list[Callback]] = None,
     ) -> None:
         """
@@ -483,7 +480,6 @@ class LlMModel(AiModel):
                         tools=tools,
                         stop=stop,
                         stream=stream,
-                        user=user,
                     )
                 except Exception as e:
                     if callback.raise_error:
@@ -501,7 +497,6 @@ class LlMModel(AiModel):
         tools: Optional[list[PromptMessageTool]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
-        user: Optional[str] = None,
         callbacks: Optional[list[Callback]] = None,
     ) -> None:
         """
@@ -531,7 +526,6 @@ class LlMModel(AiModel):
                         tools=tools,
                         stop=stop,
                         stream=stream,
-                        user=user,
                     )
                 except Exception as e:
                     if callback.raise_error:

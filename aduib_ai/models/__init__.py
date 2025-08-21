@@ -5,6 +5,7 @@ from .base import Base
 from .api_key import ApiKey
 from .model import Model
 from .provider import Provider
+from .message import ConversationMessage
 
 __all__ = ["get_db",
            "engine",
@@ -12,4 +13,5 @@ __all__ = ["get_db",
            "ApiKey",
            "Model",
            "Provider",
+              "ConversationMessage"
               ]

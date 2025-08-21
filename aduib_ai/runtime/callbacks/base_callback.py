@@ -8,7 +8,6 @@ from ..providers.base import AiModel
 class Callback(ABC):
     """
     Base class for callbacks.
-    Only for LLM.
     """
 
     raise_error: bool = False

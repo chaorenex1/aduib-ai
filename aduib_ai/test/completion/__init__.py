@@ -177,3 +177,54 @@ def test_completion_json_schema():
     assert response.status_code == 200
     data = response.json()
     print(data)
+
+
+
+
+def test_completion_tool_call():
+    response = client.post(
+        "/v1/chat/completions",
+            json={
+                "model": "modelscope.cn/unsloth/Qwen3-30B-A3B-GGUF:latest",
+                "messages": [
+        {
+          "role": "user",
+          "content": "What is the weather like in Boston today?"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_current_weather",
+            "description": "Get the current weather in a given location",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "location": {
+                  "type": "string",
+                  "description": "The city and state, e.g. San Francisco, CA"
+                },
+                "unit": {
+                  "type": "string",
+                  "enum": ["celsius", "fahrenheit"]
+                }
+              },
+              "required": ["location"]
+            }
+          }
+        }
+      ],
+      "tool_choice": "auto",
+                "temperature": 1,
+                "top_p": 1,
+                "stream": "false",
+                "stream_options": {
+                    "include_usage": "false"
+                }
+            },
+        headers={"X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    print(data)
