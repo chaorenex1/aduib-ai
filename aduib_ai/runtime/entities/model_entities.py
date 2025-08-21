@@ -117,7 +117,7 @@ class ProviderModel(BaseModel):
     model: str
     model_type: ModelType
     features: Optional[list[ModelFeature]] = None
-    model_properties: dict[ModelProperty, Any]
+    model_properties: dict[str, Any]
     deprecated: bool = False
     model_config = ConfigDict(protected_namespaces=())
 
