@@ -106,7 +106,25 @@ class ModelService:
             if not models:
                 return []
             return [AIModelEntity(model=model.name, model_type=ModelType.value_of(model.type),
-                           features=get_model_features(model), model_properties={},
+                           features=get_model_features(model), model_properties=model.model_params,
                            parameter_rules=[], pricing=PriceConfig(
                     input=model.input_price,
                     output=model.output_price), deprecated=False) for model in models]
+
+    @staticmethod
+    def get_ai_model(model_name:str) -> Optional[AIModelEntity]:
+        """
+        Get AI model by name and provider.
+        :param model_name: model name
+        :param provider_name: provider name
+        :return: AIModelEntity
+        """
+        with get_session() as session:
+            model = session.query(Model).filter_by(name=model_name).first()
+            if not model:
+                return None
+            return AIModelEntity(model=model.name, model_type=ModelType.value_of(model.type),
+                           features=get_model_features(model), model_properties=model.model_params,
+                           parameter_rules=[], pricing=PriceConfig(
+                    input=model.input_price,
+                    output=model.output_price,currency=model.currency), deprecated=False)

@@ -1,20 +1,23 @@
+import decimal
 import logging
 import time
 from typing import Optional, Union, Generator, Sequence, cast
 
-from pydantic import ConfigDict
 from fastapi import Request
+from pydantic import ConfigDict
 
+from configs import config
 from controllers.params import ChatCompletionRequest, CompletionRequest
+from .base import AiModel
+from .gpt_tokenizer import GPTTokenizer
 from ..callbacks.base_callback import Callback
 from ..callbacks.console_callback import LoggingCallback
 from ..client.llm_client import ModelClient
-from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk, LLMUsage, AssistantPromptMessage, \
+from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk, LLMUsage, \
+    AssistantPromptMessage, \
     TextPromptMessageContent
-from ..entities.message_entities import PromptMessageContentUnionTypes
-from ..entities.model_entities import ModelType, PriceType
-from .base import AiModel
-from configs import config
+from ..entities.message_entities import PromptMessageContentUnionTypes, UserPromptMessage, ToolPromptMessage
+from ..entities.model_entities import ModelType, PriceType, PriceInfo, PriceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +253,6 @@ class LlMModel(AiModel):
     def get_num_tokens(
         self,
         model: str,
-        credentials: dict,
         prompt_messages: list[PromptMessage],
         tools: Optional[list[PromptMessageTool]] = None,
     ) -> int:
@@ -258,12 +260,92 @@ class LlMModel(AiModel):
         Get number of tokens for given prompt messages
 
         :param model: model name
-        :param credentials: model credentials
         :param prompt_messages: prompt messages
         :param tools: tools for tool calling
         :return:
         """
-        return 0
+        token_length = 0
+        if prompt_messages:
+            for message in prompt_messages:
+                if isinstance(message, UserPromptMessage):
+                    if message.content:
+                        token_length += GPTTokenizer.get_token_nums(message.content)
+                elif isinstance(message, ToolPromptMessage):
+                    if message.content:
+                        token_length += GPTTokenizer.get_token_nums(message.content)
+        if tools:
+            for tool in tools:
+                token_length += GPTTokenizer.get_token_nums(tool.model_dump_json(exclude_none=True))
+        if config.DEBUG:
+            logger.debug(f"text: {prompt_messages}, tools: {tools}, token_length: {token_length}")
+
+        return token_length
+
+    def calc_response_usage(
+        self,
+        model: str,
+        prompt_tokens: int,
+        completion_tokens: int) -> LLMUsage:
+        """
+        Calculate response usage based on prompt and completion tokens
+        :param model: model name
+        :param prompt_tokens: number of prompt tokens
+        :param completion_tokens: number of completion tokens
+        :return: LLMUsage object with calculated usage
+        """
+        prompt_price_info = self.get_price_info(model, PriceType.INPUT, prompt_tokens)
+        completion_price_info = self.get_price_info(model, PriceType.OUTPUT, completion_tokens)
+        total_tokens = prompt_tokens + completion_tokens
+        total_price = prompt_price_info.total_amount + completion_price_info.total_amount
+        return LLMUsage(
+            prompt_tokens=prompt_tokens,
+            prompt_unit_price=prompt_price_info.unit_price,
+            prompt_price_unit=prompt_price_info.unit,
+            prompt_price=prompt_price_info.total_amount,
+            completion_tokens=completion_tokens,
+            completion_unit_price=completion_price_info.unit_price,
+            completion_price_unit=completion_price_info.unit,
+            completion_price=completion_price_info.total_amount,
+            total_tokens=total_tokens,
+            total_price=total_price,
+            currency=prompt_price_info.currency or "USD",
+            latency=time.perf_counter() - self.started_at,
+        )
+
+    def get_price_info(self, model: str, price_type:PriceType,tokens:int) -> PriceInfo:
+        """
+        Get price info for given model and price type
+
+        :param model: model name
+        :param price_type: price type
+        :param tokens: number of tokens
+        :return: price info
+        """
+        model_schema=self.get_model_schema(model)
+        price_config: Optional[PriceConfig] = None
+        if model_schema and model_schema.pricing:
+            price_config = model_schema.pricing
+
+        unit_price = None
+        if price_config:
+            if price_type == PriceType.INPUT and price_config.input is not None:
+                unit_price = price_config.input
+            elif price_type == PriceType.OUTPUT and price_config.output is not None:
+                unit_price = price_config.output
+        if unit_price is None:
+            return PriceInfo(unit_price=decimal.Decimal(0.0),unit=decimal.Decimal(0.0), currency="USD",total_amount=decimal.Decimal(0.0))
+
+        if not price_config:
+            raise ValueError(f"Model {model} does not have pricing info")
+
+        total_amount = tokens * unit_price * price_config.unit
+        total_amount = total_amount.quantize(decimal.Decimal("0.0000001"), rounding=decimal.ROUND_HALF_UP)
+        return PriceInfo(
+            unit_price=unit_price,
+            unit=price_config.unit,
+            total_amount=total_amount,
+            currency=price_config.currency or "USD",
+        )
 
     def _trigger_before_invoke_callbacks(
         self,

@@ -18,6 +18,7 @@ class Model(Base):
     max_tokens = Column(Integer, index=True, comment="Max Tokens")
     input_price = Column(DECIMAL(10,2), comment="Input Price",default=0.00)
     output_price = Column(DECIMAL(10,2), comment="Output Price",default=0.00)
+    currency = Column(String, default="USD", comment="Model currency")
     feature=Column(JSON, comment="Model Feature")
     model_params=Column(JSON, comment="Model Params")
     description = Column(String, comment="Model Description")
