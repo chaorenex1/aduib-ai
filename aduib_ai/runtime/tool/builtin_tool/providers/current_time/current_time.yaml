@@ -1,0 +1,19 @@
+name: current_time
+description: Format current datetime based on timezone and format string
+parameters:
+  type: object
+  properties:
+    timezone:
+      type: string
+      description: Timezone to use, default UTC
+    format:
+      type: string
+      description: Datetime format string, default "%Y-%m-%d %H:%M:%S %Z"
+  required: ["timezone", "format"]
+configs:
+  timezone: "Asia/Shanghai"
+  format: "%Y-%m-%d %H:%M:%S %Z"
+icon: "🕒"
+provider: "builtin_provider"
+type: builtin
+credentials: none
