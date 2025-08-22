@@ -1,19 +1,18 @@
 from typing import Optional, Any, Union, Generator
 
+from fastapi import Request
 from starlette.responses import StreamingResponse
 
+from configs import config
 from controllers.params import CompletionRequest, ChatCompletionRequest
 from models.model import Model
 from models.provider import Provider
-from runtime.callbacks.message_record_callback import MessageRecordCallback
+from runtime.callbacks import MessageRecordCallback
 from runtime.entities import ChatCompletionResponse
 from runtime.entities.model_entities import AIModelEntity
 from runtime.model_manager import ModelManager
-from utils.rate_limit import RateLimit
-from .model_service import ModelService
-from .provider_service import ProviderService
-from fastapi import Request
-from configs import config
+from utils import RateLimit
+from . import ModelService, ProviderService
 
 
 class CompletionService:

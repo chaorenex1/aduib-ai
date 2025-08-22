@@ -15,6 +15,12 @@ from .message_entities import (
     ToolPromptMessage,
     UserPromptMessage,
     VideoPromptMessageContent,
+    PromptMessageFunction,
+    PromptMessageToolChoiceParam,
+    AnyResponseFormat,
+    StreamOptions,
+    UserPromptMessage,
+    ToolPromptMessage,
 )
 from .model_entities import ModelProperty
 
@@ -42,4 +48,10 @@ __all__ = [
     "ToolPromptMessage",
     "UserPromptMessage",
     "VideoPromptMessageContent",
+    "PromptMessageFunction",
+    "PromptMessageToolChoiceParam",
+    "AnyResponseFormat",
+    "StreamOptions",
+    "UserPromptMessage",
+    "ToolPromptMessage",
 ]

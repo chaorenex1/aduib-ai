@@ -15,8 +15,7 @@ from ..callbacks.console_callback import LoggingCallback
 from ..client.llm_client import ModelClient
 from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk, LLMUsage, \
     AssistantPromptMessage, \
-    TextPromptMessageContent
-from ..entities.message_entities import PromptMessageContentUnionTypes, UserPromptMessage, ToolPromptMessage
+    TextPromptMessageContent, UserPromptMessage, ToolPromptMessage
 from ..entities.model_entities import ModelType, PriceType, PriceInfo, PriceConfig
 
 logger = logging.getLogger(__name__)

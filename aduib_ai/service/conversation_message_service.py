@@ -1,5 +1,3 @@
-from typing import Optional
-
 from models import ConversationMessage
 from models.engine import get_session
 

@@ -1,10 +1,10 @@
 from typing import Union, Optional, Sequence
 
 from models import ConversationMessage
-from runtime.callbacks.base_callback import Callback
+from runtime.callbacks import Callback
 from runtime.entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk
-from runtime.providers.base import AiModel
-from service.conversation_message_service import ConversationMessageService
+from runtime.providers import AiModel
+from service import ConversationMessageService
 
 
 class MessageRecordCallback(Callback):

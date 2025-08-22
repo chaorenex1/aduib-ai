@@ -5,9 +5,10 @@ from pydantic import BaseModel, field_validator, Field, model_validator
 
 from runtime.entities import PromptMessage, PromptMessageRole, UserPromptMessage, \
     AssistantPromptMessage, SystemPromptMessage, ToolPromptMessage
-from runtime.entities.message_entities import PromptMessageFunction, PromptMessageToolChoiceParam, AnyResponseFormat, \
+from runtime.entities import PromptMessageFunction, PromptMessageToolChoiceParam, AnyResponseFormat, \
     StreamOptions
 from utils import random_uuid
+
 
 class ChatCompletionRequest(BaseModel):
     messages: Optional[list[PromptMessage]] = None

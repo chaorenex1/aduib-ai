@@ -4,7 +4,7 @@ from fastapi import Request
 
 from controllers.common.error import InnerError
 from controllers.params import ChatCompletionRequest, CompletionRequest
-from utils.encoders import jsonable_encoder
+from utils import jsonable_encoder
 from .base import BaseClient
 from ..entities import ChatCompletionResponse, ChatCompletionResponseChunk
 
