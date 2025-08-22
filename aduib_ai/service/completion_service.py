@@ -20,6 +20,12 @@ class CompletionService:
 
     @staticmethod
     def create_completion(req:Union[ChatCompletionRequest, CompletionRequest],raw_request: Request) -> Optional[Any]:
+        """
+        Create a completion based on the request and raw request.
+        :param req: The request object containing parameters for completion.
+        :param raw_request: The raw request object, typically from FastAPI.
+        :return: A response object containing the completion result, or a streaming response if requested.
+        """
         rate_limit:RateLimit = RateLimit(config.APP_NAME,config.APP_MAX_REQUESTS)
         request_id = rate_limit.gen_request_key()
         try:
@@ -37,6 +43,12 @@ class CompletionService:
 
     @staticmethod
     def _completion(raw_request, req):
+        """
+        Internal method to handle the completion logic.
+        :param raw_request: The raw request object, typically from FastAPI.
+        :param req: The request object containing parameters for completion.
+        :return: A response object containing the completion result.
+        """
         model: Model = ModelService.get_model(req.model)
         provider: Provider = ProviderService.get_provider(model.provider_name)
         model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
@@ -50,6 +62,12 @@ class CompletionService:
 
     @staticmethod
     def convert_to_stream(response:Union[ChatCompletionResponse, Generator],req:Union[ChatCompletionRequest, CompletionRequest]):
+        """
+        Convert the response to a streaming response if the request requires it.
+        :param response: The response object or generator to be converted.
+        :param req: The request object containing parameters for completion.
+        :return: A StreamingResponse if the request is a stream, otherwise the response object.
+        """
         if req.stream:
             def handle() -> Generator[bytes, None, None]:
                 for chunk in response:

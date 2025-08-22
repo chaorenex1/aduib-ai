@@ -53,13 +53,13 @@ class LlMModel(AiModel):
         model: str = prompt_messages.model
         tools: Optional[list[PromptMessageTool]]=[]
         include_reasoning: bool =False
-        message_id: Optional[int] = None
+        message_id: Optional[str] = self.get_message_id()
         if isinstance(prompt_messages, ChatCompletionRequest):
             include_reasoning = prompt_messages.include_reasoning
             tools = prompt_messages.tools
         stop: Optional[Sequence[str]] = prompt_messages.stop
         parameters = {
-            "message_id": self.get_message_id(),
+            "message_id": message_id,
             "temperature": prompt_messages.temperature,
             "top_p": prompt_messages.top_p,
             "max_tokens": prompt_messages.max_tokens,
