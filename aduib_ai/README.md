@@ -49,6 +49,9 @@
     pip install uv
     # Or on macOS
     brew install uv
+    # Or on Windows
+    choco install uv
+    ```
 2. 安装依赖  
    ```bash
    uv pip install -r requirements.txt -i http://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
@@ -56,6 +59,7 @@
    or
    ```bash
    uv sync --dev
+    ```
   
 3. 初始化数据库
    ```bash

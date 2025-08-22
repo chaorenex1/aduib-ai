@@ -52,6 +52,7 @@ dependencies = [
     { name = "pymilvus", extra = ["model"] },
     { name = "pyzmq" },
     { name = "qwen-vl-utils" },
+    { name = "redis" },
     { name = "sentry-sdk" },
     { name = "sqlalchemy" },
     { name = "tiktoken" },
@@ -93,6 +94,7 @@ requires-dist = [
     { name = "pymilvus", extras = ["model"], specifier = "==2.5.4" },
     { name = "pyzmq", specifier = "==26.2.1" },
     { name = "qwen-vl-utils", specifier = ">=0.0.11" },
+    { name = "redis", specifier = ">=6.4.0" },
     { name = "sentry-sdk", specifier = ">=2.34.1" },
     { name = "sqlalchemy", specifier = "==2.0.39" },
     { name = "tiktoken", specifier = "==0.9.0" },
@@ -106,7 +108,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "alembic", specifier = "==1.16.4" },
-    { name = "pytest" },
+    { name = "pytest", specifier = "==8.4.1" },
 ]
 
 [[package]]
@@ -413,6 +415,15 @@ dependencies = [
 sdist = { url = "http://mirrors.aliyun.com/pypi/packages/4e/00/6d6814ddc19be2df62c8c898c4df6b5b1914f3bd024b780028caa392d186/apscheduler-3.11.0.tar.gz", hash = "sha256:4c622d250b0955a65d5d0eb91c33e6d43fd879834bf541e0a18661ae60460133" }
 wheels = [
     { url = "http://mirrors.aliyun.com/pypi/packages/d0/ae/9a053dd9229c0fde6b1f1f33f609ccff1ee79ddda364c756a924c6d8563b/APScheduler-3.11.0-py3-none-any.whl", hash = "sha256:fc134ca32e50f5eadcc4938e3a4545ab19131435e851abb40b34d63d5141c6da" },
+]
+
+[[package]]
+name = "async-timeout"
+version = "5.0.1"
+source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
+sdist = { url = "http://mirrors.aliyun.com/pypi/packages/a5/ae/136395dfbfe00dfc94da3f3e136d0b13f394cba8f4841120e34226265780/async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3" }
+wheels = [
+    { url = "http://mirrors.aliyun.com/pypi/packages/fe/ba/e2081de779ca30d473f21f5b30e0e737c438205440784c7dfc81efc2b029/async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c" },
 ]
 
 [[package]]
@@ -2588,6 +2599,18 @@ dependencies = [
 sdist = { url = "http://mirrors.aliyun.com/pypi/packages/42/9f/1229a40ebd49f689a0252144126f3865f31bb4151e942cf781a2936f0c4d/qwen_vl_utils-0.0.11.tar.gz", hash = "sha256:083ba1e5cfa5002165b1e3bddd4d6d26d1d6d34473884033ef12ae3fe8496cd5" }
 wheels = [
     { url = "http://mirrors.aliyun.com/pypi/packages/0a/c2/ad7f93e1eea4ea0aefd1cc6fbe7a7095fd2f03a4d8fe2c3707e612b0866e/qwen_vl_utils-0.0.11-py3-none-any.whl", hash = "sha256:7fd5287ac04d6c1f01b93bf053b0be236a35149e414c9e864e3cc5bf2fe8cb7b" },
+]
+
+[[package]]
+name = "redis"
+version = "6.4.0"
+source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
+dependencies = [
+    { name = "async-timeout", marker = "python_full_version < '3.11.3'" },
+]
+sdist = { url = "http://mirrors.aliyun.com/pypi/packages/0d/d6/e8b92798a5bd67d659d51a18170e91c16ac3b59738d91894651ee255ed49/redis-6.4.0.tar.gz", hash = "sha256:b01bc7282b8444e28ec36b261df5375183bb47a07eb9c603f284e89cbc5ef010" }
+wheels = [
+    { url = "http://mirrors.aliyun.com/pypi/packages/e8/02/89e2ed7e85db6c93dfa9e8f691c5087df4e3551ab39081a4d7c6d1f90e05/redis-6.4.0-py3-none-any.whl", hash = "sha256:f0544fa9604264e9464cdf4814e7d4830f74b165d52f2a330a760a88dd248b7f" },
 ]
 
 [[package]]

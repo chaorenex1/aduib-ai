@@ -4,6 +4,7 @@ import time
 from fastapi.routing import APIRoute
 
 from aduib_app import AduibAIApp
+from component.cache.redis_cache import init_cache
 from component.log.app_logging import init_logging
 from configs import config
 from controllers.route import api_router
@@ -35,6 +36,17 @@ def create_app()->AduibAIApp:
     init_logging()
     init_idGenerator()
     app = create_app_with_configs()
+    init_apps(app)
     end_time = time.perf_counter()
     log.info(f"Finished create_app ({round((end_time - start_time) * 1000, 2)} ms)")
     return app
+
+
+def init_apps(app: AduibAIApp):
+    """
+    Initialize the app with necessary configurations and middlewares.
+    :param app: AduibAIApp instance
+    """
+    log.info("Initializing middlewares")
+    init_cache(app)
+    log.info("middlewares initialized successfully")

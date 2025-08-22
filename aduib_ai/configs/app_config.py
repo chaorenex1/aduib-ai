@@ -4,6 +4,7 @@ from typing import Any
 from pydantic.fields import FieldInfo
 from pydantic_settings import SettingsConfigDict, BaseSettings, PydanticBaseSettingsSource
 
+from .cache.redis_config import RedisConfig
 from .db import DBConfig
 from .deploy import DeploymentConfig
 from .graph import GraphConfig
@@ -69,6 +70,7 @@ class AduibAiConfig(
     Neo4jConfig,
     StorageConfig,
     S3StorageConfig,
+    RedisConfig,
     OPSConfig,
     RemoteSettingsSourceConfig
 ):

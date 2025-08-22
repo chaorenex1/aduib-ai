@@ -10,6 +10,12 @@ class DeploymentConfig(BaseSettings):
     APP_VERSION: str = Field(default="1.0.0", description="Application version")
     APP_HOST: str = Field(default="",description="Application host")
     APP_PORT: int = Field(default=5001,description="Application port")
+    APP_MAX_REQUESTS: int = Field(
+        default=1000, description="Maximum number of requests the app can handle"
+    )
+    APP_MAX_WORKERS: int = Field(
+        default=4, description="Number of worker processes for handling requests"
+    )
     DEPLOY_ENV: str = Field(
         description="Deployment environment (e.g., 'PRODUCTION', 'DEVELOPMENT'), default to PRODUCTION",
         default="PRODUCTION",

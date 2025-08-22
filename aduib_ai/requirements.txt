@@ -44,3 +44,5 @@ boto3==1.37.11
 opendal==0.45.16
 #utils
 bcrypt==4.3.0
+#cache
+redis>=6.4.0
