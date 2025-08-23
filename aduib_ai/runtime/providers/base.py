@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 from controllers.params import ChatCompletionRequest, CompletionRequest
 from service.model_service import ModelService
-from utils.uuid import message_uuid
+from utils import message_uuid
 from ..entities import PromptMessage
 from ..entities.model_entities import AIModelEntity
 from ..entities.provider_entities import ProviderEntity

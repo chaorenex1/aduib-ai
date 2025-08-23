@@ -1,10 +1,7 @@
 from typing import Optional
 
-from fastapi import Depends
-from sqlalchemy.orm import Session
-
 from controllers.params import CreateModelRequest, ModelCard, ModelList
-from models import get_db, Provider
+from models import Provider
 from models.engine import get_session
 from models.model import Model
 from runtime.entities.model_entities import AIModelEntity, ModelFeature, ModelType, PriceConfig
@@ -64,18 +61,19 @@ class ModelService:
 
 
     @staticmethod
-    def delete_model(model_name:str, session: Session = Depends(get_db)) -> Optional[Model]:
+    def delete_model(model_name:str) -> Optional[Model]:
         """
         Delete model by name.
         :param model_name: model name
         :param session: database session
         :return: model
         """
-        model = session.query(Model).filter_by(name=model_name).first()
-        if not model:
-            return None
-        session.delete(model)
-        session.commit()
+        with get_session() as session:
+            model = session.query(Model).filter_by(name=model_name).first()
+            if not model:
+                return None
+            session.delete(model)
+            session.commit()
         return model
 
     @staticmethod

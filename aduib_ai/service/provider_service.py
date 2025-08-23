@@ -1,9 +1,5 @@
 from typing import Optional
 
-from fastapi import Depends
-from sqlalchemy.orm import Session
-
-from models import get_db
 from models.engine import get_session
 from models.provider import Provider
 from service.error.error import ModelProviderNotFound
@@ -49,16 +45,17 @@ class ProviderService:
         return provider
 
     @staticmethod
-    def delete_provider(provider: str,session: Session = Depends(get_db))->Optional[Provider]|None:
+    def delete_provider(provider: str)->Optional[Provider]|None:
         """
         Delete provider by name.
         :param provider: provider name
         :param session: database session
         :return: provider
         """
-        provider = session.query(Provider).filter(Provider.name == provider).first()
-        if not provider:
-            return None
-        session.delete(provider)
-        session.commit()
+        with get_session() as session:
+            provider = session.query(Provider).filter(Provider.name == provider).first()
+            if not provider:
+                return None
+            session.delete(provider)
+            session.commit()
         return provider

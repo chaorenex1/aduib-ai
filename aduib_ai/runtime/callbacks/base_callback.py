@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Sequence, Union
 
 from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponseChunk, ChatCompletionResponse
-from ..providers.base import AiModel
+from ..providers import AiModel
 
 
 class Callback(ABC):

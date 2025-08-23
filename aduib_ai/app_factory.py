@@ -8,8 +8,8 @@ from component.cache.redis_cache import init_cache
 from component.log.app_logging import init_logging
 from configs import config
 from controllers.route import api_router
+from libs.context import LoggingMiddleware, TraceIdContextMiddleware, ApiKeyContextMiddleware
 from utils.snowflake_id import init_idGenerator
-from libs.context import LoggingMiddleware
 
 log=logging.getLogger(__name__)
 
@@ -27,6 +27,8 @@ def create_app_with_configs()->AduibAIApp:
     app.include_router(api_router, prefix="/v1")
     if config.DEBUG:
         log.warning("Running in debug mode, this is not recommended for production use.")
+        app.add_middleware(TraceIdContextMiddleware)
+        app.add_middleware(ApiKeyContextMiddleware)
         app.add_middleware(LoggingMiddleware)
     return app
 
@@ -34,7 +36,6 @@ def create_app_with_configs()->AduibAIApp:
 def create_app()->AduibAIApp:
     start_time = time.perf_counter()
     init_logging()
-    init_idGenerator()
     app = create_app_with_configs()
     init_apps(app)
     end_time = time.perf_counter()
@@ -48,5 +49,6 @@ def init_apps(app: AduibAIApp):
     :param app: AduibAIApp instance
     """
     log.info("Initializing middlewares")
+    init_idGenerator(app)
     init_cache(app)
     log.info("middlewares initialized successfully")

@@ -1,9 +1,5 @@
 from typing import Optional
 
-from fastapi import Depends
-from sqlalchemy.orm import Session
-
-from models import get_db
 from models.api_key import ApiKey
 from models.engine import get_session
 from utils.api_key import generate_api_key, hash_api_key, verify_api_key
@@ -50,25 +46,37 @@ class ApiKeyService:
             session.commit()
         return api_key
 
-    def get_by_api_key(api_key:str,session: Session = Depends(get_db)) -> Optional[ApiKey]:
+    @staticmethod
+    def get_by_api_key(api_key:str) -> Optional[ApiKey]:
         """
         get the api key by hash key
         """
-        return session.query(ApiKey).filter(ApiKey.api_key == api_key).first()
+        with get_session() as session:
+            return session.query(ApiKey).filter(ApiKey.api_key == api_key).first()
+
+    @staticmethod
+    def get_by_hash_key(api_hash_key:str) -> Optional[ApiKey]:
+        """
+        get the api key by hash key
+        """
+        with get_session() as session:
+            return session.query(ApiKey).filter(ApiKey.hash_key == api_hash_key).first()
 
 
     @staticmethod
-    def delete_by_apy_key(api_key:str,session: Session = Depends(get_db)):
+    def delete_by_apy_key(api_key:str):
         """
         delete the api key
         """
-        session.delete(session.query(ApiKey).filter(ApiKey.api_key == api_key).first())
-        session.commit()
+        with get_session() as session:
+            session.delete(session.query(ApiKey).filter(ApiKey.api_key == api_key).first())
+            session.commit()
 
     @staticmethod
-    def delete_by_hash_key(api_hash_key:str,session: Session = Depends(get_db)):
+    def delete_by_hash_key(api_hash_key:str):
         """
         delete the api key
         """
-        session.delete(session.query(ApiKey).filter(ApiKey.hash_key == api_hash_key).first())
-        session.commit()
+        with get_session() as session:
+            session.delete(session.query(ApiKey).filter(ApiKey.hash_key == api_hash_key).first())
+            session.commit()

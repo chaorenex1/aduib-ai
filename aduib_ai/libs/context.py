@@ -8,9 +8,12 @@ from requests import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+from constants.api_key_source import ApikeySource
 from controllers.common.error import ApiNotCurrentlyAvailableError
+from libs import api_key_context, trace_id_context
 from service.api_key_service import ApiKeyService
 from service.error.error import ApiKeyNotFound
+from utils import trace_uuid
 
 API_KEY_HEADER = "X-API-Key"  # 你希望客户端发送的 API Key 的请求头字段名称
 api_key_header = APIKeyHeader(name=API_KEY_HEADER)
@@ -23,6 +26,61 @@ def verify_api_key_in_db(api_key: str=Depends(api_key_header)) -> None:
         ApiKeyService.validate_api_key(api_key)
     except ApiKeyNotFound:
         raise ApiNotCurrentlyAvailableError()
+
+
+def validate_api_key_in_internal() -> bool:
+    """验证内部请求的 API Key"""
+    api_key = api_key_context.get()
+    logger.debug(f"Validating internal API Key: {api_key}")
+    if not api_key:
+        return False
+    try:
+        return api_key.source==ApikeySource.INTERNAL.value
+    except ApiKeyNotFound:
+        return False
+
+def validate_api_key_in_external() -> bool:
+    """验证外部请求的 API Key"""
+    api_key = api_key_context.get()
+    logger.debug(f"Validating external API Key: {api_key}")
+    if not api_key:
+        return False
+    try:
+        return api_key.source==ApikeySource.EXTERNAL.value
+    except ApiKeyNotFound:
+        return False
+
+
+
+class ApiKeyContextMiddleware(BaseHTTPMiddleware):
+    """Middleware to extract and store API Key in request context."""
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        api_key_context.clear()
+        api_key_value = request.headers.get(API_KEY_HEADER)
+        if api_key_value:
+            try:
+                api_key = ApiKeyService.get_by_hash_key(api_key_value)
+                logger.info(f"Using API Key: {api_key}")
+                api_key_context.set(api_key)
+            except Exception as e:
+                logger.error(f"Invalid API Key: {api_key_value}")
+                raise e
+
+        response: Response = await call_next(request)
+        api_key_context.clear()
+        return response
+
+class TraceIdContextMiddleware(BaseHTTPMiddleware):
+    """Middleware to extract and store Trace ID in request context."""
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        trace_id_context.clear()
+        trace_id = trace_uuid()
+        logger.info(f"Using Trace ID: {trace_id}")
+        trace_id_context.set(trace_id)
+        response: Response = await call_next(request)
+        trace_id_context.clear()
+        return response
 
 
 

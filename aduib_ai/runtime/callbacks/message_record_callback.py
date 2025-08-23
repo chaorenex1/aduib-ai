@@ -1,7 +1,8 @@
 from typing import Union, Optional, Sequence
 
+from libs.context import validate_api_key_in_internal
 from models import ConversationMessage
-from runtime.callbacks import Callback
+from runtime.callbacks.base_callback import Callback
 from runtime.entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk
 from runtime.providers import AiModel
 from service import ConversationMessageService
@@ -33,6 +34,8 @@ class MessageRecordCallback(Callback):
         :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
+        if not validate_api_key_in_internal():
+            return
         message_id = model_parameters.get('message_id')
         if not message_id:
             return
@@ -73,6 +76,8 @@ class MessageRecordCallback(Callback):
         :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
+        if not validate_api_key_in_internal():
+            return
         message_id = model_parameters.get('message_id')
         if not message_id:
             return
@@ -99,6 +104,8 @@ class MessageRecordCallback(Callback):
         :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
+        if not validate_api_key_in_internal():
+            return
         role:str = ""
         system_prompt:str = ""
         content:str = ""

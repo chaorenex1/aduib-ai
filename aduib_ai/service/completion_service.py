@@ -7,12 +7,9 @@ from configs import config
 from controllers.params import CompletionRequest, ChatCompletionRequest
 from models.model import Model
 from models.provider import Provider
-from runtime.callbacks import MessageRecordCallback
 from runtime.entities import ChatCompletionResponse
 from runtime.entities.model_entities import AIModelEntity
-from runtime.model_manager import ModelManager
 from utils import RateLimit
-from . import ModelService, ProviderService
 
 
 class CompletionService:
@@ -48,11 +45,18 @@ class CompletionService:
         :param req: The request object containing parameters for completion.
         :return: A response object containing the completion result.
         """
+
+        from runtime.model_manager import ModelManager
+        from . import ModelService, ProviderService
+        from runtime.callbacks.message_record_callback import MessageRecordCallback
+
         model: Model = ModelService.get_model(req.model)
         provider: Provider = ProviderService.get_provider(model.provider_name)
         model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
         model_manager = ModelManager()
         model_instance = model_manager.get_model_instance(provider, model, model_list)
+
+
         llm_result = model_instance.invoke_llm(prompt_messages=req,
                                                raw_request=raw_request,
                                                callbacks=[MessageRecordCallback()]

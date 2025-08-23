@@ -4,6 +4,7 @@
 import logging
 import time
 
+from aduib_app import AduibAIApp
 from configs import config
 
 log=logging.getLogger(__name__)
@@ -94,8 +95,9 @@ class SnowflakeIDGenerator:
 
 id_generator = SnowflakeIDGenerator()
 
-def init_idGenerator():
+def init_idGenerator(app:AduibAIApp):
     id_generator.init(config.SNOWFLAKE_WORKER_ID, config.SNOWFLAKE_DATACENTER_ID)
+    app.extensions["id_generator"] = id_generator
     log.info(
         f"Snowflake IDGenerator initialized with machine_id={config.SNOWFLAKE_WORKER_ID}, datacenter_id={config.SNOWFLAKE_DATACENTER_ID}")
 

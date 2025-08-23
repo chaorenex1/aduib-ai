@@ -1,17 +1,16 @@
 import functools
 import logging
 from collections.abc import Callable
-from typing import Any, Union
+from typing import Any
 
 import redis
 from redis import RedisError
 from redis.cache import CacheConfig
 from redis.cluster import ClusterNode, RedisCluster
-from redis.connection import Connection, SSLConnection
+from redis.connection import Connection
 from redis.sentinel import Sentinel
 
 from aduib_app import AduibAIApp
-from configs import config
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +53,7 @@ redis_client = RedisClientWrapper()
 
 
 def init_cache(app: AduibAIApp):
+    from configs import config
     global redis_client
     connection_class: type[Connection] = Connection
     resp_protocol = config.REDIS_SERIALIZATION_PROTOCOL
@@ -118,6 +118,7 @@ def init_cache(app: AduibAIApp):
         pool = redis.ConnectionPool(**redis_params)
         redis_client.initialize(redis.Redis(connection_pool=pool))
 
+    app.extensions["cache"] = redis_client
     logger.info("Redis initialized successfully")
 
 
