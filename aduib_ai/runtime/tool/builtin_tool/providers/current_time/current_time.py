@@ -22,6 +22,7 @@ class CurrentTimeTool(BuiltinTool):
         fm = tool_parameters.get("format") or "%Y-%m-%d %H:%M:%S %Z"
         if tz == "UTC":
             return ToolInvokeResult(
+                name=self.entity.name,
                 data=datetime.now(UTC).strftime(fm),
                 meta={
                     "timezone": tz,
@@ -33,6 +34,7 @@ class CurrentTimeTool(BuiltinTool):
             tz = pytz_timezone(tz)
         except Exception:
             return ToolInvokeResult(
+                name=self.entity.name,
                 data=f"Invalid timezone: {tz}",
                 success=False,
                 meta={
@@ -41,6 +43,7 @@ class CurrentTimeTool(BuiltinTool):
                 }
             )
         return ToolInvokeResult(
+            name=self.entity.name,
             data=datetime.now(tz).strftime(fm),
             meta={
                 "timezone": tz.zone,

@@ -189,14 +189,14 @@ def test_completion_tool_call():
                 "messages": [
         {
           "role": "user",
-          "content": "What is the weather like in Boston today?"
+          "content": "What is the weather like in Boston today? and what time is it there?"
         }
       ],
       "tools": [
         {
           "type": "function",
           "function": {
-            "name": "get_current_weather",
+            "name": "current_weather",
             "description": "Get the current weather in a given location",
             "parameters": {
               "type": "object",
@@ -213,16 +213,37 @@ def test_completion_tool_call():
               "required": ["location"]
             }
           }
-        }
+        },
+          {
+            "type": "function",
+            "function": {
+              "name": "current_time",
+              "description": "Format current datetime based on timezone and format string",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "timezone": {
+                    "type": "string",
+                    "description": "Timezone to use, default UTC"
+                  },
+                  "format": {
+                    "type": "string",
+                    "description": "Datetime format string, default %Y-%m-%d %H:%M:%S %Z"
+                  }
+                },
+                "required": ["timezone"]
+              }
+            }
+          }
       ],
       "tool_choice": "auto",
-                "temperature": 1,
-                "top_p": 1,
-                "stream": "false",
-                "stream_options": {
-                    "include_usage": "false"
-                }
-            },
+        "temperature": 1,
+        "top_p": 1,
+        "stream": "false",
+        "stream_options": {
+            "include_usage": "false"
+        }
+    },
         headers={"X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"}
     )
     assert response.status_code == 200

@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from typing import Any, Union, Generator
 
 from ..base.tool import Tool, ToolInvokeResult
@@ -16,6 +17,7 @@ class BuiltinTool(Tool):
         """
         return ToolProviderType.BUILTIN
 
+    @abstractmethod
     def _invoke(self, tool_parameters: dict[str, Any], message_id: str | None = None) -> Union[
         ToolInvokeResult, Generator[ToolInvokeResult, None, None]]:
         """

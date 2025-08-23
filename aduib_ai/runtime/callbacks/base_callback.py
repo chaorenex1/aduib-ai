@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Sequence, Union
 
-from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponseChunk, ChatCompletionResponse
+from ..entities import PromptMessage, ChatCompletionResponseChunk, ChatCompletionResponse, \
+    PromptMessageFunction
 from ..providers import AiModel
 
 
@@ -20,7 +21,7 @@ class Callback(ABC):
         credentials: dict,
         prompt_messages: Union[list[PromptMessage],str],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         include_reasoning: bool = False,
@@ -51,7 +52,7 @@ class Callback(ABC):
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         include_reasoning: bool = False,
@@ -83,7 +84,7 @@ class Callback(ABC):
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         include_reasoning: bool = False,
@@ -115,7 +116,7 @@ class Callback(ABC):
         credentials: dict,
         prompt_messages: list[PromptMessage],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         include_reasoning: bool = False,

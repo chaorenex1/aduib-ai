@@ -64,4 +64,4 @@ def load_yaml_files(file_path: str, ignore_error: bool = True, default_value: An
                     if not ignore_error:
                         raise e
 
-    return yaml_contents or []  # Return at least one item to avoid empty list
+    return yaml_contents

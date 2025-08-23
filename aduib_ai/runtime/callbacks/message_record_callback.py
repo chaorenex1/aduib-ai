@@ -3,7 +3,8 @@ from typing import Union, Optional, Sequence
 from libs.context import validate_api_key_in_internal
 from models import ConversationMessage
 from runtime.callbacks.base_callback import Callback
-from runtime.entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk
+from runtime.entities import PromptMessage, ChatCompletionResponse, ChatCompletionResponseChunk, \
+    PromptMessageFunction
 from runtime.providers import AiModel
 from service import ConversationMessageService
 
@@ -11,13 +12,13 @@ from service import ConversationMessageService
 class MessageRecordCallback(Callback):
     def on_new_chunk(self, llm_instance: AiModel, chunk: ChatCompletionResponseChunk, model: str, credentials: dict,
                      prompt_messages: Sequence[PromptMessage], model_parameters: dict,
-                     tools: Optional[list[PromptMessageTool]] = None, stop: Optional[Sequence[str]] = None,
+                     tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
                      stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None):
         pass
 
     def on_after_invoke(self, llm_instance: AiModel, result: ChatCompletionResponse, model: str, credentials: dict,
                         prompt_messages: Sequence[PromptMessage], model_parameters: dict,
-                        tools: Optional[list[PromptMessageTool]] = None, stop: Optional[Sequence[str]] = None,
+                        tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
                         stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None) -> None:
         """
         After invoke callback
@@ -59,7 +60,7 @@ class MessageRecordCallback(Callback):
 
     def on_invoke_error(self, llm_instance: AiModel, ex: Exception, model: str, credentials: dict,
                         prompt_messages: list[PromptMessage], model_parameters: dict,
-                        tools: Optional[list[PromptMessageTool]] = None, stop: Optional[Sequence[str]] = None,
+                        tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
                         stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None) -> None:
         """
         Invoke error callback
@@ -88,7 +89,7 @@ class MessageRecordCallback(Callback):
 
     def on_before_invoke(self, llm_instance: AiModel, model: str, credentials: dict,
                          prompt_messages: Union[list[PromptMessage], str], model_parameters: dict,
-                         tools: Optional[list[PromptMessageTool]] = None, stop: Optional[Sequence[str]] = None,
+                         tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
                          stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None) -> None:
         """
         Before invoke callback

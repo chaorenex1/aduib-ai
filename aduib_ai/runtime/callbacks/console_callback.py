@@ -3,7 +3,8 @@ import logging
 from typing import Optional, Sequence, Union
 
 from .base_callback import Callback
-from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponseChunk, ChatCompletionResponse
+from ..entities import PromptMessage, ChatCompletionResponseChunk, ChatCompletionResponse, \
+    PromptMessageFunction
 from ..providers.base import AiModel
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ class LoggingCallback(Callback):
         credentials: dict,
         prompt_messages: Union[list[PromptMessage],str],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         include_reasoning: bool = False,
@@ -49,7 +50,7 @@ class LoggingCallback(Callback):
         if tools:
             self.print_text("\tTools:\n", color="blue")
             for tool in tools:
-                self.print_text(f"\t\t{tool.name}\n", color="blue")
+                self.print_text(f"\t\t{tool.function.name}\n", color="blue")
 
         self.print_text(f"Stream: {stream}\n", color="blue")
         self.print_text(f"Include reasoning: {include_reasoning}\n", color="blue")
@@ -78,7 +79,7 @@ class LoggingCallback(Callback):
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         include_reasoning: bool = False,
@@ -113,7 +114,7 @@ class LoggingCallback(Callback):
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         include_reasoning: bool = False,
@@ -156,7 +157,7 @@ class LoggingCallback(Callback):
         credentials: dict,
         prompt_messages: list[PromptMessage],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         include_reasoning: bool = False,

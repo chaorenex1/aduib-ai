@@ -4,8 +4,8 @@ from models.engine import get_session
 
 class ConversationMessageService:
 
-    @staticmethod
-    def add_conversation_message(message:ConversationMessage) -> ConversationMessage:
+    @classmethod
+    def add_conversation_message(cls,message:ConversationMessage) -> ConversationMessage:
         """
         Add a conversation message to the database.
         :param message: ConversationMessage object to be added.
@@ -17,12 +17,12 @@ class ConversationMessageService:
             session.refresh(message)
         return message
 
-    @staticmethod
-    def search_conversation_message(self,search_text:str):
+    @classmethod
+    def search_conversation_message(cls,search_text:str):
         pass
 
-    @staticmethod
-    def update_conversation_message_state(message_id, state:str) -> None:
+    @classmethod
+    def update_conversation_message_state(cls,message_id, state:str) -> None:
         """
         Update the state of a conversation message by its ID.
         :param message_id: The ID of the conversation message to update.

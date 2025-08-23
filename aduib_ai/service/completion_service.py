@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Any, Union, Generator
 
 from fastapi import Request
@@ -7,15 +8,18 @@ from configs import config
 from controllers.params import CompletionRequest, ChatCompletionRequest
 from models.model import Model
 from models.provider import Provider
-from runtime.entities import ChatCompletionResponse
+from runtime.entities import ChatCompletionResponse, ToolPromptMessage
 from runtime.entities.model_entities import AIModelEntity
+from runtime.tool.entities import ToolInvokeResult
 from utils import RateLimit
+
+logger = logging.getLogger(__name__)
 
 
 class CompletionService:
 
-    @staticmethod
-    def create_completion(req:Union[ChatCompletionRequest, CompletionRequest],raw_request: Request) -> Optional[Any]:
+    @classmethod
+    def create_completion(cls,req:Union[ChatCompletionRequest, CompletionRequest],raw_request: Request) -> Optional[Any]:
         """
         Create a completion based on the request and raw request.
         :param req: The request object containing parameters for completion.
@@ -26,8 +30,8 @@ class CompletionService:
         request_id = rate_limit.gen_request_key()
         try:
             rate_limit.enter(request_id)
-            return rate_limit.generate(CompletionService.convert_to_stream(
-                CompletionService._completion(raw_request, req)
+            return rate_limit.generate(cls.convert_to_stream(
+                cls._completion(raw_request, req)
                 ,req)
                 , request_id)
         except Exception:
@@ -37,8 +41,8 @@ class CompletionService:
             if not req.stream:
                 rate_limit.exit(request_id)
 
-    @staticmethod
-    def _completion(raw_request, req):
+    @classmethod
+    def _completion(cls,raw_request, req):
         """
         Internal method to handle the completion logic.
         :param raw_request: The raw request object, typically from FastAPI.
@@ -61,10 +65,12 @@ class CompletionService:
                                                raw_request=raw_request,
                                                callbacks=[MessageRecordCallback()]
                                                )
+        if not req.stream and isinstance(llm_result, ChatCompletionResponse):
+            llm_result=cls.call_tools(model_instance,req,raw_request,llm_result)
         return llm_result
 
-    @staticmethod
-    def convert_to_stream(response:Union[ChatCompletionResponse, Generator],req:Union[ChatCompletionRequest, CompletionRequest]):
+    @classmethod
+    def convert_to_stream(cls,response:Union[ChatCompletionResponse, Generator],req:Union[ChatCompletionRequest, CompletionRequest]):
         """
         Convert the response to a streaming response if the request requires it.
         :param response: The response object or generator to be converted.
@@ -81,3 +87,34 @@ class CompletionService:
             return StreamingResponse(handle(), media_type="text/event-stream")
         else:
             return response
+
+    @classmethod
+    def call_tools(cls,model_instance,
+                   req: Union[ChatCompletionRequest, CompletionRequest],
+                   raw_request: Request
+                   ,llm_result: ChatCompletionResponse) -> ChatCompletionResponse:
+        """
+        Call tools if necessary based on the llm_result.
+        :param llm_result: The result from the language model.
+        :return: The updated llm_result after tool calls.
+        """
+        if llm_result.message.tool_calls and len(llm_result.message.tool_calls) > 0:
+
+            from runtime.tool.tool_manager import ToolManager
+            from runtime.callbacks.message_record_callback import MessageRecordCallback
+
+            tool_manager = ToolManager()
+            tool_invoke_result:ToolInvokeResult=tool_manager.invoke_tools(llm_result.message.tool_calls, llm_result.id)
+            if not tool_invoke_result:
+                logger.info(f"Tool calls for message {llm_result.id} already completed successfully.")
+                return llm_result
+            req.messages.append(llm_result.message)
+            req.messages.append(ToolPromptMessage(
+                content=tool_invoke_result.data,
+                tool_call_id=llm_result.message.tool_calls[0].id
+            ))
+            llm_result=model_instance.invoke_llm(prompt_messages=req,
+                                     raw_request=raw_request,
+                                     callbacks=[MessageRecordCallback()],
+                                     )
+        return llm_result

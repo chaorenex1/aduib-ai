@@ -47,6 +47,7 @@ class ToolEntity(BaseModel):
 
 
 class ToolInvokeResult(BaseModel):
+    name: str = ""
     data: Optional[Union[dict, str, list,bytes]] = None
     success: bool = True
     error: Optional[str] = None

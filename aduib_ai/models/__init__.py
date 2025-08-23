@@ -1,11 +1,10 @@
-from .engine import get_db,engine
-from .base import Base
-
-
 from .api_key import ApiKey
+from .base import Base
+from .engine import get_db, engine
+from .message import ConversationMessage
 from .model import Model
 from .provider import Provider
-from .message import ConversationMessage
+from .tool import ToolCallResult, Tool
 
 __all__ = ["get_db",
            "engine",
@@ -13,5 +12,7 @@ __all__ = ["get_db",
            "ApiKey",
            "Model",
            "Provider",
-              "ConversationMessage"
+              "ConversationMessage",
+              "ToolCallResult",
+                "Tool"
               ]

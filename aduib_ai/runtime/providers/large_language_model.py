@@ -15,11 +15,10 @@ from ..callbacks.console_callback import LoggingCallback
 from ..client.llm_client import ModelClient
 from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk, LLMUsage, \
     AssistantPromptMessage, \
-    TextPromptMessageContent, UserPromptMessage, ToolPromptMessage
+    TextPromptMessageContent, UserPromptMessage, ToolPromptMessage, PromptMessageFunction
 from ..entities.model_entities import ModelType, PriceType, PriceInfo, PriceConfig
 
 logger = logging.getLogger(__name__)
-
 
 class LlMModel(AiModel):
     """
@@ -98,30 +97,21 @@ class LlMModel(AiModel):
             )
 
             if not stream:
-                content = ""
-                # content_list = []
-                # usage = LLMUsage.empty_usage()
-                # system_fingerprint = None
-                # tools_calls: list[AssistantPromptMessage.ToolCall] = []
+                message_content = ""
+                tools_calls: list[AssistantPromptMessage.ToolCall] = []
                 for chunk in result:
-                #     if isinstance(chunk.delta.message.content, str):
-                #         content += chunk.delta.message.content
-                #     elif isinstance(chunk.delta.message.content, list):
-                #         content_list.extend(chunk.delta.message.content)
-                #     if chunk.delta.message.tool_calls:
-                #         # _increase_tool_call(chunk.delta.message.tool_calls, tools_calls)
-                #      pass
-                #
-                #     usage = chunk.delta.usage or LLMUsage.empty_usage()
-                #     system_fingerprint = chunk.system_fingerprint
-                #     break
                     for chunkContent in chunk.choices:
-                        if chunkContent.delta and chunkContent.delta.content:
-                            if isinstance(chunkContent.delta.content, str):
-                                content += chunkContent.delta.content
-                            elif isinstance(chunkContent.delta.content, list):
-                                content += "".join([c.data for c in chunkContent.delta.content])
-                    chunk.message= AssistantPromptMessage(content=content)
+                        if chunkContent.message and chunkContent.message.content:
+                            if isinstance(chunkContent.message.content, str):
+                                message_content += chunkContent.message.content
+                        if chunkContent.text:
+                            if isinstance(chunkContent.text, str):
+                                message_content += chunkContent.text
+                        if chunkContent.message and chunkContent.message.tool_calls:
+                            for tool_call in chunkContent.message.tool_calls:
+                                tools_calls.append(tool_call)
+                    chunk.message= AssistantPromptMessage(content=message_content, tool_calls=tools_calls)
+                    chunk.id= message_id
                     result = cast(ChatCompletionResponse, chunk)
         except Exception as e:
             self._trigger_invoke_error_callbacks(
@@ -172,7 +162,7 @@ class LlMModel(AiModel):
         credentials: dict,
         prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         user: Optional[str] = None,
@@ -208,7 +198,14 @@ class LlMModel(AiModel):
                 yield chunk
 
                 if chunk.choices:
-                    _update_message_content(chunkContent.delta.content for chunkContent in chunk.choices)
+                    for chunkContent in chunk.choices:
+                        if chunkContent.delta and chunkContent.delta.content:
+                            message_content.append(TextPromptMessageContent(data=chunkContent.delta.content))
+                        if chunkContent.message and chunkContent.message.content:
+                            message_content.append(TextPromptMessageContent(data=chunkContent.message.content))
+                        if chunkContent.text:
+                            if isinstance(chunkContent.text, str):
+                                message_content.append(TextPromptMessageContent(data=chunkContent.text))
 
                 self._trigger_new_chunk_callbacks(
                     chunk=chunk,
@@ -229,27 +226,32 @@ class LlMModel(AiModel):
                 if chunk.system_fingerprint:
                     system_fingerprint = chunk.system_fingerprint
         except Exception as e:
+            logger.error(f"Error in stream processing: {e}", exc_info=True)
             raise e
         finally:
-            assistant_message = AssistantPromptMessage(content=message_content)
-            messages = self.get_messages(prompt_messages)
-            self._trigger_after_invoke_callbacks(
-                model=model,
-                result=ChatCompletionResponse(
-                    model=real_model,
+            try:
+                assistant_message = AssistantPromptMessage(content=message_content)
+                messages = self.get_messages(prompt_messages)
+                self._trigger_after_invoke_callbacks(
+                    model=model,
+                    result=ChatCompletionResponse(
+                        model=real_model,
+                        prompt_messages=messages,
+                        message=assistant_message,
+                        usage=usage or LLMUsage.empty_usage(),
+                        system_fingerprint=system_fingerprint,
+                    ),
+                    credentials=credentials,
                     prompt_messages=messages,
-                    message=assistant_message,
-                    usage=usage or LLMUsage.empty_usage(),
-                    system_fingerprint=system_fingerprint,
-                ),
-                credentials=credentials,
-                prompt_messages=messages,
-                model_parameters=model_parameters,
-                tools=tools,
-                stop=stop,
-                stream=stream,
-                callbacks=callbacks,
-            )
+                    model_parameters=model_parameters,
+                    tools=tools,
+                    stop=stop,
+                    stream=stream,
+                    callbacks=callbacks,
+                )
+            except Exception as e:
+                logger.error(f"Error in after invoke callback: {e}", exc_info=True)
+
 
     def get_num_tokens(
         self,
@@ -354,7 +356,7 @@ class LlMModel(AiModel):
         credentials: dict,
         prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         include_reasoning:bool=False,
@@ -402,7 +404,7 @@ class LlMModel(AiModel):
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         callbacks: Optional[list[Callback]] = None,
@@ -447,7 +449,7 @@ class LlMModel(AiModel):
         credentials: dict,
         prompt_messages: Sequence[PromptMessage],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         callbacks: Optional[list[Callback]] = None,
@@ -493,7 +495,7 @@ class LlMModel(AiModel):
         credentials: dict,
         prompt_messages: list[PromptMessage],
         model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
+        tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
         callbacks: Optional[list[Callback]] = None,

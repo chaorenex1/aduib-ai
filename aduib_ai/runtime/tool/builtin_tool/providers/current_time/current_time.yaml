@@ -9,7 +9,7 @@ parameters:
     format:
       type: string
       description: Datetime format string, default "%Y-%m-%d %H:%M:%S %Z"
-  required: ["timezone", "format"]
+  required: ["timezone"]
 configs:
   timezone: "Asia/Shanghai"
   format: "%Y-%m-%d %H:%M:%S %Z"
