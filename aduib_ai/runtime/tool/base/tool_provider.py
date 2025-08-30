@@ -6,7 +6,7 @@ from .tool import Tool
 class ToolController(ABC):
 
     @abstractmethod
-    def get_tool(self, tool_name: str) -> Tool:
+    def get_tool(self, tool_name: str) -> Tool| None:
         """
         Get a tool by its name.
         :param tool_name: The name of the tool.
@@ -15,17 +15,19 @@ class ToolController(ABC):
         pass
 
     @abstractmethod
-    def get_tools(self) -> list[Tool]:
+    def get_tools(self,filter_names:list[str]) -> list[Tool]| []:
         """
         Get tool list
         :return: A list of the tool
         """
 
-    @abstractmethod
     def get_tool_schema(self, tool_name: str) -> dict:
         """
         Get the schema of a tool by its name.
         :param tool_name: The name of the tool.
         :return: A dictionary representing the tool's schema.
         """
-        pass
+        tool = self.get_tool(tool_name)
+        if tool:
+            return tool.get_tool_schema()
+        return {}

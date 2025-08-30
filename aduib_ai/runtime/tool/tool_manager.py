@@ -2,7 +2,7 @@ import json
 import logging
 
 from models import ToolCallResult
-from models.engine import get_session
+from models.engine import get_db
 from runtime.entities import AssistantPromptMessage
 from runtime.tool.base.tool import Tool
 from runtime.tool.base.tool_provider import ToolController
@@ -81,7 +81,7 @@ class ToolManager:
         :param tool_calls: list of tool calls to invoke
         :return: aggregated tool invoke result
         """
-        with get_session() as session:
+        with get_db() as session:
             tool_call_result:ToolCallResult=session.query(ToolCallResult).filter(ToolCallResult.message_id == message_id).first()
             if tool_call_result and tool_call_result.state == "success":
                 logger.info(f"Tool calls for message {message_id} already completed successfully.")
@@ -134,7 +134,7 @@ class ToolManager:
             name="AggregatedToolResults",
             data=tool_call_result_prompt,
         )
-        with get_session() as session:
+        with get_db() as session:
             if tool_call_results:
                 for call_result in tool_call_results:
                     existing_result = session.query(ToolCallResult).filter(

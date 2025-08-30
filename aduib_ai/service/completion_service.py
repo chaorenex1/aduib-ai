@@ -5,10 +5,10 @@ from fastapi import Request
 from starlette.responses import StreamingResponse
 
 from configs import config
-from controllers.params import CompletionRequest, ChatCompletionRequest
 from models.model import Model
 from models.provider import Provider
 from runtime.entities import ChatCompletionResponse, ToolPromptMessage
+from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from runtime.entities.model_entities import AIModelEntity
 from runtime.tool.entities import ToolInvokeResult
 from utils import RateLimit

@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from .auth import api_key
 from .chat import completion
+from .mcp import mcp_server, mcp
 from .model import model
 
 api_router = APIRouter()
@@ -12,3 +13,9 @@ api_router.include_router(api_key.router)
 
 #models
 api_router.include_router(model.router)
+
+# mcp_server
+api_router.include_router(mcp_server.router)
+
+# mcp
+api_router.include_router(mcp.router)

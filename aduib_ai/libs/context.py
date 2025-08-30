@@ -1,5 +1,6 @@
 import logging
 import time
+from contextvars import ContextVar
 from typing import Callable
 
 from fastapi import Depends
@@ -10,7 +11,8 @@ from starlette.requests import Request
 
 from constants.api_key_source import ApikeySource
 from controllers.common.error import ApiNotCurrentlyAvailableError
-from libs import api_key_context, trace_id_context
+from libs.contextVar_wrapper import ContextVarWrappers
+from models import ApiKey
 from service.api_key_service import ApiKeyService
 from service.error.error import ApiKeyNotFound
 from utils import trace_uuid
@@ -18,6 +20,9 @@ from utils import trace_uuid
 API_KEY_HEADER = "X-API-Key"  # 你希望客户端发送的 API Key 的请求头字段名称
 api_key_header = APIKeyHeader(name=API_KEY_HEADER)
 logger = logging.getLogger(__name__)
+
+api_key_context: ContextVarWrappers[ApiKey]=ContextVarWrappers(ContextVar("api_key"))
+trace_id_context: ContextVarWrappers[str]=ContextVarWrappers(ContextVar("trace_id"))
 
 
 def verify_api_key_in_db(api_key: str=Depends(api_key_header)) -> None:

@@ -52,3 +52,14 @@ class Tool(ABC):
         """
         pass
 
+    def get_tool_schema(self) -> dict[str, Any]:
+        """
+        Convert the tool to a dictionary.
+        :return: the tool as a dictionary
+        """
+        return {
+            "name": self.entity.name,
+            "description": self.entity.description,
+            "parameters": self.entity.parameters,
+        }
+

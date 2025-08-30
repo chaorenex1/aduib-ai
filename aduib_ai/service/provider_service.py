@@ -1,6 +1,6 @@
 from typing import Optional
 
-from models.engine import get_session
+from models.engine import get_db
 from models.provider import Provider
 from service.error.error import ModelProviderNotFound
 
@@ -15,7 +15,7 @@ class ProviderService:
         :param session: database session
         :return: provider
         """
-        with get_session() as session:
+        with get_db() as session:
             provider = session.query(Provider).filter(Provider.name == provider_name).first()
             if not provider:
                 raise ModelProviderNotFound("Provider not found")
@@ -33,7 +33,7 @@ class ProviderService:
         :param session: database session
         :return: provider
         """
-        with get_session() as session:
+        with get_db() as session:
             if support_model_types is None:
                 support_model_types = {}
             if provider_config is None:
@@ -52,7 +52,7 @@ class ProviderService:
         :param session: database session
         :return: provider
         """
-        with get_session() as session:
+        with get_db() as session:
             provider = session.query(Provider).filter(Provider.name == provider).first()
             if not provider:
                 return None

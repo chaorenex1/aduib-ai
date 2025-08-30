@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import Column, Integer, String, DECIMAL, JSON, DateTime, UniqueConstraint, ForeignKeyConstraint
+from sqlalchemy import Column, Integer, String, DECIMAL, DateTime, UniqueConstraint, ForeignKeyConstraint, Text
 
 from . import Base
 
@@ -19,12 +19,12 @@ class Model(Base):
     input_price = Column(DECIMAL(10,2), comment="Input Price",default=0.00)
     output_price = Column(DECIMAL(10,2), comment="Output Price",default=0.00)
     currency = Column(String, default="USD", comment="Model currency")
-    feature=Column(JSON, comment="Model Feature")
-    model_params=Column(JSON, comment="Model Params")
+    feature=Column(Text, comment="Model Feature")
+    model_params=Column(Text, comment="Model Params")
     description = Column(String, comment="Model Description")
-    created_at = Column(DateTime, default=datetime.datetime.now(), comment="api key create time")
-    updated_at = Column(DateTime, default=datetime.datetime.now(), comment="api key update time")
-    deleted = Column(Integer, default=0, comment="api key delete flag")
+    created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
+    updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
+    deleted = Column(Integer, default=0, comment="delete flag")
     __table_args__ = (
         UniqueConstraint('name', 'provider_name', name='uq_model_name_provider'),
         ForeignKeyConstraint(['provider_id'], ['provider.id'], name='fk_model_provider_id'),

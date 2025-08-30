@@ -5,7 +5,6 @@ from typing import Any
 from pydantic.fields import FieldInfo
 
 from .nacos.client import NacosClient
-from utils import get_local_ip
 
 
 class RemoteSettingsSource:

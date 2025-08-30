@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import UUID, String, text, JSON, DateTime, Integer, Column
+from sqlalchemy import UUID, String, text, DateTime, Integer, Column, ForeignKeyConstraint, Text
 
 from models import Base
 
@@ -10,26 +10,30 @@ class ToolCallResult(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
     message_id = Column(String, index=True, comment="message id")
     tool_call_id = Column(String, index=True, comment="tool call id")
-    tool_call=Column(JSON, comment="tool calls")
-    result=Column(JSON, comment="tool call result", nullable=True, default="{}")
+    tool_id = Column(UUID(as_uuid=True), index=True, comment="tool id")
+    tool_call=Column(Text, comment="tool calls")
+    result=Column(Text, comment="tool call result", nullable=True, default="{}")
     state: str = Column(String, nullable=False, comment="tool call state", default="success")
-    created_at = Column(DateTime, default=datetime.datetime.now(), comment="api key create time")
-    updated_at = Column(DateTime, default=datetime.datetime.now(), comment="api key update time")
-    deleted = Column(Integer, default=0, comment="api key delete flag")
+    created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
+    updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
+    deleted = Column(Integer, default=0, comment="delete flag")
+    __table_args__ = (
+        ForeignKeyConstraint(["tool_id"], ["tool_info.id"]),
+    )
 
 
 
-class Tool(Base):
+class ToolInfo(Base):
     __tablename__ = "tool_info"
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
     name = Column(String, unique=True, comment="tool name")
     description = Column(String, comment="tool description")
-    parameters = Column(JSON, comment="tool parameters schema")
-    configs=Column(JSON, comment="tool configurations")
-    icon=Column(String, comment="tool icon")
+    parameters = Column(Text, comment="tool parameters schema")
+    configs=Column(Text, comment="tool configurations", nullable=True, server_default=text("{}"))
+    icon=Column(String, comment="tool icon", nullable=True)
     provider = Column(String, comment="tool provider type")
     type=Column(String, comment="tool type")
-    credentials=Column(String, comment="tool credentials")
-    created_at = Column(DateTime, default=datetime.datetime.now(), comment="tool create time")
-    updated_at = Column(DateTime, default=datetime.datetime.now(), comment="tool update time")
-    deleted = Column(Integer, default=0, comment="tool delete flag")
+    credentials=Column(String, comment="tool credentials", nullable=True, server_default=text("none"))
+    created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
+    updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
+    deleted = Column(Integer, default=0, comment="delete flag")

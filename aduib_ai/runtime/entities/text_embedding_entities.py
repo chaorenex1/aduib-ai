@@ -1,9 +1,17 @@
 from decimal import Decimal
+from typing import Optional, List
 
 from pydantic import BaseModel
 
 from ..entities.model_entities import ModelUsage
 
+
+class EmbeddingRequest(BaseModel):
+    prompt: str
+    model: str
+
+class EmbeddingsResponse(BaseModel):
+    embedding: Optional[List[float]] = None
 
 class EmbeddingUsage(ModelUsage):
     """

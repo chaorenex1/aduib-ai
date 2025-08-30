@@ -1,8 +1,9 @@
+import json
 from typing import Optional
 
 from controllers.params import CreateModelRequest, ModelCard, ModelList
 from models import Provider
-from models.engine import get_session
+from models.engine import get_db
 from models.model import Model
 from runtime.entities.model_entities import AIModelEntity, ModelFeature, ModelType, PriceConfig
 from .error.error import ModelNotFound, ModelProviderNotFound
@@ -28,7 +29,7 @@ class ModelService:
         :param session: database session
         :return: model
         """
-        with get_session() as session:
+        with get_db() as session:
             model = session.query(Model).filter_by(name=model_name).first()
             if not model:
                 raise ModelNotFound("Model not found")
@@ -42,7 +43,7 @@ class ModelService:
         :param req: CreateModelRequest
         :return: model
         """
-        with get_session() as session:
+        with get_db() as session:
             provider:Optional[Provider]=session.query(Provider).filter_by(name=req.provider_name).first()
             if not provider:
                 raise ModelProviderNotFound("Provider not found")
@@ -50,8 +51,8 @@ class ModelService:
                           provider_name=req.provider_name,
                           type=req.model_type,
                           max_tokens=req.max_tokens,
-                          model_params=req.model_configs,
-                          feature=req.model_feature,
+                          model_params=json.dumps(req.model_configs),
+                          feature=json.dumps(req.model_feature),
                           input_price=req.input_price,
                             output_price=req.output_price,
                           provider_id=provider.id)
@@ -68,7 +69,7 @@ class ModelService:
         :param session: database session
         :return: model
         """
-        with get_session() as session:
+        with get_db() as session:
             model = session.query(Model).filter_by(name=model_name).first()
             if not model:
                 return None
@@ -82,7 +83,7 @@ class ModelService:
         Get all models.
         :return: list of models
         """
-        with get_session() as session:
+        with get_db() as session:
             models = session.query(Model).all()
             if not models:
                 return None
@@ -100,7 +101,7 @@ class ModelService:
         Get all AI models.
         :return: list of AI models
         """
-        with get_session() as session:
+        with get_db() as session:
             models = session.query(Model).filter_by(provider_name=provider_name).all()
             if not models:
                 return []
@@ -118,7 +119,7 @@ class ModelService:
         :param provider_name: provider name
         :return: AIModelEntity
         """
-        with get_session() as session:
+        with get_db() as session:
             model = session.query(Model).filter_by(name=model_name).first()
             if not model:
                 return None

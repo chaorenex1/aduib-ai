@@ -26,11 +26,13 @@ class BuiltinToolController(ToolController):
                 return tool
         raise ValueError(f"Tool {tool_name} not found.")
 
-    def get_tools(self) -> list[BuiltinTool]:
+    def get_tools(self,filter_names:list[str]) -> list[BuiltinTool]:
         """
         Get all built-in tools.
         This method should be implemented to return a list of all built-in tools.
         """
+        if filter_names:
+            return [tool for tool in self.tools if tool.entity.name in filter_names]
         return self.tools
 
     def get_tool_schema(self, tool_name: str) -> dict:
@@ -40,7 +42,7 @@ class BuiltinToolController(ToolController):
         """
         for tool in self.tools:
             if tool.entity.name == tool_name:
-                return tool.entity.parameters.model_dump()
+                return
         raise ValueError(f"Tool {tool_name} not found.")
 
     def load_tools(self) -> list[BuiltinTool]:

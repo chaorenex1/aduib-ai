@@ -19,6 +19,17 @@ class ToolProviderType(StrEnum):
                 return mode
         raise ValueError(f"Invalid ToolProviderType value: {value}")
 
+    @classmethod
+    def to_original(cls, type: str) -> "ToolProviderType":
+        if type == "builtin":
+            return cls.BUILTIN
+        elif type == "api":
+            return cls.API
+        elif type == "mcp":
+            return cls.MCP
+        else:
+            raise ValueError(f"Invalid ToolProviderType value: {type}")
+
 
 class CredentialType(StrEnum):
     """
@@ -29,6 +40,18 @@ class CredentialType(StrEnum):
     OAUTH2 = "oauth2"
     API_KEY= "api_key"
 
+    @classmethod
+    def to_original(cls, credential: str) -> "CredentialType":
+        if credential == "none":
+            return cls.NONE
+        elif credential == "basic":
+            return cls.BASIC
+        elif credential == "oauth2":
+            return cls.OAUTH2
+        elif credential == "api_key":
+            return cls.API_KEY
+        else:
+            raise ValueError(f"Invalid CredentialType value: {credential}")
 
 
 class ToolEntity(BaseModel):

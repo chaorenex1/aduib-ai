@@ -1,7 +1,7 @@
 from typing import Optional
 
 from models.api_key import ApiKey
-from models.engine import get_session
+from models.engine import get_db
 from utils.api_key import generate_api_key, hash_api_key, verify_api_key
 from .error.error import ApiKeyNotFound
 
@@ -15,7 +15,7 @@ class ApiKeyService:
         """
         validate the api key
         """
-        with get_session() as session:
+        with get_db() as session:
             api_Key_model = session.query(ApiKey).filter(ApiKey.hash_key == api_hash_key).first()
             if not api_Key_model:
                 raise ApiKeyNotFound("Api Key not correct")
@@ -34,7 +34,7 @@ class ApiKeyService:
         """
         create the api key
         """
-        with get_session() as session:
+        with get_db() as session:
             key = generate_api_key()
             hash_key = hash_api_key(key)
             api_key = ApiKey(api_key=key,
@@ -51,7 +51,7 @@ class ApiKeyService:
         """
         get the api key by hash key
         """
-        with get_session() as session:
+        with get_db() as session:
             return session.query(ApiKey).filter(ApiKey.api_key == api_key).first()
 
     @staticmethod
@@ -59,7 +59,7 @@ class ApiKeyService:
         """
         get the api key by hash key
         """
-        with get_session() as session:
+        with get_db() as session:
             return session.query(ApiKey).filter(ApiKey.hash_key == api_hash_key).first()
 
 
@@ -68,7 +68,7 @@ class ApiKeyService:
         """
         delete the api key
         """
-        with get_session() as session:
+        with get_db() as session:
             session.delete(session.query(ApiKey).filter(ApiKey.api_key == api_key).first())
             session.commit()
 
@@ -77,6 +77,6 @@ class ApiKeyService:
         """
         delete the api key
         """
-        with get_session() as session:
+        with get_db() as session:
             session.delete(session.query(ApiKey).filter(ApiKey.hash_key == api_hash_key).first())
             session.commit()

@@ -1,5 +1,5 @@
 from models import ConversationMessage
-from models.engine import get_session
+from models.engine import get_db
 
 
 class ConversationMessageService:
@@ -11,7 +11,7 @@ class ConversationMessageService:
         :param message: ConversationMessage object to be added.
         :return: The added ConversationMessage object.
         """
-        with get_session() as session:
+        with get_db() as session:
             session.add(message)
             session.commit()
             session.refresh(message)
@@ -30,7 +30,7 @@ class ConversationMessageService:
         :raises ValueError: If the message with the given ID does not exist.
         :return: None
         """
-        with get_session() as session:
+        with get_db() as session:
             message = session.query(ConversationMessage).filter(ConversationMessage.id == message_id).first()
             if not message:
                 raise ValueError(f"Message with id {message_id} not found.")
