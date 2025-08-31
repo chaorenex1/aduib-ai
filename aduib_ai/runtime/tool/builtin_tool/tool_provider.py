@@ -26,7 +26,7 @@ class BuiltinToolController(ToolController):
                 return tool
         raise ValueError(f"Tool {tool_name} not found.")
 
-    def get_tools(self,filter_names:list[str]) -> list[BuiltinTool]:
+    def get_tools(self,filter_names:list[str]=None) -> list[BuiltinTool]:
         """
         Get all built-in tools.
         This method should be implemented to return a list of all built-in tools.

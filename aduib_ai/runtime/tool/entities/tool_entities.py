@@ -3,6 +3,34 @@ from typing import Optional, Union
 
 from pydantic import BaseModel
 
+from runtime.mcp.types import TextContent, ImageContent, EmbeddedResource
+
+
+class McpTransportType(StrEnum):
+    """
+    Enum for MCP transport types.
+    """
+    STDIO = "stdio"
+    SSE = "sse"
+    STREAMABLE = "streamable"
+
+    @classmethod
+    def value_of(cls, value: str) -> "McpTransportType":
+        for mode in cls:
+            if mode.value == value:
+                return mode
+        raise ValueError(f"Invalid McpTransportType value: {value}")
+
+    @classmethod
+    def to_original(cls, type: str) -> "McpTransportType":
+        if type == "stdio":
+            return cls.STDIO
+        elif type == "sse":
+            return cls.SSE
+        elif type == "streamable":
+            return cls.STREAMABLE
+        else:
+            raise ValueError(f"Invalid McpTransportType value: {type}")
 
 class ToolProviderType(StrEnum):
     """
@@ -11,6 +39,7 @@ class ToolProviderType(StrEnum):
     BUILTIN = "builtin"
     API = "api"
     MCP = "mcp"
+    local= "local"
 
     @classmethod
     def value_of(cls, value: str) -> "ToolProviderType":
@@ -27,6 +56,8 @@ class ToolProviderType(StrEnum):
             return cls.API
         elif type == "mcp":
             return cls.MCP
+        elif type == "local":
+            return cls.local
         else:
             raise ValueError(f"Invalid ToolProviderType value: {type}")
 
@@ -67,11 +98,14 @@ class ToolEntity(BaseModel):
     type: ToolProviderType = ToolProviderType.BUILTIN
     credentials: CredentialType = CredentialType.NONE
 
+    def is_local(self) -> bool:
+        return self.type == ToolProviderType.local
+
 
 
 class ToolInvokeResult(BaseModel):
     name: str = ""
-    data: Optional[Union[dict, str, list,bytes]] = None
+    data: Optional[Union[dict, str, list,bytes,TextContent,ImageContent,EmbeddedResource]] = None
     success: bool = True
     error: Optional[str] = None
     meta: Optional[dict] = None

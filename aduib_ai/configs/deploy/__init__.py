@@ -18,4 +18,18 @@ class DeploymentConfig(BaseSettings):
         description="Deployment environment (e.g., 'PRODUCTION', 'DEVELOPMENT'), default to PRODUCTION",
         default="PRODUCTION",
     )
+    DEFAULT_USER_AGENT: str = Field(
+        default="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0",
+        description="Default User-Agent header for HTTP requests",
+    )
+    IS_SSL: bool = Field(default=False, description="Enable SSL")
+    SSL_CERTFILE: str = Field(default="", description="Path to the SSL certificate file")
+    SSL_KEYFILE: str = Field(default="", description="Path to the SSL key file")
     DEBUG: bool = Field(default=True, description="Enable debug mode")
+
+
+    @property
+    def url(self) -> str:
+        protocol = "https" if self.IS_SSL else "http"
+        return f"{protocol}://{self.APP_HOST}:{self.APP_PORT}"
+

@@ -1,4 +1,5 @@
 import asyncio
+import threading
 
 
 class AsyncUtils:
@@ -25,3 +26,24 @@ class AsyncUtils:
             asyncio.set_event_loop(loop)
             return loop
 
+
+
+
+class CountDownLatch:
+    """A synchronization aid that allows one or more threads to wait until
+    a set of operations being performed in other threads completes.
+    """
+    def __init__(self, count: int):
+        self.count = count
+        self.condition = threading.Condition()
+
+    def count_down(self):
+        with self.condition:
+            self.count -= 1
+            if self.count <= 0:
+                self.condition.notify_all()
+
+    def await_(self):
+        with self.condition:
+            while self.count > 0:
+                self.condition.wait()

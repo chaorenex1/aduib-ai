@@ -1,3 +1,6 @@
+import json
+from typing import Optional
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -5,6 +8,7 @@ from controllers.common.base import BaseResponse
 from controllers.common.error import ServiceError
 from controllers.params import MCPServerCreate, MCPServerUpdate
 from models import McpServer, get_db
+from runtime.mcp.client.mcp_client import McpClient
 from utils import generate_string
 
 router = APIRouter(tags=['mcp_server'],prefix="/mcp_server")
@@ -62,3 +66,42 @@ def delete_server(server_id: str, db: Session = Depends(get_db)):
     db.delete(server)
     db.commit()
     return BaseResponse.ok(data=server)
+
+
+@router.get("/init_tools/{server_code}")
+async def read_server(server_code: str, db: Session = Depends(get_db)):
+    server:Optional[McpServer] = db.query(McpServer).filter(McpServer.server_code == server_code).first()
+    if not server:
+        raise ServiceError(message="server not found")
+
+    mcp_config = json.loads(server.configs)
+    mcp_config['credential_type'] = server.credentials
+    mcp_client = McpClient.build_client(server.server_url, mcp_config)
+    try:
+        async with mcp_client.get_client_session() as client_session:
+            tools_response  = await client_session.list_tools()
+            if tools_response  is None:
+                raise ServiceError(message="failed to fetch tools from mcp server")
+
+            from runtime.tool.mcp.tool_provider import ToolProviderType, CredentialType
+
+            from models import ToolInfo
+
+            for tool in tools_response :
+                existing_tool = db.query(ToolInfo).filter(ToolInfo.name == tool.name, ToolInfo.provider == server.name).first()
+                if existing_tool:
+                    continue
+                tool_info = ToolInfo(
+                    name=tool.name,
+                    description=tool.description,
+                    parameters=json.dumps(tool.inputSchema),
+                    type=ToolProviderType.MCP.value(),
+                    provider=server.name,
+                    credentials=CredentialType.to_original(server.credentials) if server.credentials else None,
+                    configs=server.configs,
+                )
+                db.add(tool_info)
+            db.commit()
+        return BaseResponse.ok(data=server)
+    except Exception as e:
+        return BaseResponse.error(error_code=500,error_msg=f"failed to fetch tools from mcp server: {e}")

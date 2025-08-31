@@ -15,7 +15,7 @@ class ToolController(ABC):
         pass
 
     @abstractmethod
-    def get_tools(self,filter_names:list[str]) -> list[Tool]| []:
+    def get_tools(self,filter_names:list[str]=None) -> list[Tool]:
         """
         Get tool list
         :return: A list of the tool

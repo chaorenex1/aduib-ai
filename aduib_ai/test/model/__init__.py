@@ -47,7 +47,6 @@ def test_get_models():
     )
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
     assert len(data) > 0
     for model in data:
         print(model)

@@ -26,7 +26,7 @@ class ToolCallResult(Base):
 class ToolInfo(Base):
     __tablename__ = "tool_info"
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
-    name = Column(String, unique=True, comment="tool name")
+    name = Column(String, unique=True, comment="tool name",index=True)
     description = Column(String, comment="tool description")
     parameters = Column(Text, comment="tool parameters schema")
     configs=Column(Text, comment="tool configurations", nullable=True, server_default=text("{}"))

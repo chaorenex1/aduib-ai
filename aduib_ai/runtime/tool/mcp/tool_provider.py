@@ -1,7 +1,6 @@
 import json
 
 from mcp.server import FastMCP
-from mcp.types import Tool as MCPTool
 
 from models import get_db, ToolInfo
 from runtime.tool.base.tool import Tool
@@ -17,14 +16,15 @@ class McpToolController(ToolController):
     """
     A controller for managing MCP tools.
     """
+    server_url: str
     local_tools: list[McpTool] = []
     remote_tools: list[McpTool] = []
     tools: list[McpTool] = []
-    fast_mcp:FastMCP
 
-    def __init__(self):
+    def __init__(self,server_url: str):
+        self.server_url = server_url
         self.local_tools=self.load_local_tools()
-        self.remote_tools=self.local_remote_tools()
+        self.remote_tools=self.local_db_tools()
         self.tools=self.local_tools+self.remote_tools
 
     def get_tool(self, tool_name: str) -> Tool | None:
@@ -34,8 +34,10 @@ class McpToolController(ToolController):
                 return tool
         return None
 
-    def get_tools(self,filter_names:list[str]) -> list[Tool]| []:
+    def get_tools(self, filter_names=None) -> list[Tool]:
         """Retrieves all available tools."""
+        if filter_names is None:
+            filter_names = []
         if filter_names:
             return [tool for tool in self.tools if tool.entity.name in filter_names]
         return self.tools
@@ -44,6 +46,8 @@ class McpToolController(ToolController):
     def load_local_tools(self)-> list[McpTool]:
         """Loads local MCP tools from the FastMCP instance."""
         mcp_tools:list[McpTool] = []
+        from configs import config
+        from mcp.types import Tool as MCPTool
 
         local_mcp_tools:list[MCPTool] = AsyncUtils.run_async(fast_mcp.list_tools())
         if local_mcp_tools:
@@ -52,13 +56,13 @@ class McpToolController(ToolController):
                     name=tool.name,
                     description=tool.description,
                     parameters=tool.inputSchema,
-                    type=ToolProviderType.MCP,
+                    type=ToolProviderType.local,
                     provider="local_mcp",
-                ))
+                ),server_url=config.url)
                 mcp_tools.append(mcp_tool)
         return mcp_tools
 
-    def local_remote_tools(self):
+    def local_db_tools(self):
         """Loads remote MCP tools from configured MCP servers."""
         mcp_tools: list[McpTool] = []
         with get_db() as session:
@@ -72,8 +76,8 @@ class McpToolController(ToolController):
                         configs=json.loads(tool_info.configs),
                         type=ToolProviderType.to_original(tool_info.type) if tool_info.type else ToolProviderType.MCP,
                         provider=tool_info.provider,
-                        credentials=CredentialType.to_original(tool_info.credentials) if tool_info.credentials else None,
-                    ))
+                        credentials=CredentialType.to_original(tool_info.credentials) if tool_info.credentials else CredentialType.NONE
+                    ),server_url=self.server_url)
                     mcp_tools.append(mcp_tool)
 
 

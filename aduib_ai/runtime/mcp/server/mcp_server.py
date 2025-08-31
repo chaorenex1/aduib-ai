@@ -12,6 +12,7 @@ from models.user import EndUser
 from runtime.mcp import types
 from runtime.mcp.types import METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
 from runtime.mcp.utils import create_mcp_error_response
+from runtime.tool.mcp.tool_provider import McpToolController
 from utils import jsonable_encoder
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ class MCPServerStreamableHTTPRequestHandler:
         self.request = request
         self.mcp_server= mcp_server
         self.end_user = self.retrieve_end_user()
+        self.mcp_tool_controller=McpToolController(server_url=self.mcp_server.server_url)
 
     @property
     def request_type(self):
@@ -113,13 +115,14 @@ class MCPServerStreamableHTTPRequestHandler:
     def list_tools(self):
         if not self.end_user:
             raise ValueError("User not found")
+        tools = self.mcp_tool_controller.get_tools()
         return types.ListToolsResult(
             tools=[
                 types.Tool(
-                    name=self.app.name,
-                    description=self.mcp_server.description,
-                    inputSchema=self.parameter_schema,
-                )
+                    name=tool.entity.name,
+                    description=tool.entity.description,
+                    inputSchema=tool.entity.parameters,
+                ) for tool in tools
             ],
         )
 
@@ -127,46 +130,13 @@ class MCPServerStreamableHTTPRequestHandler:
         if not self.end_user:
             raise ValueError("User not found")
         request = cast(types.CallToolRequest, self.request.root)
-        args = request.params.arguments or {}
-        if self.app.mode in {AppMode.WORKFLOW.value}:
-            args = {"inputs": args}
-        elif self.app.mode in {AppMode.COMPLETION.value}:
-            args = {"query": "", "inputs": args}
-        else:
-            args = {"query": args["query"], "inputs": {k: v for k, v in args.items() if k != "query"}}
-        response = AppGenerateService.generate(
-            self.app,
-            self.end_user,
-            args,
-            InvokeFrom.SERVICE_API,
-            streaming=self.app.mode == AppMode.AGENT_CHAT.value,
-        )
-        answer = ""
-        if isinstance(response, RateLimitGenerator):
-            for item in response.generator:
-                data = item
-                if isinstance(data, str) and data.startswith("data: "):
-                    try:
-                        json_str = data[6:].strip()
-                        parsed_data = json.loads(json_str)
-                        if parsed_data.get("event") == "agent_thought":
-                            answer += parsed_data.get("thought", "")
-                    except json.JSONDecodeError:
-                        continue
-        if isinstance(response, Mapping):
-            if self.app.mode in {
-                AppMode.ADVANCED_CHAT.value,
-                AppMode.COMPLETION.value,
-                AppMode.CHAT.value,
-                AppMode.AGENT_CHAT.value,
-            }:
-                answer = response["answer"]
-            elif self.app.mode in {AppMode.WORKFLOW.value}:
-                answer = json.dumps(response["data"]["outputs"], ensure_ascii=False)
+        params = request.params
+        tool_invoke_result=self.mcp_tool_controller.get_tool(params.name).invoke(tool_parameters=params.arguments,message_id="")
+        for result in tool_invoke_result:
+            if result.success:
+                return types.CallToolResult(content=[result.data],_meta=result.meta)
             else:
-                raise ValueError("Invalid app mode")
-            # Not support image yet
-        return types.CallToolResult(content=[types.TextContent(text=answer, type="text")])
+                return types.ErrorData(message=result.error,code=-32603)
 
     def retrieve_end_user(self):
         with get_db() as session:

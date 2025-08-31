@@ -1,6 +1,5 @@
 from enum import StrEnum
 
-from controllers.mcp.streamable_http import MCPServerStreamableHTTPRequestHandler
 from fastapi import APIRouter
 from pydantic import ValidationError
 from starlette.requests import Request
@@ -9,6 +8,7 @@ from libs.deps import CurrentApiKeyDep
 from models import McpServer
 from models.engine import get_db
 from runtime.mcp import types
+from runtime.mcp.server.mcp_server import MCPServerStreamableHTTPRequestHandler
 from runtime.mcp.types import ClientRequest, ClientNotification
 from runtime.mcp.utils import create_mcp_error_response, compact_generate_response
 

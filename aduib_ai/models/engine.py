@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from typing import Generator, Optional
 
 from sqlalchemy import create_engine
@@ -13,6 +14,7 @@ def get_session()-> Optional[Session]:
     session  = SessionLocal()
     return session
 
+@contextmanager
 def get_db() -> Generator[Session, None, None]:
     with get_session() as session:
         try:

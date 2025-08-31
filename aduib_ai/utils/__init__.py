@@ -1,5 +1,5 @@
 from .api_key import generate_api_key, verify_api_key, hash_api_key
-from .async_utils import AsyncUtils
+from .async_utils import AsyncUtils, CountDownLatch
 from .encoders import jsonable_encoder
 from .module_import_helper import (
     get_subclasses_from_module,
@@ -28,4 +28,5 @@ __all__ = [
     "load_single_subclass_from_source",
     "import_module_from_source",
     "AsyncUtils",
+    "CountDownLatch",
 ]
