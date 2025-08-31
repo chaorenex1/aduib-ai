@@ -23,22 +23,24 @@ class McpTool(Tool):
         """Invoke the tool with the given parameters."""
 
         if self.entity.is_local():
-            from mcp.types import TextContent,ImageContent,EmbeddedResource
             from .tool_provider import fast_mcp
 
             try:
-                with fast_mcp.call_tool(self.entity.name, tool_parameters) as result:
-                    if isinstance(result, TextContent):
-                        from runtime.mcp.types import TextContent
-                        return ToolInvokeResult(name=self.entity.name, data=TextContent.model_validate(result.model_dump(exclude_none=True)))
-                    elif isinstance(result, ImageContent):
-                        from runtime.mcp.types import ImageContent
-                        return ToolInvokeResult(name=self.entity.name, data=ImageContent.model_validate(result.model_dump(exclude_none=True)))
-                    elif isinstance(result, EmbeddedResource):
-                        from runtime.mcp.types import EmbeddedResource
-                        return ToolInvokeResult(name=self.entity.name, data=EmbeddedResource.model_validate(result.model_dump(exclude_none=True)))
-                    else:
-                        return ToolInvokeResult(name=self.entity.name, data=result.model_dump(exclude_none=True))
+                async def invoke_tool():
+                    from mcp.types import TextContent,ImageContent,EmbeddedResource
+                    async with await fast_mcp.call_tool(self.entity.name, tool_parameters) as result:
+                        if isinstance(result, TextContent):
+                            from runtime.mcp.types import TextContent
+                            return ToolInvokeResult(name=self.entity.name, data=TextContent.model_validate(result.model_dump(exclude_none=True)))
+                        elif isinstance(result, ImageContent):
+                            from runtime.mcp.types import ImageContent
+                            return ToolInvokeResult(name=self.entity.name, data=ImageContent.model_validate(result.model_dump(exclude_none=True)))
+                        elif isinstance(result, EmbeddedResource):
+                            from runtime.mcp.types import EmbeddedResource
+                            return ToolInvokeResult(name=self.entity.name, data=EmbeddedResource.model_validate(result.model_dump(exclude_none=True)))
+                        else:
+                            return ToolInvokeResult(name=self.entity.name, data=result.model_dump(exclude_none=True))
+                return AsyncUtils.run_async(invoke_tool)
             except Exception as e:
                 logger.error(f"Failed to invoke tool: {e}")
                 return ToolInvokeResult(name=self.entity.name, error=f"Error: {str(e)}", success=False,meta=tool_parameters)

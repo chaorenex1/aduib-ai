@@ -69,7 +69,7 @@ def delete_server(server_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/init_tools/{server_code}")
-async def read_server(server_code: str, db: Session = Depends(get_db)):
+async def init_tools(server_code: str, db: Session = Depends(get_db)):
     server:Optional[McpServer] = db.query(McpServer).filter(McpServer.server_code == server_code).first()
     if not server:
         raise ServiceError(message="server not found")

@@ -1,6 +1,7 @@
 import logging
 import os
 import secrets
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Any, AsyncGenerator
 from urllib.parse import parse_qs, urlparse
@@ -94,7 +95,8 @@ class McpClient:
         """Factory method to create an McpClient instance."""
         return cls(server_url, mcp_config)
 
-    async def get_client_session(self)-> AsyncGenerator[ClientSession, Any]:
+    @asynccontextmanager
+    async def get_client_session(self)-> AsyncGenerator[ClientSession, None]:
         """Get an asynchronous context manager for the MCP client session."""
         if self.client_type == McpTransportType.STREAMABLE:
             from mcp.client.streamable_http import streamablehttp_client
