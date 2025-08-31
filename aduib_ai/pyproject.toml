@@ -19,7 +19,7 @@ dependencies = [
     "langchain-text-splitters==0.3.6",
     "modelscope>=1.28.2",
     "nacos-sdk-python>=2.0.1",
-    "aduib_rpc>=1.0.4",
+#    "aduib_rpc>=1.0.4",
     "nacos-mcp-wrapper-python",
     "neomodel==5.4.5",
     "numpy==2.1.3",

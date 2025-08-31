@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 
 from fastapi.routing import APIRoute
@@ -24,6 +25,10 @@ def create_app_with_configs()->AduibAIApp:
         debug=config.DEBUG,
     )
     app.config=config
+    if config.APP_HOME:
+        app.app_home = config.APP_HOME
+    else:
+        app.app_home = os.getcwd()
     app.include_router(api_router, prefix="/v1")
     if config.DEBUG:
         log.warning("Running in debug mode, this is not recommended for production use.")
@@ -35,8 +40,9 @@ def create_app_with_configs()->AduibAIApp:
 
 def create_app()->AduibAIApp:
     start_time = time.perf_counter()
-    init_logging()
     app = create_app_with_configs()
+    init_logging(app)
+    log.info(f"App home directory: {app.app_home}")
     init_apps(app)
     end_time = time.perf_counter()
     log.info(f"Finished create_app ({round((end_time - start_time) * 1000, 2)} ms)")

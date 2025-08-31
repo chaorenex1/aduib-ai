@@ -1,8 +1,7 @@
 import json
 
-from mcp.server import FastMCP
-
 from models import get_db, ToolInfo
+from runtime.mcp.base.fast_mcp import FastMCP
 from runtime.tool.base.tool import Tool
 from runtime.tool.base.tool_provider import ToolController
 from runtime.tool.entities import ToolEntity, ToolProviderType
