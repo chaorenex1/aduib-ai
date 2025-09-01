@@ -45,10 +45,9 @@ class McpToolController(ToolController):
     def load_local_tools(self)-> list[McpTool]:
         """Loads local MCP tools from the FastMCP instance."""
         mcp_tools:list[McpTool] = []
-        from configs import config
         from mcp.types import Tool as MCPTool
 
-        local_mcp_tools:list[MCPTool] = AsyncUtils.run_async(fast_mcp.list_tools())
+        local_mcp_tools:list[MCPTool] =AsyncUtils.run_async(fast_mcp.list_tools())
         if local_mcp_tools:
             for tool in local_mcp_tools:
                 mcp_tool = McpTool(entity=ToolEntity(
@@ -56,8 +55,8 @@ class McpToolController(ToolController):
                     description=tool.description,
                     parameters=tool.inputSchema,
                     type=ToolProviderType.local,
-                    provider="local_mcp",
-                ),server_url=config.url)
+                    icon="",
+                    provider="local_mcp"),server_url=self.server_url)
                 mcp_tools.append(mcp_tool)
         return mcp_tools
 
@@ -71,7 +70,7 @@ class McpToolController(ToolController):
                     mcp_tool = McpTool(entity=ToolEntity(
                         name=tool_info.name,
                         description=tool_info.description,
-                        parameters=tool_info.parameters,
+                        parameters=json.loads(tool_info.parameters),
                         configs=json.loads(tool_info.configs),
                         type=ToolProviderType.to_original(tool_info.type) if tool_info.type else ToolProviderType.MCP,
                         provider=tool_info.provider,
@@ -80,6 +79,6 @@ class McpToolController(ToolController):
                     mcp_tools.append(mcp_tool)
 
 
-        return self.remote_tools
+        return mcp_tools
 
 

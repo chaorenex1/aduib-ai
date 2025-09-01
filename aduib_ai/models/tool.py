@@ -30,7 +30,7 @@ class ToolInfo(Base):
     description = Column(String, comment="tool description")
     parameters = Column(Text, comment="tool parameters schema")
     configs=Column(Text, comment="tool configurations", nullable=True, server_default=text("{}"))
-    icon=Column(String, comment="tool icon", nullable=True)
+    icon=Column(String, comment="tool icon", nullable=True, server_default=text("'default_tool_icon.png'"))
     provider = Column(String, comment="tool provider type")
     type=Column(String, comment="tool type")
     credentials=Column(String, comment="tool credentials", nullable=True, server_default=text("none"))

@@ -41,4 +41,4 @@ class BaseResponse(BaseModel):
 
     @classmethod
     def error(cls, error_code: int, error_msg: str) -> "BaseResponse":
-        return cls(code=error_code, msg=error_msg, data=None)
+        return cls(code=error_code, msg=error_msg, data={})

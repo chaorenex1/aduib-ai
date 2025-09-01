@@ -1,11 +1,12 @@
-from .engine import get_db, engine
-from .base import Base
 from .api_key import ApiKey
+from .base import Base
+from .engine import get_db, engine
 from .mcp import McpServer
 from .message import ConversationMessage
 from .model import Model
 from .provider import Provider
 from .tool import ToolCallResult, ToolInfo
+from .user import McpUser
 
 __all__ = ["get_db",
            "engine",
@@ -16,5 +17,6 @@ __all__ = ["get_db",
             "ConversationMessage",
             "ToolCallResult",
             "ToolInfo",
-            "McpServer"
+            "McpServer",
+           "McpUser"
               ]

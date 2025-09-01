@@ -17,9 +17,23 @@ router = APIRouter(tags=['mcp'],prefix="/mcp")
 class McpServerStatus(StrEnum):
     ACTIVE = "active"
     INACTIVE = "inactive"
+"""
+streamable http request handler
+json schema:
+{
+    "mcpServers": {
+        "aduib_ai": {
+            "url": "http://10.0.0.124:5001/v1/mcp/server_code",
+            "type": "streamableHttp",
+            "headers": {
+                "x-api-key": "your_api_key"
+            }
+        }
+    }
+}
+"""
 
-
-@router.api_route(path="/{server_code}", methods=["POST", "GET"])
+@router.post(path="/{server_code}")
 async def mcp_chat_completions(server_code: str, request: Request, current_key:CurrentApiKeyDep):
     mcp_server: McpServer = None
     with get_db() as session:

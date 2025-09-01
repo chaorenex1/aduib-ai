@@ -1,7 +1,6 @@
 import logging
 import os
 import secrets
-from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Any, AsyncGenerator
 from urllib.parse import parse_qs, urlparse
@@ -56,6 +55,8 @@ class McpClient:
     def __init__(self, server_url:str,mcp_config:dict[str,Any]):
         self.oauth_auth:Any =None
         self.server_url = server_url
+        if server_url.endswith("/"):
+            self.server_url = server_url[:-1]
         self.mcp_config = mcp_config
         if self.mcp_config is not None:
             self.authed = mcp_config.get("authed", False)
@@ -95,22 +96,19 @@ class McpClient:
         """Factory method to create an McpClient instance."""
         return cls(server_url, mcp_config)
 
-    @asynccontextmanager
     async def get_client_session(self)-> AsyncGenerator[ClientSession, None]:
         """Get an asynchronous context manager for the MCP client session."""
         if self.client_type == McpTransportType.STREAMABLE:
             from mcp.client.streamable_http import streamablehttp_client
-            async with streamablehttp_client(self.server_url, headers=self.get_client_header(),
+            async with streamablehttp_client(self.server_url+"/mcp", headers=self.get_client_header(),
                                              auth=self.oauth_auth) as (read, write, _):
                 async with ClientSession(read, write) as session:
-                    await session.initialize()
                     yield session  # <-- 保证外部能用，退出时自动清理
 
         elif self.client_type == McpTransportType.SSE:
             from mcp.client.sse import sse_client
-            async with sse_client(self.server_url, headers=self.get_client_header(), auth=self.oauth_auth) as (read,write,_):
+            async with sse_client(self.server_url+"/sse", headers=self.get_client_header(), auth=self.oauth_auth) as (read,write,_):
                 async with ClientSession(read, write) as session:
-                    await session.initialize()
                     yield session
 
         elif self.client_type == McpTransportType.STDIO:
@@ -122,7 +120,6 @@ class McpClient:
             )
             async with stdio_client(server_params) as (read, write, _):
                 async with ClientSession(read, write) as session:
-                    await session.initialize()
                     yield session
 
         else:

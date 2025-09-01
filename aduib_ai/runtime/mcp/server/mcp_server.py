@@ -8,7 +8,7 @@ from sqlalchemy import select, func
 from configs import config
 from models import McpServer
 from models.engine import get_db
-from models.user import EndUser
+from models.user import McpUser
 from runtime.mcp import types
 from runtime.mcp.types import METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
 from runtime.mcp.utils import create_mcp_error_response
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class MCPServerStreamableHTTPRequestHandler:
     def __init__(
-        self, request: types.ClientRequest | types.ClientNotification,mcp_server: McpServer,
+        self, request:  types.ClientRequest | types.ClientNotification,mcp_server: McpServer,
     ):
         self.request = request
         self.mcp_server= mcp_server
@@ -97,7 +97,7 @@ class MCPServerStreamableHTTPRequestHandler:
         client_name = f"{client_info.name}@{client_info.version}"
         if not self.end_user:
             with get_db() as session:
-                end_user = EndUser(
+                end_user = McpUser(
                     type="mcp",
                     name=client_name,
                     session_id=self.generate_session_id(),
@@ -132,17 +132,18 @@ class MCPServerStreamableHTTPRequestHandler:
         request = cast(types.CallToolRequest, self.request.root)
         params = request.params
         tool_invoke_result=self.mcp_tool_controller.get_tool(params.name).invoke(tool_parameters=params.arguments,message_id="")
-        for result in tool_invoke_result:
-            if result.success:
-                return types.CallToolResult(content=[result.data],_meta=result.meta)
-            else:
-                return types.ErrorData(message=result.error,code=-32603)
+        result =next(tool_invoke_result)
+        if result.success:
+            call_tool_result = types.CallToolResult(content=result.data,_meta=result.meta)
+            return call_tool_result
+        else:
+            return types.ErrorData(message=result.error,code=-32603)
 
     def retrieve_end_user(self):
         with get_db() as session:
             return (
-                session.query(EndUser)
-                .where(EndUser.external_user_id == self.mcp_server.id, EndUser.type == "mcp")
+                session.query(McpUser)
+                .where(McpUser.external_user_id == self.mcp_server.id, McpUser.type == "mcp")
                 .first()
             )
 
@@ -154,7 +155,7 @@ class MCPServerStreamableHTTPRequestHandler:
             with get_db() as session:
                 session_id = str(uuid.uuid4())
                 existing_count = session.scalar(
-                    select(func.count()).select_from(EndUser).where(EndUser.session_id == session_id)
+                    select(func.count()).select_from(McpUser).where(McpUser.session_id == session_id)
                 )
                 if existing_count == 0:
                     return session_id

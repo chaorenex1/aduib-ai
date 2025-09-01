@@ -59,20 +59,25 @@ class ModelList(BaseModel):
 
 
 class MCPServerBase(BaseModel):
+    server_url: str = None
     server_code: str = None
     name: str = Field(..., max_length=128)
     description: Optional[str] = None
     status: Optional[str] = Field("active", pattern="^(active|inactive)$")
-    parameters: Optional[str] = None
+    configs: Optional[str] = None
+    credentials: Optional[str] = None
 
 class MCPServerCreate(MCPServerBase):
     pass
 
 class MCPServerUpdate(BaseModel):
-    name: Optional[str] = None
+    server_url: str = None
+    server_code: str = None
+    name: str = Field(..., max_length=128)
     description: Optional[str] = None
-    status: Optional[str] = None
-    parameters: Optional[str] = None
+    status: Optional[str] = Field("active", pattern="^(active|inactive)$")
+    configs: Optional[str] = None
+    credentials: Optional[str] = None
 
 class MCPServerOut(MCPServerBase):
     id: uuid.UUID
