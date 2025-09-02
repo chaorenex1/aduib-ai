@@ -84,6 +84,7 @@ async def init_tools(server_code: str):
         mcp_client = McpClient.build_client(mcp_server.server_url, mcp_config)
         try:
             async with mcp_client.get_client_session() as client_session:
+                await client_session.initialize()
                 tools_response  = await client_session.list_tools()
                 if tools_response is None:
                     raise ServiceError(message="failed to fetch tools from mcp server")
@@ -113,4 +114,57 @@ async def init_tools(server_code: str):
                 db.commit()
             return BaseResponse.ok(data=mcp_server)
         except Exception as e:
+            return BaseResponse.error(error_code=500,error_msg=f"failed to fetch tools from mcp server: {e}")
+
+
+@router.post("/init_servers/")
+async def init_servers(server: MCPServerCreate):
+    with get_db() as db:
+        existing_server = db.query(McpServer).filter(McpServer.server_url == server.server_url).first()
+        if existing_server:
+            raise ServiceError(message="server already exists")
+
+        db_server = McpServer(**server.model_dump(exclude_none=True))
+        db_server.server_code = generate_string(16)
+        db.add(db_server)
+        db.commit()
+        db.refresh(db_server)
+
+        mcp_config = json.loads(server.configs)
+        mcp_config['credential_type'] = db_server.credentials
+        mcp_client = McpClient.build_client(db_server.server_url, mcp_config)
+        try:
+            async with mcp_client.get_client_session() as client_session:
+                await client_session.initialize()
+                tools_response  = await client_session.list_tools()
+                if tools_response is None:
+                    raise ServiceError(message="failed to fetch tools from mcp server")
+
+                from runtime.tool.mcp.tool_provider import ToolProviderType, CredentialType
+
+                from models import ToolInfo
+
+                tools_infos:list[ToolInfo] = []
+                for tool in tools_response.tools :
+                    print(tool)
+                    tool_info = ToolInfo(
+                        name=tool.name,
+                        description=tool.description,
+                        parameters=json.dumps(tool.inputSchema),
+                        type=ToolProviderType.MCP,
+                        provider=db_server.name,
+                        credentials=db_server.credentials,
+                        configs=db_server.configs,
+                    )
+                    existing_tool = db.query(ToolInfo).filter(ToolInfo.name == tool.name, ToolInfo.provider == db_server.name).first()
+                    if existing_tool:
+                        tool_info.id = existing_tool.tool_id
+
+                    tools_infos.append(tool_info)
+                db.bulk_save_objects(tools_infos)
+                db.commit()
+            return BaseResponse.ok(data=db_server)
+        except Exception as e:
+            db.delete(db_server)
+            db.commit()
             return BaseResponse.error(error_code=500,error_msg=f"failed to fetch tools from mcp server: {e}")
