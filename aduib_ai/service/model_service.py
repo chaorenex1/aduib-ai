@@ -17,7 +17,7 @@ def get_model_features(model: Model) -> list[ModelFeature]:
     """
     if not model.feature:
         return []
-    return [ModelFeature(feature) for feature in model.feature]
+    return [ModelFeature(feature) for feature in json.loads(model.feature)]
 
 class ModelService:
 
@@ -106,7 +106,7 @@ class ModelService:
             if not models:
                 return []
             return [AIModelEntity(model=model.name, model_type=ModelType.value_of(model.type),
-                           features=get_model_features(model), model_properties=model.model_params,
+                           features=get_model_features(model), model_properties=json.loads(model.model_params),
                            parameter_rules=[], pricing=PriceConfig(
                     input=model.input_price,
                     output=model.output_price), deprecated=False) for model in models]

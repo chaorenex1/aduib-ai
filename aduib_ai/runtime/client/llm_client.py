@@ -3,10 +3,10 @@ from typing import Union, Generator
 from fastapi import Request
 
 from controllers.common.error import InnerError
-from controllers.params import ChatCompletionRequest, CompletionRequest
 from utils import jsonable_encoder
 from .base import BaseClient
 from ..entities import ChatCompletionResponse, ChatCompletionResponseChunk
+from ..entities.llm_entities import ChatCompletionRequest, CompletionRequest
 
 
 class ModelClient(BaseClient):

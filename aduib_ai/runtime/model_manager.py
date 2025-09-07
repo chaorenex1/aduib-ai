@@ -1,12 +1,13 @@
 import logging
-from typing import Optional, Generator, overload, Union, cast, Callable, Any, IO, Iterable
+from typing import Optional, Generator, Union, cast, Callable, Any, IO, Iterable
+
 from fastapi import Request
 
-from controllers.params import ChatCompletionRequest, CompletionRequest
 from models import Provider, Model
 from .callbacks.base_callback import Callback
 from .entities import ChatCompletionResponse
 from .entities.embedding_type import EmbeddingInputType
+from .entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from .entities.model_entities import AIModelEntity, ModelType
 from .entities.provider_entities import ProviderEntity
 from .entities.rerank_entities import RerankResult

@@ -7,7 +7,6 @@ from fastapi import Request
 from pydantic import ConfigDict
 
 from configs import config
-from controllers.params import ChatCompletionRequest, CompletionRequest
 from .base import AiModel
 from .gpt_tokenizer import GPTTokenizer
 from ..callbacks.base_callback import Callback
@@ -16,6 +15,7 @@ from ..client.llm_client import ModelClient
 from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk, LLMUsage, \
     AssistantPromptMessage, \
     TextPromptMessageContent, UserPromptMessage, ToolPromptMessage, PromptMessageFunction
+from ..entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from ..entities.model_entities import ModelType, PriceType, PriceInfo, PriceConfig
 
 logger = logging.getLogger(__name__)

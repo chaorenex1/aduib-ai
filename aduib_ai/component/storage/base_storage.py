@@ -55,7 +55,7 @@ class StorageManager:
             case "local":
                 from .opendal_storage import OpenDALStorage
                 storage_path = config.STORAGE_LOCAL_PATH if config.STORAGE_LOCAL_PATH else app.app_home + "/"+storage_type
-                return lambda : OpenDALStorage(scheme="fs",root=config.STORAGE_LOCAL_PATH)
+                return lambda : OpenDALStorage(scheme="fs",root=storage_path)
             case "s3":
                 from .s3_storage import S3Storage
                 return S3Storage
@@ -115,3 +115,4 @@ storage_manager = StorageManager()
 
 def init_storage(app:AduibAIApp):
     storage_manager.init_storage(app)
+    app.extensions["storage_manager"] = storage_manager

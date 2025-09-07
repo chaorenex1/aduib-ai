@@ -2,10 +2,10 @@ from typing import Union, Optional
 
 from pydantic import BaseModel, Field
 
-from controllers.params import ChatCompletionRequest, CompletionRequest
 from service.model_service import ModelService
 from utils import message_uuid
 from ..entities import PromptMessage
+from ..entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from ..entities.model_entities import AIModelEntity
 from ..entities.provider_entities import ProviderEntity
 
