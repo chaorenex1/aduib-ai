@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from multiprocessing.spawn import freeze_support
 
@@ -7,7 +8,7 @@ app=create_app()
 logger = logging.getLogger(__name__)
 
 
-async def main(**kwargs):
+async def run_app(**kwargs):
     import uvicorn
     config = uvicorn.Config(app=app, host=app.config.APP_HOST, port=app.config.APP_PORT, **kwargs)
     await uvicorn.Server(config).serve()
@@ -15,4 +16,4 @@ async def main(**kwargs):
 if __name__ == '__main__':
     freeze_support()
     import uvicorn
-    uvicorn.run(app=app, host=app.config.APP_HOST, port=app.config.APP_PORT)
+    asyncio.run(run_app())
