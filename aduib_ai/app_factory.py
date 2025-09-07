@@ -8,6 +8,7 @@ from fastapi.routing import APIRoute
 from aduib_app import AduibAIApp
 from component.cache.redis_cache import init_cache
 from component.log.app_logging import init_logging
+from component.storage.base_storage import init_storage
 from configs import config
 from controllers.route import api_router
 from libs.context import LoggingMiddleware, TraceIdContextMiddleware, ApiKeyContextMiddleware
@@ -58,4 +59,5 @@ def init_apps(app: AduibAIApp):
     log.info("Initializing middlewares")
     init_idGenerator(app)
     init_cache(app)
+    init_storage(app)
     log.info("middlewares initialized successfully")

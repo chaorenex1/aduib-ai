@@ -2,8 +2,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Generator, Callable, Any, Union
 
-from ...aduib_app import AduibAIApp
-from ...configs import config
+from aduib_app import AduibAIApp
+from configs import config
 
 log=logging.getLogger(__name__)
 
@@ -46,14 +46,15 @@ class StorageManager:
         self.storage_instance = None
 
     def init_storage(self,app:AduibAIApp):
-        storage = self.get_storage_instance(config.STORAGE_TYPE)
+        storage = self.get_storage_instance(config.STORAGE_TYPE,app)
         self.storage_instance = storage()
 
     @staticmethod
-    def get_storage_instance(storage_type:str) -> Callable[[], BaseStorage]:
+    def get_storage_instance(storage_type:str,app:AduibAIApp) -> Callable[[], BaseStorage]:
         match storage_type:
             case "local":
                 from .opendal_storage import OpenDALStorage
+                storage_path = config.STORAGE_LOCAL_PATH if config.STORAGE_LOCAL_PATH else app.app_home + "/"+storage_type
                 return lambda : OpenDALStorage(scheme="fs",root=config.STORAGE_LOCAL_PATH)
             case "s3":
                 from .s3_storage import S3Storage

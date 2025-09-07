@@ -33,3 +33,6 @@ class DeploymentConfig(BaseSettings):
         protocol = "https" if self.IS_SSL else "http"
         return f"{protocol}://{self.APP_HOST}:{self.APP_PORT}"
 
+
+class ServiceUrlConfig(BaseSettings):
+    SERVICE_URL: str = Field(default="http://localhost:5001", description="Service URL")
