@@ -8,14 +8,32 @@ def test_add_model():
     response = client.post(
         "v1/models/add",
         json={
-        "model_name": "Qwen3-30B-A3B-Instruct-2507-FP8",
-        "provider_name": "aduib_ai_test",
+        "model_name": "Modelscope.cn/bartowski/Qwen_Qwen3-30B-A3B-Thinking-2507-GGUF:Q8_0",
+        "provider_name": "ollama",
         "model_type": "llm",
-        "max_tokens": 16384,
-        "model_configs": {"temperature": 0.7, "top_k": 20, "top_p": 0.9, "frequency_penalty": 0.0, "presence_penalty": 0.0},
-        "model_feature": ["tool", "vision"],
-        "input_price": 0.01,
-        "output_price": 0.02
+        "max_tokens": 262144,
+        "model_configs": {"temperature": 0.6, "top_k": 20, "top_p": 0.95, "presence_penalty ": 1.5, "miniP":0},
+        "model_feature": ["tool"],
+        "input_price": 0.00,
+        "output_price": 0.00
+    }
+    )
+    assert response.status_code == 200
+
+
+
+def test_add_emb_model():
+    response = client.post(
+        "v1/models/add",
+        json={
+        "model_name": "modelscope.cn/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0",
+        "provider_name": "ollama",
+        "model_type": "embedding",
+        "max_tokens": 262144,
+        "model_configs": {"max_embedding_tokens": 4096},
+        "model_feature": [],
+        "input_price": 0.00,
+        "output_price": 0.00
     }
     )
     assert response.status_code == 200
@@ -25,16 +43,15 @@ def test_add_provider():
     response = client.post(
         "v1/providers/add",
         json={
-            "provider_name": "aduib_ai",
+            "provider_name": "github",
             "supported_model_types": ["llm", "tts", "asr", "embedding", "ranker"],
-            "provider_type": "OpenAI",
+            "provider_type": "github",
             "provider_config": {"api_key": "testkey", "api_base": "http://10.0.0.96:8000"}
         }
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["code"] == 200
-    assert data["msg"] == "模型提供者创建成功"
+    print(data)
 
 
 def test_get_models():

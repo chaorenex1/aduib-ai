@@ -22,12 +22,14 @@ class BaseResponse(BaseModel):
     """
     code: int
     msg: str
-    data: dict[str, Any]
-    def __init__(self, /, code: int = 0, msg: str = "success", data: dict | None = None):
-        super().__init__(code=code, msg=msg, data=data)
+    data: dict[str, Any]= None
+    def __init__(self, code: int = 0, msg: str = "success", data=None):
+        super().__init__(code=code, msg=msg, data=data if data is not None else {})
+        if data is None:
+            data = {}
         self.code = code
         self.msg = msg
-        self.data = data if data is not None else {}
+        self.data = data
 
     def to_dict(self) -> dict:
         return {

@@ -1,8 +1,15 @@
+import asyncio
+import contextlib
 import logging
 import os
 import pathlib
 import time
+from typing import AsyncIterator
 
+from aduib_rpc.discover.entities import ServiceInstance
+from aduib_rpc.discover.registry.nacos.nacos_service_registry import NacosServiceRegistry
+from aduib_rpc.discover.service import AduibServiceFactory
+from aduib_rpc.utils.constant import TransportSchemes, AIProtocols
 from fastapi.routing import APIRoute
 
 from aduib_app import AduibAIApp
@@ -12,6 +19,7 @@ from component.storage.base_storage import init_storage
 from configs import config
 from controllers.route import api_router
 from libs.context import LoggingMiddleware, TraceIdContextMiddleware, ApiKeyContextMiddleware
+from utils import get_local_ip
 from utils.snowflake_id import init_idGenerator
 
 log=logging.getLogger(__name__)
@@ -25,6 +33,7 @@ def create_app_with_configs()->AduibAIApp:
         title=config.APP_NAME,
         generate_unique_id_function=custom_generate_unique_id,
         debug=config.DEBUG,
+        lifespan=lifespan
     )
     app.config=config
     if config.APP_HOME:
@@ -61,3 +70,18 @@ def init_apps(app: AduibAIApp):
     init_cache(app)
     init_storage(app)
     log.info("middlewares initialized successfully")
+
+
+@contextlib.asynccontextmanager
+async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
+    log.info("Lifespan is starting")
+    ip = get_local_ip()
+    service = ServiceInstance(service_name=config.APP_NAME, host=ip, port=config.APP_PORT,
+                              protocol=AIProtocols.AduibRpc, weight=1, scheme=TransportSchemes.GRPC)
+    registry = NacosServiceRegistry(server_addresses=config.NACOS_SERVER_ADDR,
+                                    namespace=config.NACOS_NAMESPACE, group_name=config.NACOS_GROUP,
+                                    username=config.NACOS_USERNAME, password=config.NACOS_PASSWORD)
+    factory = AduibServiceFactory(service_instance=service)
+    await registry.register_service(service)
+    asyncio.create_task(factory.run_server())
+    yield None

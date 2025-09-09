@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 
 from models.engine import get_db
@@ -39,7 +40,7 @@ class ProviderService:
             if provider_config is None:
                 provider_config = {}
             provider = Provider(name=provider_name,
-                                support_model_type=support_model_types,provider_type=provider_type,provider_config=provider_config)
+                                support_model_type=json.dumps(support_model_types),provider_type=provider_type,provider_config=json.dumps(provider_config))
             session.add(provider)
             session.commit()
         return provider

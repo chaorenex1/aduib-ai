@@ -49,6 +49,7 @@ class ModelFeature(Enum):
     DOCUMENT = "document"
     VIDEO = "video"
     AUDIO = "audio"
+    THINKING = "thinking"
 
 
 class DefaultParameterName(StrEnum):
@@ -61,6 +62,7 @@ class DefaultParameterName(StrEnum):
     TOP_K = "top_k"
     PRESENCE_PENALTY = "presence_penalty"
     FREQUENCY_PENALTY = "frequency_penalty"
+    REPEAT_PENALTY = "repeat_penalty"
     MAX_TOKENS = "max_tokens"
     RESPONSE_FORMAT = "response_format"
     JSON_SCHEMA = "json_schema"

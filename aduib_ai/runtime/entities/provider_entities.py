@@ -5,11 +5,13 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from .model_entities import ModelType, AIModelEntity
 
+
 class ProviderSDKType(Enum):
     OPENAI = "openai"
     HUGGINGFACE = "huggingface"
     OLLAMA = "ollama"
     MODELSCOPE = "modelscope"
+    GITHUB = "github"
     OTHER = "other"
 
     @classmethod

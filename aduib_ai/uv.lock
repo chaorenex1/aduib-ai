@@ -29,6 +29,7 @@ name = "aduib-ai"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aduib-rpc" },
     { name = "bcrypt" },
     { name = "boto3" },
     { name = "fastapi" },
@@ -72,6 +73,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aduib-rpc", specifier = ">=1.0.4" },
     { name = "bcrypt", specifier = ">=4.3.0" },
     { name = "boto3", specifier = ">=1.37.11" },
     { name = "fastapi", specifier = ">=0.116.1" },
@@ -111,6 +113,28 @@ requires-dist = [
 dev = [
     { name = "alembic", specifier = "==1.16.4" },
     { name = "pytest", specifier = "==8.4.1" },
+]
+
+[[package]]
+name = "aduib-rpc"
+version = "1.0.6"
+source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "fastapi" },
+    { name = "grpcio" },
+    { name = "grpcio-reflection" },
+    { name = "grpcio-tools" },
+    { name = "httpx" },
+    { name = "httpx-sse" },
+    { name = "protobuf" },
+    { name = "pydantic" },
+    { name = "sse-starlette" },
+    { name = "starlette" },
+]
+sdist = { url = "http://mirrors.aliyun.com/pypi/packages/d0/38/db8b8994b9d1c8d6decbca115748940f3c36bc5e8b356b4da60f61e6f1de/aduib_rpc-1.0.6.tar.gz", hash = "sha256:1b453d85ff33044152b970e7ef192a34d42007989779c36bc39a2ceab2b4b223" }
+wheels = [
+    { url = "http://mirrors.aliyun.com/pypi/packages/5e/76/efdd8314c9432ad5eed9604ff2f9c0b080516fc4b16bebeb9e73b807f399/aduib_rpc-1.0.6-py3-none-any.whl", hash = "sha256:a6508f1359579a00ae3a3b82e262fc82f84d1a45e369fe4675fe7086cf6642de" },
 ]
 
 [[package]]
@@ -1015,6 +1039,50 @@ wheels = [
     { url = "http://mirrors.aliyun.com/pypi/packages/d1/94/16550ad6b3f13b96f0856ee5dfc2554efac28539ee84a51d7b14526da985/grpcio-1.67.1-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:699e964923b70f3101393710793289e42845791ea07565654ada0969522d0a38" },
     { url = "http://mirrors.aliyun.com/pypi/packages/33/0d/4c3b2587e8ad7f121b597329e6c2620374fccbc2e4e1aa3c73ccc670fde4/grpcio-1.67.1-cp312-cp312-win32.whl", hash = "sha256:4e7b904484a634a0fff132958dabdb10d63e0927398273917da3ee103e8d1f78" },
     { url = "http://mirrors.aliyun.com/pypi/packages/7d/36/0c03e2d80db69e2472cf81c6123aa7d14741de7cf790117291a703ae6ae1/grpcio-1.67.1-cp312-cp312-win_amd64.whl", hash = "sha256:5721e66a594a6c4204458004852719b38f3d5522082be9061d6510b455c90afc" },
+]
+
+[[package]]
+name = "grpcio-reflection"
+version = "1.67.1"
+source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "protobuf" },
+]
+sdist = { url = "http://mirrors.aliyun.com/pypi/packages/17/61/618d56bd1f7069dea5fee8fa6efb5e6548b6edb52000ef1a7b242c0c1b04/grpcio_reflection-1.67.1.tar.gz", hash = "sha256:507d9785a72032816e9bb5add4a660c655813a6bc1537b957822c652c88bf458" }
+wheels = [
+    { url = "http://mirrors.aliyun.com/pypi/packages/03/6d/05a8f610b4865c4c45679a01395e7094716f23ad584d1f9f2b817c6c7060/grpcio_reflection-1.67.1-py3-none-any.whl", hash = "sha256:622a2d0712a77f97df4ef0dc341d459e7559a3712d0d93a3d3e5e5a381c39b00" },
+]
+
+[[package]]
+name = "grpcio-tools"
+version = "1.67.1"
+source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "protobuf" },
+    { name = "setuptools" },
+]
+sdist = { url = "http://mirrors.aliyun.com/pypi/packages/ae/f9/6facde12a5a8da4398a3a8947f8ba6ef33b408dfc9767c8cefc0074ddd68/grpcio_tools-1.67.1.tar.gz", hash = "sha256:d9657f5ddc62b52f58904e6054b7d8a8909ed08a1e28b734be3a707087bcf004" }
+wheels = [
+    { url = "http://mirrors.aliyun.com/pypi/packages/b5/9a/ec06547673c5001c2604637069ff8f287df1aef3f0f8809b09a1c936b049/grpcio_tools-1.67.1-cp311-cp311-linux_armv7l.whl", hash = "sha256:6d80ddd87a2fb7131d242f7d720222ef4f0f86f53ec87b0a6198c343d8e4a86e" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/ca/84/4b7c3c27a2972c00b3b6ccaadd349e0f86b7039565d3a4932e219a4d76e0/grpcio_tools-1.67.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:b655425b82df51f3bd9fd3ba1a6282d5c9ce1937709f059cb3d419b224532d89" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/a7/2d/a620e4c53a3b808ebecaa5033c2176925ee1c6cbb45c29af8bec9a249822/grpcio_tools-1.67.1-cp311-cp311-manylinux_2_17_aarch64.whl", hash = "sha256:250241e6f9d20d0910a46887dfcbf2ec9108efd3b48f3fb95bb42d50d09d03f8" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/ec/29/e188b2e438781b37532abb8f10caf5b09c611a0bf9a09940b4cf303afd5b/grpcio_tools-1.67.1-cp311-cp311-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:6008f5a5add0b6f03082edb597acf20d5a9e4e7c55ea1edac8296c19e6a0ec8d" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/86/aa/2bbccd3c34b1fa48b892fbad91525c33a8aa85cbedd50e8b0d17dc260dc3/grpcio_tools-1.67.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5eff9818c3831fa23735db1fa39aeff65e790044d0a312260a0c41ae29cc2d9e" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/db/34/99853a8ced1119937d02511476018dc1d6b295a4803d4ead5dbf9c55e9bc/grpcio_tools-1.67.1-cp311-cp311-musllinux_1_1_i686.whl", hash = "sha256:262ab7c40113f8c3c246e28e369661ddf616a351cb34169b8ba470c9a9c3b56f" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/66/39/8537a8ace8f6242f2058677e56a429587ec731c332985af34f35d496ca58/grpcio_tools-1.67.1-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:1eebd8c746adf5786fa4c3056258c21cc470e1eca51d3ed23a7fb6a697fe4e81" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/28/2a/5c04375adccff58647d48675e055895c31811a0ad896e4ba310833e2154d/grpcio_tools-1.67.1-cp311-cp311-win32.whl", hash = "sha256:3eff92fb8ca1dd55e3af0ef02236c648921fb7d0e8ca206b889585804b3659ae" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/e6/ee/7861339c2cec8d55a5e859cf3682bda34eab5a040f95d0c80f775d6a3279/grpcio_tools-1.67.1-cp311-cp311-win_amd64.whl", hash = "sha256:1ed18281ee17e5e0f9f6ce0c6eb3825ca9b5a0866fc1db2e17fab8aca28b8d9f" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/d9/cf/7b1908ca72e484bac555431036292c48d2d6504a45e2789848cb5ff313a8/grpcio_tools-1.67.1-cp312-cp312-linux_armv7l.whl", hash = "sha256:bd5caef3a484e226d05a3f72b2d69af500dca972cf434bf6b08b150880166f0b" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/bb/15/0d1efb38af8af7e56b2342322634a3caf5f1337a6c3857a6d14aa590dfdf/grpcio_tools-1.67.1-cp312-cp312-macosx_10_9_universal2.whl", hash = "sha256:48a2d63d1010e5b218e8e758ecb2a8d63c0c6016434e9f973df1c3558917020a" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/52/42/a810709099f09ade7f32990c0712c555b3d7eab6a05fb62618c17f8fe9da/grpcio_tools-1.67.1-cp312-cp312-manylinux_2_17_aarch64.whl", hash = "sha256:baa64a6aa009bffe86309e236c81b02cd4a88c1ebd66f2d92e84e9b97a9ae857" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/4c/2a/64ee6cfdf1c32ef8bdd67bf04ae2f745f517f4a546281453ca1f68fa79ca/grpcio_tools-1.67.1-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:4ab318c40b5e3c097a159035fc3e4ecfbe9b3d2c9de189e55468b2c27639a6ab" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/79/7f/1ed8cd1529253fef9cf0ef3cd8382641125a5ca2eaa08eaffbb549f84e0b/grpcio_tools-1.67.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:50eba3e31f9ac1149463ad9182a37349850904f142cffbd957cd7f54ec320b8e" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/8e/08/59f0073c58703c176c15fb1a838763b77c1c06994adba16654b92a666e1b/grpcio_tools-1.67.1-cp312-cp312-musllinux_1_1_i686.whl", hash = "sha256:de6fbc071ecc4fe6e354a7939202191c1f1abffe37fbce9b08e7e9a5b93eba3d" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/b7/0d/a5d703214fe49d261b4b8f0a64140a4dc1f88560724a38ad937120b899ad/grpcio_tools-1.67.1-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:db9e87f6ea4b0ce99b2651203480585fd9e8dd0dd122a19e46836e93e3a1b749" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/ac/af/41d79cb87eae99c0348e8f1fb3dbed9e40a6f63548b216e99f4d1165fa5c/grpcio_tools-1.67.1-cp312-cp312-win32.whl", hash = "sha256:6a595a872fb720dde924c4e8200f41d5418dd6baab8cc1a3c1e540f8f4596351" },
+    { url = "http://mirrors.aliyun.com/pypi/packages/66/e5/096e12f5319835aa2bcb746d49ae62220bb48313ca649e89bdbef605c11d/grpcio_tools-1.67.1-cp312-cp312-win_amd64.whl", hash = "sha256:92eebb9b31031604ae97ea7657ae2e43149b0394af7117ad7e15894b6cc136dc" },
 ]
 
 [[package]]
