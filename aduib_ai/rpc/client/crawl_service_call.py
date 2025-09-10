@@ -1,0 +1,16 @@
+from typing import Any
+
+from aduib_rpc.server.request_excution.service_call import client
+
+
+@client("aduib_mcp_server-grpc")
+class CrawlService:
+    """Crawl Service for handling crawl requests."""
+    async def crawl(self, urls:list[str],notify_url:str=None) -> dict[str, Any]:
+        # Implement crawling logic here
+        ...
+
+
+    async def web_search(self, web_content:str) -> list[str]:
+        """Perform web search using multiple search engines concurrently."""
+        ...

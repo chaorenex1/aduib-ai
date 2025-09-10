@@ -6,10 +6,6 @@ import pathlib
 import time
 from typing import AsyncIterator
 
-from aduib_rpc.discover.entities import ServiceInstance
-from aduib_rpc.discover.registry.nacos.nacos_service_registry import NacosServiceRegistry
-from aduib_rpc.discover.service import AduibServiceFactory
-from aduib_rpc.utils.constant import TransportSchemes, AIProtocols
 from fastapi.routing import APIRoute
 
 from aduib_app import AduibAIApp
@@ -19,7 +15,6 @@ from component.storage.base_storage import init_storage
 from configs import config
 from controllers.route import api_router
 from libs.context import LoggingMiddleware, TraceIdContextMiddleware, ApiKeyContextMiddleware
-from utils import get_local_ip
 from utils.snowflake_id import init_idGenerator
 
 log=logging.getLogger(__name__)
@@ -72,16 +67,29 @@ def init_apps(app: AduibAIApp):
     log.info("middlewares initialized successfully")
 
 
+async def run_service_register(app: AduibAIApp):
+    registry_config = {
+        "server_addresses": app.config.NACOS_SERVER_ADDR,
+        "namespace": app.config.NACOS_NAMESPACE,
+        "group_name": app.config.NACOS_GROUP,
+        "username": app.config.NACOS_USERNAME,
+        "password": app.config.NACOS_PASSWORD,
+        "DISCOVERY_SERVICE_ENABLED": app.config.DISCOVERY_SERVICE_ENABLED,
+        "DISCOVERY_SERVICE_TYPE": app.config.DISCOVERY_SERVICE_TYPE,
+        "SERVICE_TRANSPORT_SCHEME": app.config.SERVICE_TRANSPORT_SCHEME,
+        "APP_NAME": app.config.APP_NAME,
+    }
+    from aduib_rpc.server.request_excution.service_call import load_service_plugins
+    from aduib_rpc.discover.registry.registry_factory import ServiceRegistryFactory
+    from aduib_rpc.discover.service import AduibServiceFactory
+    service = await ServiceRegistryFactory.start_service_registry(registry_config)
+    factory = AduibServiceFactory(service_instance=service)
+    load_service_plugins('rpc.client')
+    await factory.run_server()
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
     log.info("Lifespan is starting")
-    ip = get_local_ip()
-    service = ServiceInstance(service_name=config.APP_NAME, host=ip, port=config.APP_PORT,
-                              protocol=AIProtocols.AduibRpc, weight=1, scheme=TransportSchemes.GRPC)
-    registry = NacosServiceRegistry(server_addresses=config.NACOS_SERVER_ADDR,
-                                    namespace=config.NACOS_NAMESPACE, group_name=config.NACOS_GROUP,
-                                    username=config.NACOS_USERNAME, password=config.NACOS_PASSWORD)
-    factory = AduibServiceFactory(service_instance=service)
-    await registry.register_service(service)
-    asyncio.create_task(factory.run_server())
+    asyncio.create_task(run_service_register(app))
     yield None
