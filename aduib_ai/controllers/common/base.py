@@ -67,7 +67,7 @@ def catch_exceptions(func):
         except BaseHttpException as e:
             return BaseResponse.error(e.error_code, e.error_msg)
         except Exception as e:
-            logger.error(f"Exception in {func.__name__}:{func.__doc__}: {e}")
+            logger.error(f"Exception in \n {func.__name__}:{func.__doc__}: {e}")
             if config.DEBUG:
                 traceback.print_exc()
             return BaseResponse.error(500, str(e))

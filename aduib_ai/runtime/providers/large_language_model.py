@@ -65,7 +65,7 @@ class LlMModel(AiModel):
         if isinstance(prompt_messages, ChatCompletionRequest):
             include_reasoning = prompt_messages.include_reasoning
             tools = prompt_messages.tools
-            if not tools:
+            if tools:
                 stream =False # disable stream for tool calling
         stop: Optional[Sequence[str]] = prompt_messages.stop
 
