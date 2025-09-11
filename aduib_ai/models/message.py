@@ -15,8 +15,8 @@ class ConversationMessage(Base):
     message_id = Column(String, nullable=False, comment="conversation id")
     model_name= Column(String, nullable=False, comment="model name used for this message",index=True)
     provider_name = Column(String, nullable=False, comment="provider name used for this message", index=True)
-    system_prompt: str = Column(Text, nullable=True, comment="system prompt for the conversation")
-    content: str = Column(Text, nullable=False, comment="message content")
+    system_prompt: str = Column(Text, nullable=True, comment="system prompt for the conversation",server_default=text("''"))
+    content: str = Column(Text, nullable=False, comment="message content",server_default=text("''"))
     role: str = Column(String, nullable=False, comment="message role (user/assistant)")
     usage: str = Column(Text, nullable=True, comment="message usage information")
     state: str = Column(String, nullable=False, comment="message state",default="success")
@@ -27,5 +27,8 @@ class ConversationMessage(Base):
     __table_args__ = (
         Index("ix_content",
               func.to_tsvector(text("'jieba_cfg'"), content),
+              postgresql_using="gin"),
+        Index("ix_system_prompt",
+              func.to_tsvector(text("'jieba_cfg'"), system_prompt),
               postgresql_using="gin"),
     )

@@ -1,10 +1,15 @@
-from typing import Optional
+import datetime
+import json
+import logging
+from typing import Optional, Any
 
 from aduib_rpc.utils.net_utils import NetUtils
 
 from models import get_db, ApiKey
 from models.browser import BrowserHistory
 from service.error.error import ApiKeyNotFound
+
+logger = logging.getLogger(__name__)
 
 
 class WebMemoService:
@@ -17,7 +22,7 @@ class WebMemoService:
         :return: Processed content as a string.
         """
         url = data.get("url")
-        ua = data.get("user_agent")
+        ua = data.get("ua")
         with get_db() as session:
             api_key:Optional[ApiKey] = session.query(ApiKey).filter(ApiKey.source == 'aduib_mcp_server').first()
             if not api_key:
@@ -30,10 +35,47 @@ class WebMemoService:
             notify_url = f"http://{host}:{config.APP_PORT}/v1/web_memo/notify?api_key={api_key.hash_key}"
             crawl_service = CrawlService()
             resp = await crawl_service.crawl([url], notify_url)
-            task_id = resp.get('task_id', '')
-
-            history = BrowserHistory(url=url,ua=ua,crawl_task_id=task_id,crawl_status=False)
-            session.add(history)
-            session.commit()
+            logger.debug(f"Web memo crawl response: {resp}")
+            if resp:
+                await cls.handle_web_memo_notify(resp, api_key.hash_key, ua)
         except Exception as e:
             raise RuntimeError(f"Error fetching web memo: {e}")
+
+    @classmethod
+    async def handle_web_memo_notify(cls, body:dict[str,Any],api_hash_key:str, ua:str="") -> None:
+        """
+        Handle notification from the crawl service with the fetched content.
+        :param body: Dictionary containing the notification data.
+        :param api_hash_key: API hash key for validation.
+        :param ua: User agent string.
+        :return: None
+        """
+        with get_db() as session:
+            api_key:Optional[ApiKey] = session.query(ApiKey).filter(ApiKey.source == 'aduib_mcp_server').first()
+            if not api_key or api_key.hash_key != api_hash_key:
+                raise ApiKeyNotFound
+
+            status = body.get('success', False)
+            if not status:
+                logger.warning("Web memo crawl failed or no results")
+                return
+            result = body.get('results', [])
+
+            for item in result:
+                url= item.get('url', '')
+                crawl_text = item.get('crawl_text', '')
+                crawl_type = item.get('crawl_type', '')
+                crawl_media = item.get('crawl_media', {})
+                screenshot = item.get('screenshot', '')
+                metadata = item.get('metadata', {})
+
+                history = BrowserHistory(url=url,ua=ua)
+                history.crawl_status = True
+                history.crawl_time = datetime.datetime.now()
+                history.crawl_screenshot = screenshot
+                history.crawl_content = crawl_text
+                history.crawl_type = crawl_type
+                history.crawl_media = json.dumps(crawl_media).encode('utf-8').decode('unicode-escape')
+                history.crawl_metadata = json.dumps(metadata).encode('utf-8').decode('unicode-escape')
+                session.add(history)
+                session.commit()

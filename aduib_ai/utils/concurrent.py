@@ -1,0 +1,3 @@
+import concurrent.futures
+completion_service_executor=concurrent.futures.ThreadPoolExecutor(max_workers=100,thread_name_prefix="completionService")
+webMemo_service_executor=concurrent.futures.ThreadPoolExecutor(max_workers=100,thread_name_prefix="webMemo_service_executor")

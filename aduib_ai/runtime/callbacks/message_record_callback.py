@@ -10,6 +10,8 @@ from service import ConversationMessageService
 
 
 class MessageRecordCallback(Callback):
+    """ Message record callback for logging conversation messages to the database. """
+
     def on_new_chunk(self, llm_instance: AiModel, chunk: ChatCompletionResponseChunk, model: str, credentials: dict,
                      prompt_messages: Sequence[PromptMessage], model_parameters: dict,
                      tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,

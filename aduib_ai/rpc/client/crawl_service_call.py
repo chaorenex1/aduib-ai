@@ -3,10 +3,10 @@ from typing import Any
 from aduib_rpc.server.request_excution.service_call import client
 
 
-@client("aduib_mcp_server-grpc")
+@client("aduib_mcp_server-jsonrpc",stream=True)
 class CrawlService:
     """Crawl Service for handling crawl requests."""
-    async def crawl(self, urls:list[str],notify_url:str=None) -> dict[str, Any]:
+    async def crawl(self, urls:list[str], query:str=None) -> dict[str, Any]:
         # Implement crawling logic here
         ...
 

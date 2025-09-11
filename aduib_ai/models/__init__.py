@@ -1,6 +1,7 @@
-from .engine import get_db, engine
-from .base import Base
 from .api_key import ApiKey
+from .base import Base
+from .browser import BrowserHistory
+from .engine import get_db, engine
 from .mcp import McpServer
 from .message import ConversationMessage
 from .model import Model
@@ -14,9 +15,10 @@ __all__ = ["get_db",
            "ApiKey",
            "Model",
            "Provider",
-            "ConversationMessage",
-            "ToolCallResult",
-            "ToolInfo",
-            "McpServer",
-           "McpUser"
-              ]
+           "ConversationMessage",
+           "ToolCallResult",
+           "ToolInfo",
+           "McpServer",
+           "McpUser",
+           "BrowserHistory"
+           ]

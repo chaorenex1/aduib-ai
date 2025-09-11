@@ -60,12 +60,14 @@ class CompletionService:
         model_manager = ModelManager()
         model_instance = model_manager.get_model_instance(provider, model, model_list)
 
-
-        llm_result = model_instance.invoke_llm(prompt_messages=req,
-                                               raw_request=raw_request,
-                                               callbacks=[MessageRecordCallback()]
-                                               )
-        if not req.stream and isinstance(llm_result, ChatCompletionResponse):
+        from utils.concurrent import completion_service_executor
+        with completion_service_executor as executor:
+            future = executor.submit(model_instance.invoke_llm, prompt_messages=req,raw_request=raw_request,callbacks=[MessageRecordCallback()])
+            llm_result = future.result()
+        # llm_result = model_instance.invoke_llm(prompt_messages=req,
+        #                                        raw_request=raw_request,
+        #                                        callbacks=[MessageRecordCallback()]
+        #                                        )
             llm_result=cls.call_tools(model_instance,req,raw_request,llm_result)
         return llm_result
 

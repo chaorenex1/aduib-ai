@@ -8,7 +8,7 @@ def test_create_api_key(monkeypatch):
     # def mock_create_api_key(name, description):
     #     return ApiKey(id=1, name=name, description=description, api_key="testkey")
     # monkeypatch.setattr("service.api_key_service.ApiKeyService.create_api_key", mock_create_api_key)
-    response = client.post("/v1/api_key/create_api_key", params={"name": "aduib_mcp_server_apikey", "description": "aduib mcp server apikey"})
+    response = client.post("/v1/api_key/create_api_key", params={"name": "web_memo_key", "description": "web_memo_key"})
     assert response.status_code == 200
     data = response.json()
     print(data)
