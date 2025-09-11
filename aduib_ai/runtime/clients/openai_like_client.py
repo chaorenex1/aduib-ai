@@ -9,7 +9,7 @@ from ..entities import ChatCompletionResponse, ChatCompletionResponseChunk
 from ..entities.llm_entities import ChatCompletionRequest, CompletionRequest
 
 
-class ModelClient(BaseClient):
+class OpenAILikeClient(BaseClient):
 
     def completion_request(self,prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         credentials: dict,

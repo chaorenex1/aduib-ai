@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter
 
-from controllers.common.base import BaseResponse
+from controllers.common.base import BaseResponse, catch_exceptions
 from controllers.common.error import ServiceError
 from controllers.params import MCPServerCreate, MCPServerUpdate
 from models import McpServer, get_db
@@ -14,6 +14,7 @@ router = APIRouter(tags=['mcp_server'],prefix="/mcp_server")
 
 # Create
 @router.post("/servers/")
+@catch_exceptions
 def create_server(server: MCPServerCreate):
     with get_db() as db:
         db_server = McpServer(**server.model_dump(exclude_none=True))
@@ -26,6 +27,7 @@ def create_server(server: MCPServerCreate):
 
 # Read all
 @router.get("/servers/")
+@catch_exceptions
 def read_servers(skip: int = 0, limit: int = 100):
     with get_db() as db:
         servers = db.query(McpServer).offset(skip).limit(limit).all()
@@ -34,6 +36,7 @@ def read_servers(skip: int = 0, limit: int = 100):
 
 # Read one
 @router.get("/servers/{server_id}")
+@catch_exceptions
 def read_server(server_id: str):
     with get_db() as db:
         server = db.query(McpServer).filter(McpServer.id == server_id).first()
@@ -44,6 +47,7 @@ def read_server(server_id: str):
 
 # Update
 @router.put("/servers/{server_id}")
+@catch_exceptions
 def update_server(server_id: str, server_update: MCPServerUpdate):
     with get_db() as db:
         server = db.query(McpServer).filter(McpServer.id == server_id).first()
@@ -61,6 +65,7 @@ def update_server(server_id: str, server_update: MCPServerUpdate):
 
 # Delete
 @router.delete("/servers/{server_id}")
+@catch_exceptions
 def delete_server(server_id: str):
     with get_db() as db:
         server = db.query(McpServer).filter(McpServer.id == server_id).first()
@@ -73,6 +78,7 @@ def delete_server(server_id: str):
 
 
 @router.get("/init_tools/{server_code}")
+@catch_exceptions
 async def init_tools(server_code: str):
     with get_db() as db:
         mcp_server:Optional[McpServer] = db.query(McpServer).filter(McpServer.server_code == server_code).first()
@@ -118,6 +124,7 @@ async def init_tools(server_code: str):
 
 
 @router.post("/init_servers/")
+@catch_exceptions
 async def init_servers(server: MCPServerCreate):
     with get_db() as db:
         existing_server = db.query(McpServer).filter(McpServer.server_url == server.server_url).first()

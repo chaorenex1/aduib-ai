@@ -11,29 +11,32 @@ from .base import AiModel
 from .gpt_tokenizer import GPTTokenizer
 from ..callbacks.base_callback import Callback
 from ..callbacks.console_callback import LoggingCallback
-from ..client.llm_client import ModelClient
 from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk, LLMUsage, \
     AssistantPromptMessage, \
     TextPromptMessageContent, UserPromptMessage, ToolPromptMessage, PromptMessageFunction
 from ..entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from ..entities.model_entities import ModelType, PriceType, PriceInfo, PriceConfig
+from ..entities.provider_entities import ProviderSDKType
+from ..transformation.base import LLMTransformation
 
 logger = logging.getLogger(__name__)
+
 
 class LlMModel(AiModel):
     """
     Base class for all LLM models.
     """
-    model_type:ModelType = ModelType.LLM
+    model_type: ModelType = ModelType.LLM
 
     model_config = ConfigDict(protected_namespaces=())
 
     def invoke(
-        self,
-        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-        credentials: dict,
-        raw_request: Request,
-        callbacks: Optional[list[Callback]] = None,
+            self,
+            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+            credentials: dict,
+            model_params: dict,
+            raw_request: Request,
+            callbacks: Optional[list[Callback]] = None,
     ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
         """
         Invoke large language model
@@ -47,15 +50,25 @@ class LlMModel(AiModel):
         self.started_at = time.perf_counter()
 
         callbacks = callbacks or []
+
+        from ..transformation import get_llm_transformation
+        transformation = get_llm_transformation(
+            ProviderSDKType.value_of(credentials.get("provider_sdk", "openai_like")))
+
+        prompt_messages=transformation.setup_model_parameters(model_params, prompt_messages)
+
         stream: bool = prompt_messages.stream
         model: str = prompt_messages.model
-        tools: Optional[list[PromptMessageTool]]=[]
-        include_reasoning: bool =False
+        tools: Optional[list[PromptMessageTool]] = []
+        include_reasoning: bool = False
         message_id: Optional[str] = self.get_message_id()
         if isinstance(prompt_messages, ChatCompletionRequest):
             include_reasoning = prompt_messages.include_reasoning
             tools = prompt_messages.tools
+            if not tools:
+                stream =False # disable stream for tool calling
         stop: Optional[Sequence[str]] = prompt_messages.stop
+
         parameters = {
             "message_id": message_id,
             "temperature": prompt_messages.temperature,
@@ -88,8 +101,7 @@ class LlMModel(AiModel):
 
         try:
             # invoke model
-            model_client = ModelClient()
-            result= model_client.completion_request(
+            result = transformation.transform_message(
                 credentials=credentials,
                 prompt_messages=prompt_messages,
                 raw_request=raw_request,
@@ -110,8 +122,8 @@ class LlMModel(AiModel):
                         if chunkContent.message and chunkContent.message.tool_calls:
                             for tool_call in chunkContent.message.tool_calls:
                                 tools_calls.append(tool_call)
-                    chunk.message= AssistantPromptMessage(content=message_content, tool_calls=tools_calls)
-                    chunk.id= message_id
+                    chunk.message = AssistantPromptMessage(content=message_content, tool_calls=tools_calls)
+                    chunk.id = message_id
                     result = cast(ChatCompletionResponse, chunk)
         except Exception as e:
             self._trigger_invoke_error_callbacks(
@@ -156,17 +168,17 @@ class LlMModel(AiModel):
         raise NotImplementedError("unsupported invoke result type", type(result))
 
     def _invoke_result_generator(
-        self,
-        model: str,
-        result: Generator[ChatCompletionResponseChunk, None, None],
-        credentials: dict,
-        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-        model_parameters: dict,
-        tools: Optional[list[PromptMessageFunction]] = None,
-        stop: Optional[Sequence[str]] = None,
-        stream: bool = True,
-        user: Optional[str] = None,
-        callbacks: Optional[list[Callback]] = None,
+            self,
+            model: str,
+            result: Generator[ChatCompletionResponseChunk, None, None],
+            credentials: dict,
+            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+            model_parameters: dict,
+            tools: Optional[list[PromptMessageFunction]] = None,
+            stop: Optional[Sequence[str]] = None,
+            stream: bool = True,
+            user: Optional[str] = None,
+            callbacks: Optional[list[Callback]] = None,
     ) -> Generator[ChatCompletionResponseChunk, None, None]:
         """
         Invoke result generator
@@ -175,7 +187,7 @@ class LlMModel(AiModel):
         :return: result generator
         """
         callbacks = callbacks or []
-        message_content=  []
+        message_content = []
         usage = None
         system_fingerprint = None
         real_model = model
@@ -222,7 +234,7 @@ class LlMModel(AiModel):
                 if chunk.delta and chunk.delta.usage:
                     usage = chunk.delta.usage
                 if chunk.usage:
-                    usage  = chunk.usage
+                    usage = chunk.usage
                 if chunk.system_fingerprint:
                     system_fingerprint = chunk.system_fingerprint
         except Exception as e:
@@ -252,12 +264,11 @@ class LlMModel(AiModel):
             except Exception as e:
                 logger.error(f"Error in after invoke callback: {e}", exc_info=True)
 
-
     def get_num_tokens(
-        self,
-        model: str,
-        prompt_messages: list[PromptMessage],
-        tools: Optional[list[PromptMessageTool]] = None,
+            self,
+            model: str,
+            prompt_messages: list[PromptMessage],
+            tools: Optional[list[PromptMessageTool]] = None,
     ) -> int:
         """
         Get number of tokens for given prompt messages
@@ -285,10 +296,10 @@ class LlMModel(AiModel):
         return token_length
 
     def calc_response_usage(
-        self,
-        model: str,
-        prompt_tokens: int,
-        completion_tokens: int) -> LLMUsage:
+            self,
+            model: str,
+            prompt_tokens: int,
+            completion_tokens: int) -> LLMUsage:
         """
         Calculate response usage based on prompt and completion tokens
         :param model: model name
@@ -315,7 +326,7 @@ class LlMModel(AiModel):
             latency=time.perf_counter() - self.started_at,
         )
 
-    def get_price_info(self, model: str, price_type:PriceType,tokens:int) -> PriceInfo:
+    def get_price_info(self, model: str, price_type: PriceType, tokens: int) -> PriceInfo:
         """
         Get price info for given model and price type
 
@@ -324,7 +335,7 @@ class LlMModel(AiModel):
         :param tokens: number of tokens
         :return: price info
         """
-        model_schema=self.get_model_schema(model)
+        model_schema = self.get_model_schema(model)
         price_config: Optional[PriceConfig] = None
         if model_schema and model_schema.pricing:
             price_config = model_schema.pricing
@@ -336,7 +347,8 @@ class LlMModel(AiModel):
             elif price_type == PriceType.OUTPUT and price_config.output is not None:
                 unit_price = price_config.output
         if unit_price is None:
-            return PriceInfo(unit_price=decimal.Decimal(0.0),unit=decimal.Decimal(0.0), currency="USD",total_amount=decimal.Decimal(0.0))
+            return PriceInfo(unit_price=decimal.Decimal(0.0), unit=decimal.Decimal(0.0), currency="USD",
+                             total_amount=decimal.Decimal(0.0))
 
         if not price_config:
             raise ValueError(f"Model {model} does not have pricing info")
@@ -351,16 +363,16 @@ class LlMModel(AiModel):
         )
 
     def _trigger_before_invoke_callbacks(
-        self,
-        model: str,
-        credentials: dict,
-        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-        model_parameters: dict,
-        tools: Optional[list[PromptMessageFunction]] = None,
-        stop: Optional[Sequence[str]] = None,
-        stream: bool = True,
-        include_reasoning:bool=False,
-        callbacks: Optional[list[Callback]] = None,
+            self,
+            model: str,
+            credentials: dict,
+            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+            model_parameters: dict,
+            tools: Optional[list[PromptMessageFunction]] = None,
+            stop: Optional[Sequence[str]] = None,
+            stream: bool = True,
+            include_reasoning: bool = False,
+            callbacks: Optional[list[Callback]] = None,
     ) -> None:
         """
         Trigger before invoke callbacks
@@ -396,18 +408,17 @@ class LlMModel(AiModel):
                     else:
                         logger.warning(f"Callback {callback.__class__.__name__} on_before_invoke failed with error {e}")
 
-
     def _trigger_new_chunk_callbacks(
-        self,
-        chunk: ChatCompletionResponseChunk,
-        model: str,
-        credentials: dict,
-        prompt_messages: Sequence[PromptMessage],
-        model_parameters: dict,
-        tools: Optional[list[PromptMessageFunction]] = None,
-        stop: Optional[Sequence[str]] = None,
-        stream: bool = True,
-        callbacks: Optional[list[Callback]] = None,
+            self,
+            chunk: ChatCompletionResponseChunk,
+            model: str,
+            credentials: dict,
+            prompt_messages: Sequence[PromptMessage],
+            model_parameters: dict,
+            tools: Optional[list[PromptMessageFunction]] = None,
+            stop: Optional[Sequence[str]] = None,
+            stream: bool = True,
+            callbacks: Optional[list[Callback]] = None,
     ) -> None:
         """
         Trigger new chunk callbacks
@@ -443,16 +454,16 @@ class LlMModel(AiModel):
                         logger.warning(f"Callback {callback.__class__.__name__} on_new_chunk failed with error {e}")
 
     def _trigger_after_invoke_callbacks(
-        self,
-        model: str,
-        result: ChatCompletionResponse,
-        credentials: dict,
-        prompt_messages: Sequence[PromptMessage],
-        model_parameters: dict,
-        tools: Optional[list[PromptMessageFunction]] = None,
-        stop: Optional[Sequence[str]] = None,
-        stream: bool = True,
-        callbacks: Optional[list[Callback]] = None,
+            self,
+            model: str,
+            result: ChatCompletionResponse,
+            credentials: dict,
+            prompt_messages: Sequence[PromptMessage],
+            model_parameters: dict,
+            tools: Optional[list[PromptMessageFunction]] = None,
+            stop: Optional[Sequence[str]] = None,
+            stream: bool = True,
+            callbacks: Optional[list[Callback]] = None,
     ) -> None:
         """
         Trigger after invoke callbacks
@@ -489,16 +500,16 @@ class LlMModel(AiModel):
                         logger.warning(f"Callback {callback.__class__.__name__} on_after_invoke failed with error {e}")
 
     def _trigger_invoke_error_callbacks(
-        self,
-        model: str,
-        ex: Exception,
-        credentials: dict,
-        prompt_messages: list[PromptMessage],
-        model_parameters: dict,
-        tools: Optional[list[PromptMessageFunction]] = None,
-        stop: Optional[Sequence[str]] = None,
-        stream: bool = True,
-        callbacks: Optional[list[Callback]] = None,
+            self,
+            model: str,
+            ex: Exception,
+            credentials: dict,
+            prompt_messages: list[PromptMessage],
+            model_parameters: dict,
+            tools: Optional[list[PromptMessageFunction]] = None,
+            stop: Optional[Sequence[str]] = None,
+            stream: bool = True,
+            callbacks: Optional[list[Callback]] = None,
     ) -> None:
         """
         Trigger invoke error callbacks

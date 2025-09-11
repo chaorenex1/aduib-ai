@@ -60,15 +60,10 @@ class CompletionService:
         model_manager = ModelManager()
         model_instance = model_manager.get_model_instance(provider, model, model_list)
 
-        from utils.concurrent import completion_service_executor
-        with completion_service_executor as executor:
+        from utils.concurrent import get_completion_service_executor
+        with get_completion_service_executor() as executor:
             future = executor.submit(model_instance.invoke_llm, prompt_messages=req,raw_request=raw_request,callbacks=[MessageRecordCallback()])
             llm_result = future.result()
-        # llm_result = model_instance.invoke_llm(prompt_messages=req,
-        #                                        raw_request=raw_request,
-        #                                        callbacks=[MessageRecordCallback()]
-        #                                        )
-            llm_result=cls.call_tools(model_instance,req,raw_request,llm_result)
         return llm_result
 
     @classmethod
@@ -89,34 +84,3 @@ class CompletionService:
             return StreamingResponse(handle(), media_type="text/event-stream")
         else:
             return response
-
-    @classmethod
-    def call_tools(cls,model_instance,
-                   req: Union[ChatCompletionRequest, CompletionRequest],
-                   raw_request: Request
-                   ,llm_result: ChatCompletionResponse) -> ChatCompletionResponse:
-        """
-        Call tools if necessary based on the llm_result.
-        :param llm_result: The result from the language model.
-        :return: The updated llm_result after tool calls.
-        """
-        if llm_result.message.tool_calls and len(llm_result.message.tool_calls) > 0:
-
-            from runtime.tool.tool_manager import ToolManager
-            from runtime.callbacks.message_record_callback import MessageRecordCallback
-
-            tool_manager = ToolManager()
-            tool_invoke_result:ToolInvokeResult=tool_manager.invoke_tools(llm_result.message.tool_calls, llm_result.id)
-            if not tool_invoke_result:
-                logger.info(f"Tool calls for message {llm_result.id} already completed successfully.")
-                return llm_result
-            req.messages.append(llm_result.message)
-            req.messages.append(ToolPromptMessage(
-                content=tool_invoke_result.data,
-                tool_call_id=llm_result.message.tool_calls[0].id
-            ))
-            llm_result=model_instance.invoke_llm(prompt_messages=req,
-                                     raw_request=raw_request,
-                                     callbacks=[MessageRecordCallback()],
-                                     )
-        return llm_result

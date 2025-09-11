@@ -58,6 +58,7 @@ class ModelInstance:
                 function=self.model_type_instance.invoke,
                 prompt_messages= prompt_messages,
                 credentials=self.credentials,
+                model_params=self.model_type_instance.model_params,
                 raw_request=raw_request,
                 callbacks=callbacks,
             ),

@@ -4,10 +4,12 @@ from typing import Sequence, Optional
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from .model_entities import ModelType, AIModelEntity
+from ..clients.base import BaseClient
 
 
 class ProviderSDKType(Enum):
     OPENAI = "openai"
+    OPENAI_LIKE = "openai_like"
     HUGGINGFACE = "huggingface"
     OLLAMA = "ollama"
     MODELSCOPE = "modelscope"
@@ -25,6 +27,8 @@ class ProviderSDKType(Enum):
     def to_model_type(self) -> str:
         if self == self.OPENAI:
             return "openai"
+        elif self == self.OPENAI_LIKE:
+            return "openai_like"
         elif self == self.HUGGINGFACE:
             return "huggingface"
         elif self == self.OLLAMA:

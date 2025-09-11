@@ -8,6 +8,7 @@ from .model import Model
 from .provider import Provider
 from .tool import ToolCallResult, ToolInfo
 from .user import McpUser
+from .resource import FileResource
 
 __all__ = ["get_db",
            "engine",
@@ -20,5 +21,6 @@ __all__ = ["get_db",
            "ToolInfo",
            "McpServer",
            "McpUser",
-           "BrowserHistory"
+           "BrowserHistory",
+           "FileResource"
            ]

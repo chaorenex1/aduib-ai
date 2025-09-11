@@ -34,5 +34,6 @@ class DeploymentConfig(BaseSettings):
         return f"{protocol}://{self.APP_HOST}:{self.APP_PORT}"
 
 
-class ServiceUrlConfig(BaseSettings):
+class ServiceConfig(BaseSettings):
+    SERVICE_URL: str = Field(default="http://localhost:5001", description="Service URL")
     SERVICE_URL: str = Field(default="http://localhost:5001", description="Service URL")

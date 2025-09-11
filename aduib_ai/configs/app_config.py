@@ -6,7 +6,7 @@ from pydantic_settings import SettingsConfigDict, BaseSettings, PydanticBaseSett
 
 from .cache.redis_config import RedisConfig
 from .db import DBConfig
-from .deploy import DeploymentConfig
+from .deploy import DeploymentConfig, ServiceConfig
 from .graph import GraphConfig
 from .graph.neo4j.neo4j_config import Neo4jConfig
 from .id import IdConfig
@@ -74,6 +74,7 @@ class AduibAiConfig(
     OPSConfig,
     RemoteSettingsSourceConfig,
     DiscoveryConfig,
+    ServiceConfig
 ):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./aduib_ai/)

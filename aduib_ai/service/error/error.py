@@ -9,3 +9,6 @@ class ModelNotFound(BaseServiceError):
 
 class ModelProviderNotFound(BaseServiceError):
     pass
+
+class FileNotFound(BaseServiceError):
+    pass

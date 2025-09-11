@@ -7,7 +7,9 @@ from aduib_rpc.utils.net_utils import NetUtils
 
 from models import get_db, ApiKey
 from models.browser import BrowserHistory
+from service import FileService
 from service.error.error import ApiKeyNotFound
+from utils import random_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +68,7 @@ class WebMemoService:
                 crawl_text = item.get('crawl_text', '')
                 crawl_type = item.get('crawl_type', '')
                 crawl_media = item.get('crawl_media', {})
-                screenshot = item.get('screenshot', '')
+                screenshot = FileService.upload_base64('/his_screenshot/'+random_uuid()+".png",item.get('screenshot', ''))
                 metadata = item.get('metadata', {})
 
                 history = BrowserHistory(url=url,ua=ua)

@@ -1,9 +1,15 @@
+import inspect
+import logging
+import traceback
 from typing import Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel
+from configs import config
 
 from utils import jsonable_encoder
+
+logger = logging.getLogger(__name__)
 
 
 class BaseHttpException(HTTPException):
@@ -44,3 +50,25 @@ class BaseResponse(BaseModel):
     @classmethod
     def error(cls, error_code: int, error_msg: str) -> "BaseResponse":
         return cls(code=error_code, msg=error_msg, data={})
+
+
+
+
+def catch_exceptions(func):
+    """A decorator to catch exceptions and return a standardized error response."""
+    import functools
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            if inspect.iscoroutinefunction(func):
+                return await func(*args, **kwargs)
+            else:
+                return func(*args, **kwargs)
+        except BaseHttpException as e:
+            return BaseResponse.error(e.error_code, e.error_msg)
+        except Exception as e:
+            logger.error(f"Exception in {func.__name__}:{func.__doc__}: {e}")
+            if config.DEBUG:
+                traceback.print_exc()
+            return BaseResponse.error(500, str(e))
+    return wrapper

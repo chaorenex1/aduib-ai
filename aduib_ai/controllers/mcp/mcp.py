@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from pydantic import ValidationError
 from starlette.requests import Request
 
+from controllers.common.base import catch_exceptions
 from libs.deps import CurrentApiKeyDep
 from models import McpServer
 from models.engine import get_db
@@ -34,6 +35,7 @@ json schema:
 """
 
 @router.post(path="/{server_code}")
+@catch_exceptions
 async def mcp_chat_completions(server_code: str, request: Request, current_key:CurrentApiKeyDep):
     mcp_server: McpServer = None
     with get_db() as session:

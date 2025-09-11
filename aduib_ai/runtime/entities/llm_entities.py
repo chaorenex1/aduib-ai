@@ -35,6 +35,7 @@ class ChatCompletionRequest(BaseModel):
         description="The maximum number of tokens that can be generated in the completion."
     )
     n: Optional[int] = 1
+    miniP: Optional[float] = None
     logit_bias: Optional[dict[str, float]] = None
     logprobs: Optional[bool] = False
     top_logprobs: Optional[int] = 0
