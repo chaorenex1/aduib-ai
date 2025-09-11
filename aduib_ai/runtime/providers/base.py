@@ -16,6 +16,7 @@ class AiModel(BaseModel):
     model_provider: ProviderEntity=Field(description="Model provider")
     started_at: float = Field(description="Invoke start time", default=0)
     model_params: dict = Field(description="Model parameters", default_factory=dict)
+    credentials: dict = Field(description="Model credentials", default_factory=dict)
 
 
     def get_messages(self, prompt_messages) -> Union[list[PromptMessage], str]:

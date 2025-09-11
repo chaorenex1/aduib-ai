@@ -32,8 +32,6 @@ class LlMModel(AiModel):
     def invoke(
             self,
             prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-            credentials: dict,
-            model_params: dict,
             raw_request: Request,
             callbacks: Optional[list[Callback]] = None,
     ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
@@ -54,9 +52,10 @@ class LlMModel(AiModel):
 
         from ..transformation import get_llm_transformation
         transformation = get_llm_transformation(
-            ProviderSDKType.value_of(credentials.get("provider_sdk", "openai_like")))
+            ProviderSDKType.to_model_type(self.credentials.get("sdk_type", "openai_like")))
 
-        prompt_messages=transformation.setup_model_parameters(model_params, prompt_messages)
+        prompt_messages = transformation.setup_model_parameters(self.model_params, prompt_messages)
+        credentials = transformation.setup_validate_credentials(self.credentials)
 
         stream: bool = prompt_messages.stream
         model: str = prompt_messages.model
@@ -67,7 +66,7 @@ class LlMModel(AiModel):
             include_reasoning = prompt_messages.include_reasoning
             tools = prompt_messages.tools
             if tools:
-                stream =False # disable stream for tool calling
+                stream = False  # disable stream for tool calling
         stop: Optional[Sequence[str]] = prompt_messages.stop
 
         parameters = {
@@ -103,6 +102,7 @@ class LlMModel(AiModel):
         try:
             # invoke model
             result = transformation.transform_message(
+                model_params=self.model_params,
                 credentials=credentials,
                 prompt_messages=prompt_messages,
                 raw_request=raw_request,
@@ -164,7 +164,7 @@ class LlMModel(AiModel):
                 stream=stream,
                 callbacks=callbacks,
             )
-            result.usage=self.calc_response_usage(model,result.usage.prompt_tokens, result.usage.completion_tokens)
+            result.usage = self.calc_response_usage(model, result.usage.prompt_tokens, result.usage.completion_tokens)
             result.prompt_messages = prompt_messages
             return result
         raise NotImplementedError("unsupported invoke result type", type(result))
@@ -252,7 +252,8 @@ class LlMModel(AiModel):
                         model=real_model,
                         prompt_messages=messages,
                         message=assistant_message,
-                        usage=self.calc_response_usage(real_model, usage.prompt_tokens, usage.completion_tokens) if usage else LLMUsage.empty_usage(),
+                        usage=self.calc_response_usage(real_model, usage.prompt_tokens,
+                                                       usage.completion_tokens) if usage else LLMUsage.empty_usage(),
                         system_fingerprint=system_fingerprint,
                     ),
                     credentials=credentials,

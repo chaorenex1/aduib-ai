@@ -7,10 +7,9 @@ from starlette.responses import StreamingResponse
 from configs import config
 from models.model import Model
 from models.provider import Provider
-from runtime.entities import ChatCompletionResponse, ToolPromptMessage
+from runtime.entities import ChatCompletionResponse
 from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from runtime.entities.model_entities import AIModelEntity
-from runtime.tool.entities import ToolInvokeResult
 from utils import RateLimit
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ class CompletionService:
         :param raw_request: The raw request object, typically from FastAPI.
         :return: A response object containing the completion result, or a streaming response if requested.
         """
-        rate_limit:RateLimit = RateLimit(config.APP_NAME,config.APP_MAX_REQUESTS)
+        rate_limit: RateLimit = RateLimit(config.APP_NAME, config.APP_MAX_REQUESTS)
         request_id = rate_limit.gen_request_key()
         try:
             rate_limit.enter(request_id)
@@ -59,11 +58,10 @@ class CompletionService:
         model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
         model_manager = ModelManager()
         model_instance = model_manager.get_model_instance(provider, model, model_list)
-
         from utils.concurrent import get_completion_service_executor
         with get_completion_service_executor() as executor:
             future = executor.submit(model_instance.invoke_llm, prompt_messages=req,raw_request=raw_request,callbacks=[MessageRecordCallback()])
-            llm_result = future.result()
+        llm_result = future.result()
         return llm_result
 
     @classmethod

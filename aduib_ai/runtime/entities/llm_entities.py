@@ -21,7 +21,7 @@ class ChatCompletionRequest(BaseModel):
         PromptMessageToolChoiceParam,
     ]] = "none"
     stream: bool = None
-    stream_options: Optional[StreamOptions] = None
+    stream_options: Optional[StreamOptions] | None = None
     top_p: Optional[float] = None
     top_k: Optional[int] = None
     temperature: Optional[float] = None
@@ -34,11 +34,11 @@ class ChatCompletionRequest(BaseModel):
         default=None,
         description="The maximum number of tokens that can be generated in the completion."
     )
-    n: Optional[int] = 1
-    miniP: Optional[float] = None
-    logit_bias: Optional[dict[str, float]] = None
-    logprobs: Optional[bool] = False
-    top_logprobs: Optional[int] = 0
+    # n: Optional[int] = 1
+    # miniP: Optional[float] = None
+    # logit_bias: Optional[dict[str, float]] = None
+    # logprobs: Optional[bool] = False
+    # top_logprobs: Optional[int] = 0
     stop: Optional[Union[str, Sequence[str]]] = None
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
@@ -47,7 +47,6 @@ class ChatCompletionRequest(BaseModel):
     user: Optional[str] = None
     reasoning_effort: Optional[Literal["low", "medium", "high"]] = None
     include_reasoning: bool = None
-
 
     @field_validator("messages", mode="before")
     @classmethod
@@ -148,6 +147,7 @@ class ChatCompletionRequest(BaseModel):
                         "The tool specified in `tool_choice` does not match any"
                         " of the specified `tools`")
         return data
+
 
 class CompletionRequest(BaseModel):
     prompt: Optional[Union[list[int], list[list[int]], str, list[str]]] = None
@@ -259,6 +259,7 @@ class CompletionRequest(BaseModel):
                         " of the specified `tools`")
         return data
 
+
 class LLMMode(StrEnum):
     """
     Enum class for large language model mode.
@@ -287,8 +288,8 @@ class LLMUsage(ModelUsage):
     """
 
     prompt_tokens: int = 0
-    prompt_unit_price: Decimal= Decimal("0.0")
-    prompt_price_unit: Decimal= Decimal("0.0")
+    prompt_unit_price: Decimal = Decimal("0.0")
+    prompt_price_unit: Decimal = Decimal("0.0")
     prompt_price: Decimal = Decimal("0.0")
     completion_tokens: int = 0
     completion_unit_price: Decimal = Decimal("0.0")
@@ -357,7 +358,7 @@ class ChatCompletionResponseChunkDelta(BaseModel):
     """
 
     index: int
-    message: AssistantPromptMessage= None
+    message: AssistantPromptMessage = None
     text: Optional[str] = None
     usage: Optional[LLMUsage] = None
     finish_reason: Optional[str] = None
@@ -371,11 +372,11 @@ class ChatCompletionResponseChunk(BaseModel):
     id: Optional[str] = None
     object: Optional[str] = None
     created: Optional[int] = None
-    model: str= None
-    prompt_messages: Union[list[PromptMessage], str]= None
+    model: str = None
+    prompt_messages: Union[list[PromptMessage], str] = None
     system_fingerprint: Optional[str] = None
-    choices: list[ChatCompletionResponseChunkDelta]= None
-    delta: ChatCompletionResponseChunkDelta= None
+    choices: list[ChatCompletionResponseChunkDelta] = None
+    delta: ChatCompletionResponseChunkDelta = None
     usage: Optional[LLMUsage] = None
     done: bool = False
 

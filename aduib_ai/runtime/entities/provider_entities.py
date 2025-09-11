@@ -4,7 +4,6 @@ from typing import Sequence, Optional
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from .model_entities import ModelType, AIModelEntity
-from ..clients.base import BaseClient
 
 
 class ProviderSDKType(Enum):

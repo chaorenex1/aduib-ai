@@ -1,6 +1,6 @@
 from runtime.entities.provider_entities import ProviderSDKType
 from runtime.transformation.base import LLMTransformation
-from runtime.transformation.openai_like import OpenAILikeTransformation
+from runtime.transformation.openai_like.openai_like import OpenAILikeTransformation
 
 LLMTransformations:dict[ProviderSDKType, type[LLMTransformation]] = {
     ProviderSDKType.OPENAI_LIKE: OpenAILikeTransformation

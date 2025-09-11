@@ -38,9 +38,9 @@ def create_app_with_configs()->AduibAIApp:
     app.include_router(api_router, prefix="/v1")
     if config.DEBUG:
         log.warning("Running in debug mode, this is not recommended for production use.")
-        app.add_middleware(TraceIdContextMiddleware)
-        app.add_middleware(ApiKeyContextMiddleware)
         app.add_middleware(LoggingMiddleware)
+    app.add_middleware(TraceIdContextMiddleware)
+    app.add_middleware(ApiKeyContextMiddleware)
     return app
 
 

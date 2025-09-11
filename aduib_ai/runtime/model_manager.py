@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Optional, Generator, Union, cast, Callable, Any, IO, Iterable
 
@@ -45,6 +46,7 @@ class ModelInstance:
         Invoke large language model
 
         :param prompt_messages: prompt messages
+        :param raw_request: raw request
         :param callbacks: callbacks
         :return: full response or stream response chunk generator result
         """
@@ -57,8 +59,6 @@ class ModelInstance:
             self._invoke(
                 function=self.model_type_instance.invoke,
                 prompt_messages= prompt_messages,
-                credentials=self.credentials,
-                model_params=self.model_type_instance.model_params,
                 raw_request=raw_request,
                 callbacks=callbacks,
             ),
@@ -214,5 +214,5 @@ class ModelManager:
         :return:
         """
         provider_entity = self.provider.get_provider_entity(provider,model_list)
-        model_instance = self.provider.provider_factory.get_model_type_instance(provider_entity, ModelType.value_of(model.type))
+        model_instance = self.provider.provider_factory.get_model_type_instance(provider_entity,json.loads(model.model_params), ModelType.value_of(model.type))
         return ModelInstance(provider_entity,model_instance, model.name)

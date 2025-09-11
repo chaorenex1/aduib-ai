@@ -8,7 +8,7 @@ def test_add_model():
     response = client.post(
         "v1/models/add",
         json={
-        "model_name": "modelscope.cn/unsloth/Qwen3-30B-A3B-GGUF:latest",
+        "model_name": "modelscope.cn/Qwen/Qwen3-32B-GGUF:Q6_K",
         "provider_name": "ollama",
         "model_type": "llm",
         "max_tokens": 262144,
