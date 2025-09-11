@@ -1,6 +1,7 @@
 import datetime
 
-from sqlalchemy import Column, Integer, String, DECIMAL, DateTime, UniqueConstraint, ForeignKeyConstraint, Text
+from sqlalchemy import Column, Integer, String, DECIMAL, DateTime, UniqueConstraint, ForeignKeyConstraint, Text, UUID, \
+    text
 
 from . import Base
 

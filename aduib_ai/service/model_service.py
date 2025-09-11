@@ -124,7 +124,7 @@ class ModelService:
             if not model:
                 return None
             return AIModelEntity(model=model.name, model_type=ModelType.value_of(model.type),
-                           features=get_model_features(model), model_properties=model.model_params,
+                           features=get_model_features(model), model_properties=json.loads(model.model_params),
                            parameter_rules=[], pricing=PriceConfig(
                     input=model.input_price,
                     output=model.output_price,currency=model.currency), deprecated=False)

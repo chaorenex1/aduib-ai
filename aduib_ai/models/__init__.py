@@ -3,7 +3,7 @@ from .base import Base
 from .api_key import ApiKey
 from .browser import BrowserHistory
 from .mcp import McpServer
-from .message import ConversationMessage
+from .message import ConversationMessage, MessageTokenUsage
 from .model import Model
 from .provider import Provider
 from .tool import ToolCallResult, ToolInfo
@@ -17,6 +17,7 @@ __all__ = ["get_db",
            "Model",
            "Provider",
            "ConversationMessage",
+           "MessageTokenUsage",
            "ToolCallResult",
            "ToolInfo",
            "McpServer",

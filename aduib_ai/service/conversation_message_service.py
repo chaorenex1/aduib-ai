@@ -1,5 +1,9 @@
+import json
+
 from models import ConversationMessage
 from models.engine import get_db
+from models.message import MessageTokenUsage
+from runtime.entities import LLMUsage
 
 
 class ConversationMessageService:
@@ -12,6 +16,20 @@ class ConversationMessageService:
         :return: The added ConversationMessage object.
         """
         with get_db() as session:
+            llm_usage = LLMUsage.model_validate(obj=json.loads(message.usage))
+            usage=MessageTokenUsage(message_id=message.message_id,
+                                    model_name=message.model_name,
+                                    provider_name=message.provider_name,
+                                    prompt_tokens=llm_usage.prompt_tokens,
+                                    completion_tokens=llm_usage.completion_tokens,
+                                    total_tokens=llm_usage.total_tokens,
+                                    prompt_unit_price=llm_usage.prompt_unit_price,
+                                    prompt_price=llm_usage.prompt_price,
+                                    completion_unit_price=llm_usage.completion_unit_price,
+                                    completion_price=llm_usage.completion_price,
+                                    total_price=llm_usage.total_price)
+
+            session.add(usage)
             session.add(message)
             session.commit()
             session.refresh(message)

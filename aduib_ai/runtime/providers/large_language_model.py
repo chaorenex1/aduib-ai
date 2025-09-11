@@ -17,7 +17,6 @@ from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponse,
 from ..entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from ..entities.model_entities import ModelType, PriceType, PriceInfo, PriceConfig
 from ..entities.provider_entities import ProviderSDKType
-from ..transformation.base import LLMTransformation
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +42,8 @@ class LlMModel(AiModel):
 
         :param prompt_messages: prompt messages
         :param raw_request: raw request
+        :param credentials: model credentials
+        :param model_params: model parameters
         :param callbacks: callbacks
         :return: full response or stream response chunk generator result
         """
@@ -163,6 +164,7 @@ class LlMModel(AiModel):
                 stream=stream,
                 callbacks=callbacks,
             )
+            result.usage=self.calc_response_usage(model,result.usage.prompt_tokens, result.usage.completion_tokens)
             result.prompt_messages = prompt_messages
             return result
         raise NotImplementedError("unsupported invoke result type", type(result))
@@ -250,7 +252,7 @@ class LlMModel(AiModel):
                         model=real_model,
                         prompt_messages=messages,
                         message=assistant_message,
-                        usage=usage or LLMUsage.empty_usage(),
+                        usage=self.calc_response_usage(real_model, usage.prompt_tokens, usage.completion_tokens) if usage else LLMUsage.empty_usage(),
                         system_fingerprint=system_fingerprint,
                     ),
                     credentials=credentials,
