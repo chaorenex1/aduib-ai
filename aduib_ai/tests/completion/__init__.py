@@ -254,22 +254,11 @@ def test_completion_tool_call():
 
 def test_rerank_ollama():
     response = requests.post(
-        "http://10.0.0.96:11434/v1/chat/completions",
+        "http://127.0.0.1:5001/v1/rerank",
         json={
-            "model": "ollama/llama3-7b",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "1+1=？"
-                }
-            ],
-            "temperature": 1,
-            "top_p": 1,
-            "stream": "false",
-            "stream_options": {
-                "include_usage": "false"
-            },
-            "enable_thinking": "false"
+            "model": "Qwen/Qwen3-Reranker-0.6B",
+            "query": "苹果手机",
+            "documents": ["苹果手机怎么样？", "三星手机怎么样？", "小米手机怎么样？"]
         },
-        headers={"X-API-Key": "testkey"}
+        headers={"X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"}
     )

@@ -120,6 +120,10 @@ class TransformersTransformation(OpenAILikeTransformation):
                     relevance_score=score
                 ))
 
+            # Optionally stop worker to free resources
+            manager.stop_worker(model_name)
+            cls._initialized_models.remove(model_name)
+
             return RerankResponse(
                 id="rerank-" + os.urandom(8).hex(),
                 model=model_name,
