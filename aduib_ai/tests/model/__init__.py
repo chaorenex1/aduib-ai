@@ -8,11 +8,11 @@ def test_add_model():
     response = client.post(
         "v1/models/add",
         json={
-        "model_name": "Qwen3-Reranker-0.6B",
-        "provider_name": "vllm",
-        "model_type": "llm",
+        "model_name": "Qwen/Qwen3-Embedding-0.6B",
+        "provider_name": "transformer",
+        "model_type": "embedding",
         "max_tokens": 8192,
-        "model_configs": {"temperature": 0.6, "top_k": 20, "top_p": 0.95, "presence_penalty ": 1.5, "miniP":0},
+        "model_configs": {},
         "model_feature": [],
         "input_price": 0.00,
         "output_price": 0.00
@@ -43,10 +43,10 @@ def test_add_provider():
     response = client.post(
         "v1/providers/add",
         json={
-            "provider_name": "github",
-            "supported_model_types": ["llm", "tts", "asr", "embedding", "ranker"],
-            "provider_type": "github",
-            "provider_config": {"api_key": "testkey", "api_base": "http://10.0.0.96:8000"}
+            "provider_name": "transformer",
+            "supported_model_types": ["llm", "tts", "asr", "embedding", "reranker"],
+            "provider_type": "transformer",
+            "provider_config": {"models_path": "/models"}
         }
     )
     assert response.status_code == 200

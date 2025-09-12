@@ -14,9 +14,10 @@ class EmbeddingRequest(BaseModel):
     encoding_format: Optional[str] = "float" # base64
 
 class EmbeddingsResponse(BaseModel):
-    embedding: Optional[List[float]] = None
+    embedding: Optional[List[float]]|Optional[str]|Optional[List[str]]=None
     index: int = 0
     object: str = "embedding"
+    encoding_format: Optional[str] = "float"  # base64
 
 class EmbeddingUsage(ModelUsage):
     """

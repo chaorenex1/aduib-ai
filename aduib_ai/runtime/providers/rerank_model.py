@@ -8,7 +8,7 @@ class RerankModel(AiModel):
     Base Model class for rerank model.
     """
 
-    model_type: ModelType = ModelType.RANKER
+    model_type: ModelType = ModelType.RERANKER
 
     def invoke(
         self,

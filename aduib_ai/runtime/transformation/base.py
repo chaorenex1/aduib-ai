@@ -1,5 +1,4 @@
 import logging
-from abc import ABC, abstractmethod
 from typing import Union, Generator, Any
 
 from runtime.entities import ToolPromptMessage

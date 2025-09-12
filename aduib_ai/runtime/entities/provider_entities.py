@@ -9,6 +9,7 @@ from .model_entities import ModelType, AIModelEntity
 class ProviderSDKType(Enum):
     OPENAI = "openai"
     OPENAI_LIKE = "openai_like"
+    TRANSFORMER = "transformer"
     HUGGINGFACE = "huggingface"
     OLLAMA = "ollama"
     MODELSCOPE = "modelscope"

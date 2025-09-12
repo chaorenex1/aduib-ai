@@ -34,7 +34,7 @@ class ModelProviderFactory:
             return LlMModel(**init_params)  # type: ignore
         elif model_type == ModelType.EMBEDDING:
             return TextEmbeddingModel(**init_params)  # type: ignore
-        elif model_type == ModelType.RANKER:
+        elif model_type == ModelType.RERANKER:
             return RerankModel(**init_params)  # type: ignore
         elif model_type == ModelType.ASR:
             return Audio2TextModel(**init_params)  # type: ignore

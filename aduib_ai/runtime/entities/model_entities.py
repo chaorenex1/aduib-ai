@@ -11,7 +11,7 @@ class ModelType(Enum):
     EMBEDDING = "embedding"
     ASR = "asr"
     TTS = "tts"
-    RANKER = "ranker"
+    RERANKER = "reranker"
     MODERATION = "moderation"
 
     @classmethod
@@ -31,8 +31,8 @@ class ModelType(Enum):
             return "asr"
         elif self==self.TTS:
             return "tts"
-        elif self==self.RANKER:
-            return "ranker"
+        elif self==self.RERANKER:
+            return "reranker"
         elif self==self.MODERATION:
             return "moderation"
         else:
