@@ -310,7 +310,6 @@ class ReRankTransformersLoader(TransformersLoader):
 
     def init_model(self):
         """Initialize the ReRank model"""
-        self.device = "cuda"
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model or self.model_path,
             padding_side='left',
