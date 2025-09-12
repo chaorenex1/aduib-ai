@@ -1,22 +1,22 @@
 import logging
+from abc import ABC, abstractmethod
 from typing import Union, Generator, Any
 
 from runtime.entities import ToolPromptMessage
 from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, ChatCompletionResponse, \
     ChatCompletionResponseChunk
+from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.mcp.types import Request
-from runtime.providers import AiModel
 from runtime.tool.entities import ToolInvokeResult
 
 logger = logging.getLogger(__name__)
-
 
 class LLMTransformation:
     """Base class for all transformations."""
 
     @classmethod
     def setup_model_parameters(cls, model_params: dict[str, Any],
-                               prompt_messages: Union[ChatCompletionRequest, CompletionRequest], ):
+                               prompt_messages: Union[ChatCompletionRequest, CompletionRequest]):
         """Validate model parameters."""
         if not prompt_messages.temperature:
             prompt_messages.temperature = model_params.get("temperature", 0.7)
@@ -99,4 +99,9 @@ class LLMTransformation:
     @classmethod
     def setup_validate_credentials(cls, credentials):
         """Validate credentials."""
+        ...
+
+    @classmethod
+    def transform_embeddings(cls, texts:EmbeddingRequest, credentials:dict)->TextEmbeddingResult:
+        """Transform embeddings."""
         ...

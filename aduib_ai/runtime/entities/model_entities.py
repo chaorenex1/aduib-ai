@@ -66,6 +66,7 @@ class DefaultParameterName(StrEnum):
     MAX_TOKENS = "max_tokens"
     RESPONSE_FORMAT = "response_format"
     JSON_SCHEMA = "json_schema"
+    MAX_EMBEDDING_TOKENS = "max_embedding_tokens"
 
     @classmethod
     def value_of(cls, value: Any) -> "DefaultParameterName":
@@ -91,24 +92,6 @@ class ParameterType(Enum):
     STRING = "string"
     BOOLEAN = "boolean"
     TEXT = "text"
-
-
-class ModelProperty(Enum):
-    """
-    Enum class for model property.
-    """
-
-    MODE = "mode"
-    CONTEXT_SIZE = "context_size"
-    MAX_CHUNKS = "max_chunks"
-    FILE_UPLOAD_LIMIT = "file_upload_limit"
-    SUPPORTED_FILE_EXTENSIONS = "supported_file_extensions"
-    MAX_CHARACTERS_PER_CHUNK = "max_characters_per_chunk"
-    DEFAULT_VOICE = "default_voice"
-    VOICES = "voices"
-    WORD_LIMIT = "word_limit"
-    AUDIO_TYPE = "audio_type"
-    MAX_WORKERS = "max_workers"
 
 
 class ProviderModel(BaseModel):

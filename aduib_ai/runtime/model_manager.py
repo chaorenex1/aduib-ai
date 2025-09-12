@@ -12,7 +12,7 @@ from .entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from .entities.model_entities import AIModelEntity, ModelType
 from .entities.provider_entities import ProviderEntity
 from .entities.rerank_entities import RerankResult
-from .entities.text_embedding_entities import TextEmbeddingResult
+from .entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
 from .provider_manager import ProviderManager
 from .providers.audio2text_model import Audio2TextModel
 from .providers.base import AiModel
@@ -66,26 +66,23 @@ class ModelInstance:
 
 
     def invoke_text_embedding(
-        self, texts: list[str], input_type: EmbeddingInputType = EmbeddingInputType.DOCUMENT
+        self, texts: EmbeddingRequest, input_type: EmbeddingInputType = EmbeddingInputType.DOCUMENT
     ) -> TextEmbeddingResult:
         """
         Invoke large language model
 
         :param texts: texts to embed
-        :param user: unique user id
         :param input_type: input type
         :return: embeddings result
         """
         if not isinstance(self.model_instance, TextEmbeddingModel):
             raise Exception("Model type instance is not TextEmbeddingModel")
 
-        self.model_instance = cast(TextEmbeddingModel, self.model_type_instance)
+        self.model_type_instance = cast(LlMModel, self.model_instance)
         return cast(
             TextEmbeddingResult,
             self._invoke(
-                function=self.model_instance.invoke,
-                model=self.model,
-                credentials=self.credentials,
+                function=self.model_type_instance.invoke,
                 texts=texts,
                 input_type=input_type,
             ),
@@ -111,7 +108,7 @@ class ModelInstance:
         if not isinstance(self.model_type_instance, RerankModel):
             raise Exception("Model type instance is not RerankModel")
 
-        self.model_instance = cast(RerankModel, self.model_type_instance)
+        self.model_type_instance = cast(LlMModel, self.model_instance)
         return cast(
             RerankResult,
             self._invoke(
@@ -143,14 +140,14 @@ class ModelInstance:
         :param user: unique user id
         :return: text for given audio file
         """
-        if not isinstance(self.model_type_instance, Audio2TextModel):
+        if not isinstance(self.model_instance, Audio2TextModel):
             raise Exception("Model type instance is not Speech2TextModel")
 
-        self.model_instance = cast(Audio2TextModel, self.model_type_instance)
+        self.model_type_instance = cast(Audio2TextModel, self.model_instance)
         return cast(
             str,
             self._invoke(
-                function=self.model_instance.invoke,
+                function=self.model_type_instance.invoke,
                 model=self.model,
                 credentials=self.credentials,
                 file=file,
@@ -167,14 +164,14 @@ class ModelInstance:
         :param user: unique user id
         :return: text for given audio file
         """
-        if not isinstance(self.model_type_instance, TTSModel):
+        if not isinstance(self.model_instance, TTSModel):
             raise Exception("Model type instance is not TTSModel")
 
-        self.model_instance = cast(TTSModel, self.model_type_instance)
+        self.model_type_instance = cast(TTSModel, self.model_instance)
         return cast(
             Iterable[bytes],
             self._invoke(
-                function=self.model_instance.invoke,
+                function=self.model_type_instance.invoke,
                 model=self.model,
                 credentials=self.credentials,
                 content_text=content_text,

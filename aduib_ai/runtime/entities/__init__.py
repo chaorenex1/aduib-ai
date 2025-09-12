@@ -22,8 +22,6 @@ from .message_entities import (
     UserPromptMessage,
     ToolPromptMessage,
 )
-from .model_entities import ModelProperty
-
 __all__ = [
     "AssistantPromptMessage",
     "AudioPromptMessageContent",
@@ -34,7 +32,6 @@ __all__ = [
     "ChatCompletionResponseChunk",
     "ChatCompletionResponseChunkDelta",
     "LLMUsage",
-    "ModelProperty",
     "MultiModalPromptMessageContent",
     "PromptMessage",
     "PromptMessage",

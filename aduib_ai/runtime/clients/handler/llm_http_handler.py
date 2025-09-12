@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from controllers.common.error import InnerError
 from runtime.clients.httpx_client import get_httpx_client
+from runtime.entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
 from utils import jsonable_encoder
 from runtime.entities import ChatCompletionResponse, ChatCompletionResponseChunk
 from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
@@ -105,10 +106,7 @@ class LLMHttpHandler:
                 """
                 Handle the stream response and yield the final response
                 """
-                try:
-                    yield from response
-                except InnerError as e:
-                    raise ValueError(e.message + str(e.code)) from e
+                yield from response
 
             return handle_stream_response()
         else:
@@ -120,8 +118,12 @@ class LLMHttpHandler:
                 """
                 Handle the non-stream response and return the final response
                 """
-                if isinstance(response, InnerError):
-                    raise ValueError(response.message + str(response.code))
                 yield response
 
             return handle_no_stream_response()
+
+    def embedding_request(self, texts: EmbeddingRequest) -> TextEmbeddingResult:
+        response = self._request_with_model(
+            type=TextEmbeddingResult,
+            data=jsonable_encoder(texts, exclude_none=True))
+        return response

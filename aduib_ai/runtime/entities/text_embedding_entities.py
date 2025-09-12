@@ -7,24 +7,30 @@ from ..entities.model_entities import ModelUsage
 
 
 class EmbeddingRequest(BaseModel):
-    prompt: str
+    prompt: str=None
     model: str
+    input: list[str] | str
+    dimensions: int=None
+    encoding_format: Optional[str] = "float" # base64
 
 class EmbeddingsResponse(BaseModel):
     embedding: Optional[List[float]] = None
+    index: int = 0
+    object: str = "embedding"
 
 class EmbeddingUsage(ModelUsage):
     """
     Model class for embedding usage.
     """
 
-    tokens: int
-    total_tokens: int
-    unit_price: Decimal
-    price_unit: Decimal
-    total_price: Decimal
-    currency: str
-    latency: float
+    tokens: int=0
+    prompt_tokens: int=0
+    total_tokens: int=0
+    unit_price: Decimal=0.00
+    price_unit: Decimal=0.00
+    total_price: Decimal=0.00
+    currency: str="USD"
+    latency: float=0.00
 
 
 class TextEmbeddingResult(BaseModel):
@@ -32,6 +38,8 @@ class TextEmbeddingResult(BaseModel):
     Model class for text embedding result.
     """
 
-    model: str
-    embeddings: list[list[float]]
-    usage: EmbeddingUsage
+    model: str=""
+    embeddings: list[list[float]]=[]
+    usage: EmbeddingUsage=None
+    object: str=""
+    data: List[EmbeddingsResponse]=[]

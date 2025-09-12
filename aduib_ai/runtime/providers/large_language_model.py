@@ -267,37 +267,6 @@ class LlMModel(AiModel):
             except Exception as e:
                 logger.error(f"Error in after invoke callback: {e}", exc_info=True)
 
-    def get_num_tokens(
-            self,
-            model: str,
-            prompt_messages: list[PromptMessage],
-            tools: Optional[list[PromptMessageTool]] = None,
-    ) -> int:
-        """
-        Get number of tokens for given prompt messages
-
-        :param model: model name
-        :param prompt_messages: prompt messages
-        :param tools: tools for tool calling
-        :return:
-        """
-        token_length = 0
-        if prompt_messages:
-            for message in prompt_messages:
-                if isinstance(message, UserPromptMessage):
-                    if message.content:
-                        token_length += GPTTokenizer.get_token_nums(message.content)
-                elif isinstance(message, ToolPromptMessage):
-                    if message.content:
-                        token_length += GPTTokenizer.get_token_nums(message.content)
-        if tools:
-            for tool in tools:
-                token_length += GPTTokenizer.get_token_nums(tool.model_dump_json(exclude_none=True))
-        if config.DEBUG:
-            logger.debug(f"text: {prompt_messages}, tools: {tools}, token_length: {token_length}")
-
-        return token_length
-
     def calc_response_usage(
             self,
             model: str,

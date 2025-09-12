@@ -23,3 +23,7 @@ api_router.include_router(mcp.router)
 # web_memo
 from .web_memo import web_memo
 api_router.include_router(web_memo.router)
+
+# document
+from .document import document
+api_router.include_router(document.router)

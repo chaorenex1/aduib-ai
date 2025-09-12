@@ -1,17 +1,16 @@
-from concurrent import futures
 from typing import Union, Generator
 
 from runtime.clients.handler.llm_http_handler import LLMHttpHandler
 from runtime.entities import ChatCompletionResponse, ChatCompletionResponseChunk
 from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
+from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.mcp.types import Request
 from runtime.transformation.base import LLMTransformation
-from utils import AsyncUtils
 
 
 class OpenAILikeTransformation(LLMTransformation):
     """
-    Translates from OpenAI's `/v1/chat/completions` to the target LLM's chat completion API.
+    Translates from OpenAI_like API to provider-specific API.
     """
     provider_type = "openai_like"
 
@@ -40,3 +39,11 @@ class OpenAILikeTransformation(LLMTransformation):
         ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
         llm_http_handler = LLMHttpHandler('/v1/chat/completions', credentials, stream)
         return llm_http_handler.completion_request(prompt_messages)
+
+    @classmethod
+    def transform_embeddings(cls, texts: EmbeddingRequest, credentials: dict) -> TextEmbeddingResult:
+        llm_http_handler = LLMHttpHandler('/v1/embeddings', credentials, False)
+        return llm_http_handler.embedding_request(texts)
+
+
+
