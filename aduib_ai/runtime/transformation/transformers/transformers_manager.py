@@ -30,7 +30,6 @@ class TaskReq(BaseModel):
     worker_id: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
 
-
 class TaskResp(BaseModel):
     worker_id: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
@@ -44,12 +43,12 @@ class TransformersLoader(ABC):
                  device: str = 'cpu',
                  instruction: Optional[str] = None,
                  system_prompt: Optional[str] = None):
-        self.model = model
+        self.model = model.strip()
         self.model_path = model_path
         self.device = device
         self.instruction = instruction
         self.system_prompt = system_prompt
-        self.worker_id = model
+        self.worker_id = model.strip()
         self.model_instance = None
         self.tokenizer = None
         self.max_context_length = max_context_length
@@ -430,17 +429,20 @@ class ZMQBroker:
     """ZMQ Broker for handling message routing"""
 
     def __init__(self):
+        self.poller = None
         self.ctx = None
         self.frontend = None
         self.backend = None
         self._running = False
+        self._worker_addresses = {}  # store worker_id to address mapping
+        self._client_worker_mapping = {}  # store client to worker mapping
 
     def start(self):
         """Start the broker"""
         try:
             self.ctx = zmq.Context()
             self.frontend = self.ctx.socket(zmq.ROUTER)
-            self.backend = self.ctx.socket(zmq.DEALER)
+            self.backend = self.ctx.socket(zmq.ROUTER)
 
             self.frontend.bind("tcp://*:5555")
 
@@ -450,14 +452,118 @@ class ZMQBroker:
                 os.makedirs(os.path.dirname(TransformersConfig.BACKEND_IPC_PATH), exist_ok=True)
                 self.backend.bind(TransformersConfig.BACKEND_IPC_PATH)
 
+            self._setup_signal_handlers()
             self._running = True
             logger.info("Broker started successfully")
-            zmq.proxy(self.frontend, self.backend)
+            # zmq.proxy(self.frontend, self.backend)
+            self.poller = zmq.Poller()
+            self.poller.register(self.frontend, zmq.POLLIN)
+            self.poller.register(self.backend, zmq.POLLIN)
+            self._broker_loop()
 
         except Exception as e:
             logger.error(f"Failed to start broker: {e}")
             self.cleanup()
             raise
+
+    def _broker_loop(self):
+        """Main broker loop"""
+        while self._running:
+            try:
+                socks = dict(self.poller.poll(10000))  # 10 second timeout
+
+                # client message
+                if self.frontend in socks and socks[self.frontend] == zmq.POLLIN:
+                    self._handle_client_message()
+                # worker message
+                if self.backend in socks and socks[self.backend] == zmq.POLLIN:
+                    self._handle_worker_message()
+
+            except Exception as e:
+                logger.error(f"Error in broker loop: {e}")
+                break
+
+    def _handle_client_message(self):
+        """Handle message from client"""
+        try:
+            # 接收客户端消息
+            client_id, empty, message_data = self.frontend.recv_multipart()
+
+            # 解析任务请求
+            try:
+                message_json = json.loads(json.loads(message_data.decode('utf-8')))
+                task_req = TaskReq.model_validate(message_json)
+            except Exception as e:
+                logger.error(f"Failed to parse client message: {e}")
+                # 发送错误响应给客户端
+                error_resp = TaskResp(
+                    worker_id="",
+                    data={"error": f"Invalid message format: {str(e)}"},
+                    success=False
+                )
+                self.frontend.send_multipart([
+                    client_id, b'',
+                    error_resp.model_dump_json().encode('utf-8')
+                ])
+                return
+
+            # 根据worker_id进行路由
+            target_worker = task_req.worker_id
+            if not target_worker:
+                error_resp = TaskResp(
+                    worker_id="",
+                    data={"error": "No worker_id specified in request"},
+                    success=False
+                )
+                self.frontend.send_multipart([
+                    client_id, b'',
+                    error_resp.model_dump_json().encode('utf-8')
+                ])
+                return
+
+            # 存储客户端到worker的映射关系
+            self._client_worker_mapping[client_id.decode()] = target_worker
+
+            # 转发消息给指定的worker
+            self.backend.send_multipart([
+                target_worker.encode('utf-8'), b'',
+                client_id, b'', message_data
+            ])
+
+            logger.debug(f"Routed message from client {client_id.decode()} to worker {target_worker}")
+
+        except Exception as e:
+            logger.error(f"Error handling client message: {e}")
+
+    def _handle_worker_message(self):
+        """Handle message from worker"""
+        try:
+            # 接收worker响应
+            worker_id, empty1, client_id, empty2, response_data = self.backend.recv_multipart()
+
+            # 将响应转发回对应的客户端
+            self.frontend.send_multipart([client_id, b'', response_data])
+
+            # 清理映射关系
+            client_key = client_id.decode()
+            if client_key in self._client_worker_mapping:
+                del self._client_worker_mapping[client_key]
+
+            logger.debug(f"Forwarded response from worker {worker_id.decode()} to client {client_key}")
+
+        except Exception as e:
+            logger.error(f"Error handling worker message: {e}")
+
+    def _setup_signal_handlers(self):
+        """Setup signal handlers for graceful shutdown"""
+
+        def stop_handler(signum, frame):
+            logger.info(f"Broker stopping...")
+            self.stop()
+            sys.exit(0)
+
+        for sig in [signal.SIGINT, signal.SIGTERM]:
+            signal.signal(sig, stop_handler)
 
     def stop(self):
         """Stop the broker"""
@@ -482,14 +588,17 @@ class ZMQWorker:
         self.ctx = None
         self.socket = None
         self._running = False
-        self._ready = False  # Worker readiness status
+        self._ready = False
 
     def start(self):
         """Start the worker"""
         try:
             self.transformer_loader.init_model()
             self.ctx = zmq.Context()
-            self.socket = self.ctx.socket(zmq.REP)
+            self.socket = self.ctx.socket(zmq.DEALER)  # 改为DEALER配合ROUTER broker
+
+            # 设置worker身份标识
+            self.socket.setsockopt(zmq.IDENTITY, self.transformer_loader.worker_id.encode('utf-8'))
 
             backend_address = self._get_backend_address()
             self.socket.connect(backend_address)
@@ -498,7 +607,7 @@ class ZMQWorker:
             self._running = True
             self._ready = True
 
-            logger.info(f"Worker {self.transformer_loader.worker_id} started")
+            logger.info(f"Worker {self.transformer_loader.worker_id} started and ready")
             self._run_loop()
 
         except Exception as e:
@@ -506,6 +615,88 @@ class ZMQWorker:
             self._ready = False
             self.cleanup()
             raise
+
+    def _run_loop(self):
+        """Main worker loop"""
+        while self._running:
+            try:
+                poller = zmq.Poller()
+                poller.register(self.socket, zmq.POLLIN)
+
+                if poller.poll(1000):  # 1 second timeout
+                    # 接收消息
+                    client_id, empty, message_data = self.socket.recv_multipart()
+
+                    try:
+                        message_json = json.loads(json.loads(message_data.decode('utf-8')))
+                        task_req = TaskReq.model_validate(message_json)
+
+                        # 处理任务
+                        response = self._process_task(task_req)
+
+                        # 发送响应
+                        self.socket.send_multipart([
+                            client_id, b'',
+                            response.model_dump_json().encode('utf-8')
+                        ])
+
+                    except Exception as e:
+                        logger.error(f"Error processing task: {e}")
+                        error_resp = TaskResp(
+                            worker_id=self.transformer_loader.worker_id,
+                            data={"error": str(e)},
+                            success=False
+                        )
+                        self.socket.send_multipart([
+                            client_id, b'',
+                            error_resp.model_dump_json().encode('utf-8')
+                        ])
+
+            except zmq.Again:
+                continue
+            except Exception as e:
+                logger.error(f"Error in worker loop: {e}")
+                break
+
+    def _process_task(self, task_req: TaskReq) -> TaskResp:
+        """Process incoming task"""
+        try:
+            # 检查是否为健康检查请求
+            if task_req.data and task_req.data.get("type") == "HEALTH_CHECK":
+                return TaskResp(
+                    worker_id=self.transformer_loader.worker_id,
+                    data={"status": "ready" if self._ready else "not ready"},
+                    success=self._ready
+                )
+
+            # 检查worker ID匹配
+            if task_req.worker_id != self.transformer_loader.worker_id:
+                logger.warning(
+                    f"Worker ID mismatch: expected {self.transformer_loader.worker_id}, got {task_req.worker_id}")
+                return TaskResp(
+                    worker_id=self.transformer_loader.worker_id,
+                    data={"error": f"Worker ID mismatch"},
+                    success=False
+                )
+
+            # 检查worker是否就绪
+            if not self._ready:
+                return TaskResp(
+                    worker_id=self.transformer_loader.worker_id,
+                    data={"error": "Worker is not ready yet"},
+                    success=False
+                )
+
+            # 处理实际任务
+            return self.transformer_loader.transform(task_req)
+
+        except Exception as e:
+            logger.error(f"Error processing task: {e}")
+            return TaskResp(
+                worker_id=self.transformer_loader.worker_id,
+                data={"error": str(e)},
+                success=False
+            )
 
     def _get_backend_address(self):
         """Get backend address based on platform"""
@@ -524,72 +715,6 @@ class ZMQWorker:
 
         for sig in [signal.SIGINT, signal.SIGTERM]:
             signal.signal(sig, stop_handler)
-
-    def _run_loop(self):
-        """Main worker loop"""
-        while self._running:
-            try:
-                # Use poller for non-blocking receive
-                poller = zmq.Poller()
-                poller.register(self.socket, zmq.POLLIN)
-
-                if poller.poll():  # 1 second timeout
-                    message = self.socket.recv_json(zmq.NOBLOCK)
-                    task_req = TaskReq.model_validate(json.loads(message))
-                    if task_req.worker_id != self.transformer_loader.worker_id:
-                        logger.warning(
-                            f"Worker ID mismatch: expected {self.transformer_loader.worker_id}, got {task_req.worker_id}")
-                        continue
-                    self._process_message(task_req)
-
-            except zmq.Again:
-                continue
-            except Exception as e:
-                logger.error(f"Error in worker loop: {e}")
-                break
-
-    def _process_message(self, task_req:TaskReq):
-        """Process incoming message"""
-        try:
-            # 检查是否为健康检查请求
-            # task_req = TaskReq.model_validate(json.loads(message))
-            if task_req.data.get("type") == "HEALTH_CHECK" and self._ready:
-                self.socket.send_json(TaskResp(
-                    worker_id=str(task_req.worker_id),
-                    data={"status": "ready" if self._ready else "not ready"},
-                    success=self._ready
-                ).model_dump_json())
-            elif task_req.data.get("type") == "HEALTH_CHECK" and not self._ready:
-                self.socket.send_json(TaskResp(
-                    worker_id=str(task_req.worker_id),
-                    data={"status": "not ready"},
-                    success=False
-                ).model_dump_json())
-
-
-            # 检查worker是否就绪
-            if not self._ready:
-                error_resp = TaskResp(
-                    worker_id=str(self.transformer_loader.worker_id),
-                    data={"error": "Worker is not ready yet"},
-                    success=False
-                )
-                self.socket.send_json(error_resp.model_dump_json())
-            else:
-                try:
-                    task_resp = self.transformer_loader.transform(task_req)
-                except Exception as e:
-                    logger.error(f"Error processing task in worker {self.transformer_loader.worker_id}: {e}")
-                    task_resp = TaskResp(
-                        worker_id=str(self.transformer_loader.worker_id),
-                        data={"error": str(e)},
-                        success=False
-                    )
-
-                self.socket.send_json(task_resp.model_dump_json())
-
-        except Exception as e:
-            logger.error(f"Error processing message: {e}")
 
     def stop(self):
         """Stop the worker"""
@@ -617,6 +742,7 @@ class ZMQClient:
         try:
             self.ctx = zmq.Context()
             self.socket = self.ctx.socket(zmq.REQ)
+            self.socket.setsockopt(zmq.IDENTITY, "client".encode('utf-8'))
             self.socket.setsockopt(zmq.RCVTIMEO, TransformersConfig.CONNECTION_TIMEOUT)
             self.socket.setsockopt(zmq.SNDTIMEO, TransformersConfig.CONNECTION_TIMEOUT)
             self.socket.connect(TransformersConfig.FRONTEND_TCP_ADDRESS)
@@ -775,7 +901,7 @@ class TransformersManager:
             raise RuntimeError(f"Worker process for model {model} is not running")
 
         # 检查worker是否就绪
-        if not self._worker_ready_status.get("ready", False):
+        if not self._worker_ready_status.get(model, False):
             raise RuntimeError(f"Worker for model {model} is not ready yet")
 
         task_req = TaskReq(worker_id=model, data=task_data)
