@@ -8,12 +8,12 @@ def test_add_model():
     response = client.post(
         "v1/models/add",
         json={
-        "model_name": "modelscope.cn/Qwen/Qwen3-32B-GGUF:Q6_K",
-        "provider_name": "ollama",
+        "model_name": "Qwen3-Reranker-0.6B",
+        "provider_name": "vllm",
         "model_type": "llm",
-        "max_tokens": 262144,
+        "max_tokens": 8192,
         "model_configs": {"temperature": 0.6, "top_k": 20, "top_p": 0.95, "presence_penalty ": 1.5, "miniP":0},
-        "model_feature": ["tool"],
+        "model_feature": [],
         "input_price": 0.00,
         "output_price": 0.00
     }
