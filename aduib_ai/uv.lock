@@ -73,7 +73,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aduib-rpc", specifier = ">1.0.7" },
+    { name = "aduib-rpc", specifier = ">=1.0.10" },
     { name = "bcrypt", specifier = ">=4.3.0" },
     { name = "boto3", specifier = ">=1.37.11" },
     { name = "fastapi", specifier = ">=0.116.1" },
@@ -117,7 +117,7 @@ dev = [
 
 [[package]]
 name = "aduib-rpc"
-version = "1.0.8"
+version = "1.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -133,9 +133,9 @@ dependencies = [
     { name = "starlette" },
     { name = "thrift" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/03/9c/fcd2ee103071e800840deb2315ce240495a3913569ad78b82e50dbc34cb2/aduib_rpc-1.0.8.tar.gz", hash = "sha256:37df6745794b997a5cd54d2c6ab6df4bcf75feac78a8b9b2d40e56c55159ee7c", size = 132979 }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/72/ae39b24cdeb7de6d006a84d1c9e91291f9581b2b253c1c82cccf09a50be8/aduib_rpc-1.0.10.tar.gz", hash = "sha256:a4ee3e69f0c055c60a0370c1714b1f58826bc8848ba914f53370ebf34d8ca9d3", size = 133437 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/75/a9445dcd3099e9add2e8db61719f67365badc0d554db5c637533bdcf1f21/aduib_rpc-1.0.8-py3-none-any.whl", hash = "sha256:5e52add51c723bba04ee35ec1f58bdc8c28f6e345df44a35629599251b7777ee", size = 84980 },
+    { url = "https://files.pythonhosted.org/packages/9c/5e/6b78477f456a92a0b4da03db82456ec35ef1ccb29c025185bc08381b2886/aduib_rpc-1.0.10-py3-none-any.whl", hash = "sha256:a4c718df8efcbb36275217d170ea936e01844a59d848bd45cd38efa24642bc39", size = 85792 },
 ]
 
 [[package]]

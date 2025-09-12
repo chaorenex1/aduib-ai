@@ -79,7 +79,7 @@ async def run_service_register(app: AduibAIApp):
         "SERVICE_TRANSPORT_SCHEME": app.config.SERVICE_TRANSPORT_SCHEME,
         "APP_NAME": app.config.APP_NAME,
     }
-    from aduib_rpc.server.request_excution.service_call import load_service_plugins
+    from aduib_rpc.server.rpc_execution.service_call import load_service_plugins
     from aduib_rpc.discover.registry.registry_factory import ServiceRegistryFactory
     from aduib_rpc.discover.service import AduibServiceFactory
     service = await ServiceRegistryFactory.start_service_registry(registry_config)

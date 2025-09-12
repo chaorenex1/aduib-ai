@@ -58,11 +58,7 @@ class CompletionService:
         model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
         model_manager = ModelManager()
         model_instance = model_manager.get_model_instance(provider, model, model_list)
-        from utils.concurrent import get_completion_service_executor
-        with get_completion_service_executor() as executor:
-            future = executor.submit(model_instance.invoke_llm, prompt_messages=req,raw_request=raw_request,callbacks=[MessageRecordCallback()])
-        llm_result = future.result()
-        return llm_result
+        return model_instance.invoke_llm(prompt_messages=req, raw_request=raw_request, callbacks=[MessageRecordCallback()])
 
     @classmethod
     def convert_to_stream(cls,response:Union[ChatCompletionResponse, Generator],req:Union[ChatCompletionRequest, CompletionRequest]):

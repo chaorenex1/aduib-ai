@@ -6,6 +6,7 @@ from runtime.entities import ChatCompletionResponse, ChatCompletionResponseChunk
 from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from runtime.mcp.types import Request
 from runtime.transformation.base import LLMTransformation
+from utils import AsyncUtils
 
 
 class OpenAILikeTransformation(LLMTransformation):

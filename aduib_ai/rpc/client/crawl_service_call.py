@@ -1,6 +1,6 @@
 from typing import Any
 
-from aduib_rpc.server.request_excution.service_call import client
+from aduib_rpc.server.rpc_execution.service_call import client
 
 
 @client("aduib_mcp_server-jsonrpc",stream=True)
