@@ -1,3 +1,4 @@
+import requests
 from fastapi.testclient import TestClient
 
 from app import app
@@ -249,3 +250,26 @@ def test_completion_tool_call():
     assert response.status_code == 200
     data = response.json()
     print(data)
+
+
+def test_rerank_ollama():
+    response = requests.post(
+        "http://10.0.0.96:11434/v1/chat/completions",
+        json={
+            "model": "ollama/llama3-7b",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "1+1=？"
+                }
+            ],
+            "temperature": 1,
+            "top_p": 1,
+            "stream": "false",
+            "stream_options": {
+                "include_usage": "false"
+            },
+            "enable_thinking": "false"
+        },
+        headers={"X-API-Key": "testkey"}
+    )

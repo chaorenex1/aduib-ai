@@ -3,6 +3,7 @@ from typing import Union, Generator
 from runtime.clients.handler.llm_http_handler import LLMHttpHandler
 from runtime.entities import ChatCompletionResponse, ChatCompletionResponseChunk
 from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
+from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.mcp.types import Request
 from runtime.transformation.base import LLMTransformation
@@ -44,6 +45,12 @@ class OpenAILikeTransformation(LLMTransformation):
     def transform_embeddings(cls, texts: EmbeddingRequest, credentials: dict) -> TextEmbeddingResult:
         llm_http_handler = LLMHttpHandler('/v1/embeddings', credentials, False)
         return llm_http_handler.embedding_request(texts)
+
+    @classmethod
+    def transform_rerank(cls, query: RerankRequest, credentials: dict) -> RerankResponse:
+        llm_http_handler = LLMHttpHandler('/v1/rerank', credentials, False)
+        return llm_http_handler.rerank_request(query)
+
 
 
 

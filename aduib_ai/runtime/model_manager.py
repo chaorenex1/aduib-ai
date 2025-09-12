@@ -11,7 +11,7 @@ from .entities.embedding_type import EmbeddingInputType
 from .entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from .entities.model_entities import AIModelEntity, ModelType
 from .entities.provider_entities import ProviderEntity
-from .entities.rerank_entities import RerankResult
+from .entities.rerank_entities import RerankResult, RerankRequest, RerankResponse
 from .entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
 from .provider_manager import ProviderManager
 from .providers.audio2text_model import Audio2TextModel
@@ -78,7 +78,7 @@ class ModelInstance:
         if not isinstance(self.model_instance, TextEmbeddingModel):
             raise Exception("Model type instance is not TextEmbeddingModel")
 
-        self.model_type_instance = cast(LlMModel, self.model_instance)
+        self.model_type_instance = cast(TextEmbeddingModel, self.model_instance)
         return cast(
             TextEmbeddingResult,
             self._invoke(
@@ -90,11 +90,8 @@ class ModelInstance:
 
     def invoke_rerank(
         self,
-        query: str,
-        docs: list[str],
-        score_threshold: Optional[float] = None,
-        top_n: Optional[int] = None,
-    ) -> RerankResult:
+        query: RerankRequest
+    ) -> RerankResponse:
         """
         Invoke rerank model
 
@@ -105,20 +102,15 @@ class ModelInstance:
         :param user: unique user id
         :return: rerank result
         """
-        if not isinstance(self.model_type_instance, RerankModel):
+        if not isinstance(self.model_instance, RerankModel):
             raise Exception("Model type instance is not RerankModel")
 
-        self.model_type_instance = cast(LlMModel, self.model_instance)
+        self.model_type_instance = cast(RerankModel, self.model_instance)
         return cast(
-            RerankResult,
+            RerankResponse,
             self._invoke(
                 function=self.model_type_instance.invoke,
-                model=self.model,
-                credentials=self.credentials,
                 query=query,
-                docs=docs,
-                score_threshold=score_threshold,
-                top_n=top_n,
             ),
         )
 

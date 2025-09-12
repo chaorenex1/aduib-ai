@@ -1,5 +1,6 @@
 from models import Model, Provider
 from runtime.entities.model_entities import AIModelEntity
+from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 
 
@@ -35,3 +36,17 @@ class DocumentService:
         model_manager = ModelManager()
         model_instance = model_manager.get_model_instance(provider, model, model_list)
         return model_instance.invoke_text_embedding(texts=req)
+
+    @classmethod
+    def rerank(cls, query:RerankRequest)->RerankResponse:
+        """Rerank documents based on the request."""
+
+        from runtime.model_manager import ModelManager
+        from . import ModelService, ProviderService
+
+        model: Model = ModelService.get_model(query.model)
+        provider: Provider = ProviderService.get_provider(model.provider_name)
+        model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
+        model_manager = ModelManager()
+        model_instance = model_manager.get_model_instance(provider, model, model_list)
+        return model_instance.invoke_rerank(query=query)

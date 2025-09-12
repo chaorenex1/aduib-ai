@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from controllers.common.error import InnerError
 from runtime.clients.httpx_client import get_httpx_client
+from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
 from utils import jsonable_encoder
 from runtime.entities import ChatCompletionResponse, ChatCompletionResponseChunk
@@ -126,4 +127,11 @@ class LLMHttpHandler:
         response = self._request_with_model(
             type=TextEmbeddingResult,
             data=jsonable_encoder(texts, exclude_none=True))
+        return response
+
+    def rerank_request(self, query: RerankRequest) -> RerankResponse:
+        response = self._request_with_model(
+            type=RerankResponse,
+            data=jsonable_encoder(query, exclude_none=True)
+        )
         return response

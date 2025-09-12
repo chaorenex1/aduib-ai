@@ -1,7 +1,5 @@
-from typing import Optional
-
 from ..entities.model_entities import ModelType
-from ..entities.rerank_entities import RerankResult
+from ..entities.rerank_entities import RerankRequest, RerankResponse
 from ..providers.base import AiModel
 
 
@@ -14,14 +12,8 @@ class RerankModel(AiModel):
 
     def invoke(
         self,
-        model: str,
-        credentials: dict,
-        query: str,
-        docs: list[str],
-        score_threshold: Optional[float] = None,
-        top_n: Optional[int] = None,
-        user: Optional[str] = None,
-    ) -> RerankResult:
+        query: RerankRequest
+    ) -> RerankResponse:
         """
         Invoke rerank model
 
@@ -35,19 +27,17 @@ class RerankModel(AiModel):
         :return: rerank result
         """
         try:
-            # plugin_model_manager = PluginModelClient()
-            # return plugin_model_manager.invoke_rerank(
-            #     tenant_id=self.tenant_id,
-            #     user_id=user or "unknown",
-            #     plugin_id=self.plugin_id,
-            #     provider=self.provider_name,
-            #     model=model,
-            #     credentials=credentials,
-            #     query=query,
-            #     docs=docs,
-            #     score_threshold=score_threshold,
-            #     top_n=top_n,
-            # )
-            pass
+            from ..transformation import get_llm_transformation
+            transformation = get_llm_transformation(
+                self.credentials.get("sdk_type", "openai_like"))
+
+            credentials = transformation.setup_validate_credentials(self.credentials)
+            if not query.score_threshold:
+                query.score_threshold = 0.8
+            result: RerankResponse = transformation.transform_rerank(
+                query=query,
+                credentials=credentials,
+            )
+            return result
         except Exception as e:
-            raise self._transform_invoke_error(e)
+            raise e

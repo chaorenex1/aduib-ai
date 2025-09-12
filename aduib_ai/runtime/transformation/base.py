@@ -5,6 +5,7 @@ from typing import Union, Generator, Any
 from runtime.entities import ToolPromptMessage
 from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, ChatCompletionResponse, \
     ChatCompletionResponseChunk
+from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.mcp.types import Request
 from runtime.tool.entities import ToolInvokeResult
@@ -104,4 +105,9 @@ class LLMTransformation:
     @classmethod
     def transform_embeddings(cls, texts:EmbeddingRequest, credentials:dict)->TextEmbeddingResult:
         """Transform embeddings."""
+        ...
+
+    @classmethod
+    def transform_rerank(cls, query:RerankRequest, credentials:dict)->RerankResponse:
+        """Transform rerank."""
         ...
