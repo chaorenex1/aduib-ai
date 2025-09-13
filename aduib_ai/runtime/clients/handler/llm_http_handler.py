@@ -1,5 +1,5 @@
 import json
-from typing import Union, Generator, TypeVar, Any, AsyncGenerator, Coroutine, AsyncIterator
+from typing import Union, Generator, TypeVar, Any, AsyncGenerator, Coroutine, AsyncIterator, overload
 
 from fastapi import Request
 from httpx import Response
@@ -21,7 +21,7 @@ class LLMHttpHandler:
     A handler for making HTTP requests to LLM APIs.
     """
 
-    def __init__(self,api_path:str, credentials: dict, stream: bool) -> None:
+    def __init__(self, api_path: str, credentials: dict, stream: bool) -> None:
         self.credentials = credentials
         self.httpx_client = get_httpx_client()
         api_base = credentials['api_base']
@@ -42,7 +42,6 @@ class LLMHttpHandler:
         """
         Make a request to  API.
         """
-        self.headers["Accept-Encoding"] = "gzip, deflate, br"
         response = self.httpx_client.post(self.path, params=params, headers=self.headers, json=data, files=files,
                                           stream=self.stream)
 
@@ -83,7 +82,7 @@ class LLMHttpHandler:
     def _request_with_model(
             self,
             type: type[T],
-            data: bytes | None = None,
+            data: bytes | dict | None = None,
             params: dict | None = None,
             files: dict | None = None,
     ) -> T:
@@ -96,11 +95,14 @@ class LLMHttpHandler:
 
     def completion_request(self, prompt_messages: Union[ChatCompletionRequest, CompletionRequest]) -> Generator[
                                                                                                           ChatCompletionResponse, None, None] | ChatCompletionResponse:
+        return self.completion_dict(jsonable_encoder(obj=prompt_messages, exclude_none=True, exclude_unset=True))
+
+    def completion_dict(self, prompt_messages: dict[str, Any]) -> Generator[
+                                                                         ChatCompletionResponse, None, None] | ChatCompletionResponse:
 
         if self.stream:
             response = self._stream_request_with_model(type=ChatCompletionResponseChunk,
-                                                       data=jsonable_encoder(obj=prompt_messages,
-                                                                             exclude_none=True)
+                                                       data=prompt_messages
                                                        )
 
             def handle_stream_response() -> Generator[ChatCompletionResponse, None, None]:
@@ -113,7 +115,7 @@ class LLMHttpHandler:
         else:
             response = self._request_with_model(
                 type=ChatCompletionResponse,
-                data=jsonable_encoder(prompt_messages, exclude_none=True))
+                data=prompt_messages)
 
             def handle_no_stream_response() -> ChatCompletionResponse:
                 """

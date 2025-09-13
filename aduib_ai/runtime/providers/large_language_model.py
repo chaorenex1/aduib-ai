@@ -51,8 +51,7 @@ class LlMModel(AiModel):
         callbacks = callbacks or []
 
         from ..transformation import get_llm_transformation
-        transformation = get_llm_transformation(
-            ProviderSDKType.to_model_type(self.credentials.get("sdk_type", "openai_like")))
+        transformation = get_llm_transformation(self.credentials.get("sdk_type", "openai_like"))
 
         prompt_messages = transformation.setup_model_parameters(self.model_params, prompt_messages)
         credentials = transformation.setup_validate_credentials(self.credentials)

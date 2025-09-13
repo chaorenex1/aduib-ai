@@ -1,3 +1,4 @@
+import json
 from multiprocessing import AuthenticationError
 from typing import Union, Generator, List
 
@@ -11,6 +12,7 @@ from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbed
 from runtime.transformation.base import LLMTransformation
 from runtime.transformation.github.Authenticator import Authenticator
 from runtime.transformation.github.error import GetAPIKeyError
+from utils import jsonable_encoder
 
 
 class GithubCopilotTransformation(LLMTransformation):
@@ -28,19 +30,11 @@ class GithubCopilotTransformation(LLMTransformation):
         dynamic_api_base = (
                 authenticator.get_api_base() or cls.GITHUB_COPILOT_API_BASE
         )
-        try:
-            dynamic_api_key = authenticator.get_api_key()
-        except GetAPIKeyError as e:
-            raise e
-        headers = {"Authorization": f"Bearer {dynamic_api_key}", "X-Api-Key": dynamic_api_key}
-        api_base = _credentials.get("api_base", dynamic_api_base)
-        user_agent = "AduibLLM-OpenAI-Client/1.0"
+        vision=False
         if params:
-            user_agent = params.get("user_agent")
-        if user_agent:
-            headers["User-Agent"] = user_agent
-        headers["Content-Type"] = "application/json;charset=utf-8"
-        return {"api_key": _credentials["api_key"], "api_base": api_base, "headers": headers,
+            vision = params.get("vision", False)
+        headers = authenticator.get_copilot_headers(vision=vision)
+        return {"api_key": _credentials["api_key"], "api_base": dynamic_api_base, "headers": headers,
                 "sdk_type": credentials["sdk_type"]}
 
     @classmethod
@@ -50,10 +44,13 @@ class GithubCopilotTransformation(LLMTransformation):
                            raw_request: Request,
                            stream: bool = None) -> Union[
         ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
-        credentials["headers"]["X-User-Initiator"] = cls._determine_initiator(prompt_messages.messages)
-        credentials["headers"]["X-Initiator"] = cls._determine_initiator(prompt_messages.messages)
+        # credentials["headers"]["X-User-Initiator"] = cls._determine_initiator(prompt_messages.messages)
+        # credentials["headers"]["X-Initiator"] = cls._determine_initiator(prompt_messages.messages)
         llm_http_handler = LLMHttpHandler('/chat/completions', credentials, stream)
         return llm_http_handler.completion_request(prompt_messages)
+        # data = jsonable_encoder(prompt_messages, exclude_unset=True, exclude_none=True)
+        # print("Request to Github Copilot:", json.dumps(data, indent=2))
+        # return None
 
     @classmethod
     def transform_embeddings(cls, texts: EmbeddingRequest, credentials: dict) -> TextEmbeddingResult:

@@ -48,6 +48,7 @@ class ChatCompletionRequest(BaseModel):
     reasoning_effort: Optional[Literal["low", "medium", "high"]] = None
     include_reasoning: bool = None
     thinking: bool = None
+    thinking_budget: Optional[int] = None
 
     @field_validator("messages", mode="before")
     @classmethod

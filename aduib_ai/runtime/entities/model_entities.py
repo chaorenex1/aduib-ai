@@ -45,11 +45,14 @@ class ModelFeature(Enum):
     """
 
     TOOL = "tool"
+    PARALLEL_TOOL = "parallel_tool"
     VISION = "vision"
     DOCUMENT = "document"
     VIDEO = "video"
     AUDIO = "audio"
     THINKING = "thinking"
+    STREAMING = "streaming"
+    STRUCTURED_OUTPUTS = "structured_outputs"
 
 
 class DefaultParameterName(StrEnum):

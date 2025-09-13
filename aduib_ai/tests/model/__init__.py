@@ -95,3 +95,57 @@ def test_get_models_github_copilot():
     assert response.status_code == 200
     data = response.json()
     print(json.dumps(data, indent=2))
+
+
+
+
+
+def test_add_github_models():
+    from runtime.transformation.github.Authenticator import Authenticator
+    authenticator = Authenticator()
+    object = authenticator.get_models().get("object")
+    list = authenticator.get_models().get("data")
+    for model in list:
+        model_picker_enabled = model.get("model_picker_enabled", False)
+        if model_picker_enabled:
+            model_name = model["id"]
+            capabilities_ = model.get("capabilities", {})
+            limits = capabilities_.get('limits', {})
+            max_inputs= limits.get("max_inputs", 8192)
+            max_tokens = limits.get("max_context_window_tokens", 8192)
+            vision = limits.get('vision', {})
+            type = capabilities_.get('type', {})
+
+            supports = capabilities_.get('supports', {})
+            features = []
+            if supports.get('tool_calls,False'):
+                features.append("tool")
+            if supports.get('vision', False):
+                features.append("vision")
+            if 'max_thinking_budget' in supports:
+                features.append("thinking")
+            if supports.get('structured_outputs,False'):
+                features.append("structured_outputs")
+            if 'parallel_tool_calls' in supports:
+                features.append("parallel_tool")
+            model_type = "llm"
+            if type=='embeddings':
+                model_type = "embedding"
+
+            json={
+                "model_name": model_name,
+                "provider_name": "github_copilot",
+                "model_type": model_type,
+                "max_tokens": max_tokens if model_type=="llm" else max_inputs,
+                "model_configs": limits,
+                "model_feature": features,
+                "input_price": 0.00,
+                "output_price": 0.00
+            }
+            print(json)
+
+            response = client.post(
+                "v1/models/add",
+                json=json
+            )
+            assert response.status_code == 200

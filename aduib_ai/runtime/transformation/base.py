@@ -19,15 +19,15 @@ class LLMTransformation:
                                prompt_messages: Union[ChatCompletionRequest, CompletionRequest]):
         """Validate model parameters."""
         if not prompt_messages.temperature:
-            prompt_messages.temperature = model_params.get("temperature", 0.7)
+            prompt_messages.temperature = model_params.get("temperature", None)
         if not prompt_messages.top_p:
-            prompt_messages.top_p = model_params.get("top_p", 1.0)
+            prompt_messages.top_p = model_params.get("top_p", None)
         if not prompt_messages.top_k:
-            prompt_messages.top_k = model_params.get("top_k", 20)
+            prompt_messages.top_k = model_params.get("top_k", None)
         if not prompt_messages.presence_penalty:
-            prompt_messages.presence_penalty = model_params.get("presence_penalty", 0.0)
+            prompt_messages.presence_penalty = model_params.get("presence_penalty", None)
         if not prompt_messages.frequency_penalty:
-            prompt_messages.frequency_penalty = model_params.get("frequency_penalty", 0.0)
+            prompt_messages.frequency_penalty = model_params.get("frequency_penalty", None)
         # if not prompt_messages.miniP:
         #     prompt_messages.miniP = model_params.get("miniP", 0.0)
 

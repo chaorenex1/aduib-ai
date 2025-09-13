@@ -37,6 +37,12 @@ class ProviderSDKType(Enum):
             return "ollama"
         elif self == self.MODELSCOPE:
             return "modelscope"
+        elif self == self.TRANSFORMER:
+            return "transformer"
+        elif self == self.GITHUB:
+            return "github"
+        elif self == self.GITHUB_COPILOT:
+            return "github_copilot"
         elif self == self.OTHER:
             return "other"
         else:

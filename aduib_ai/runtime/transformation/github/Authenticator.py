@@ -2,11 +2,11 @@ import json
 import logging
 import os
 import time
+import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 import httpx
-
 
 from .error import (
     APIKeyExpiredError,
@@ -24,7 +24,8 @@ GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code"
 GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_API_KEY_URL = "https://api.github.com/copilot_internal/v2/token"
 
-verbose_logger=logging.getLogger("verbose")
+verbose_logger = logging.getLogger("verbose")
+
 
 class Authenticator:
     def __init__(self) -> None:
@@ -40,6 +41,9 @@ class Authenticator:
         )
         self.api_key_file = os.path.join(
             self.token_dir, os.getenv("GITHUB_COPILOT_API_KEY_FILE", "api-key.json")
+        )
+        self.models_file = os.path.join(
+            self.token_dir, os.getenv("GITHUB_COPILOT_API_KEY_FILE", "models.json")
         )
         self._ensure_token_dir()
 
@@ -151,6 +155,21 @@ class Authenticator:
             verbose_logger.warning(f"Error reading API endpoint from file: {str(e)}")
             return None
 
+    def get_models(self) -> Optional[Dict[str, Any]]:
+        """
+        Get the models from the models.json file.
+
+        Returns:
+            Optional[Dict[str, Any]]: The models information, or None if not found.
+        """
+        try:
+            with open(self.models_file, "r") as f:
+                models_info = json.load(f)
+                return models_info
+        except (IOError, json.JSONDecodeError, KeyError) as e:
+            verbose_logger.warning(f"Error reading models from file: {str(e)}")
+            return None
+
     def _refresh_api_key(self) -> Dict[str, Any]:
         """
         Refresh the API key using the access token.
@@ -162,7 +181,7 @@ class Authenticator:
             RefreshAPIKeyError: If unable to refresh the API key.
         """
         access_token = self.get_access_token()
-        headers = self._get_github_headers(access_token)
+        headers = self.get_github_headers(access_token)
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -181,7 +200,7 @@ class Authenticator:
                     )
             except httpx.HTTPStatusError as e:
                 verbose_logger.error(
-                    f"HTTP error refreshing API key (attempt {attempt+1}/{max_retries}): {str(e)}"
+                    f"HTTP error refreshing API key (attempt {attempt + 1}/{max_retries}): {str(e)}"
                 )
             except Exception as e:
                 verbose_logger.error(f"Unexpected error refreshing API key: {str(e)}")
@@ -196,7 +215,7 @@ class Authenticator:
         if not os.path.exists(self.token_dir):
             os.makedirs(self.token_dir, exist_ok=True)
 
-    def _get_github_headers(self, access_token: Optional[str] = None) -> Dict[str, str]:
+    def get_github_headers(self, access_token: Optional[str] = None) -> Dict[str, str]:
         """
         Generate standard GitHub headers for API requests.
 
@@ -212,6 +231,8 @@ class Authenticator:
             "editor-plugin-version": "copilot/1.155.0",
             "user-agent": "GithubCopilot/1.155.0",
             "accept-encoding": "gzip,deflate,br",
+            "x-github-api-version": "2025-04-01",
+            "x-vscode-user-agent-library-version": "electron-fetch",
         }
 
         if access_token:
@@ -221,6 +242,34 @@ class Authenticator:
             headers["content-type"] = "application/json"
 
         return headers
+
+    def get_copilot_headers(self, vision: bool = False) -> Dict[str, str]:
+        """
+        Get headers for GitHub Copilot API requests.
+
+        Returns:
+            Dict[str, str]: Headers including the API key.
+        """
+        try:
+            api_key = self.get_api_key()
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "content-type": "application/json;charset=utf-8",
+                "copilot-integration-id": "vscode-chat",
+                "editor-version": "vscode/1.85.1",
+                "editor-plugin-version": "copilot/1.155.0",
+                "user-agent": "GithubCopilot/1.155.0",
+                "openai-intent": "conversation-panel",
+                "x-github-api-version": "2025-04-01",
+                "x-request-id": str(uuid.uuid4()),
+                "x-vscode-user-agent-library-version": "electron-fetch"
+            }
+            if vision:
+                headers["copilot-vision-request"] = "true"
+            return headers
+        except GetAPIKeyError as e:
+            verbose_logger.error(f"Error getting API key: {str(e)}")
+            raise e
 
     def _get_device_code(self) -> Dict[str, str]:
         """
@@ -304,11 +353,11 @@ class Authenticator:
                     verbose_logger.info("Authentication successful!")
                     return resp_json["access_token"]
                 elif (
-                    "error" in resp_json
-                    and resp_json.get("error") == "authorization_pending"
+                        "error" in resp_json
+                        and resp_json.get("error") == "authorization_pending"
                 ):
                     verbose_logger.debug(
-                        f"Authorization pending (attempt {attempt+1}/{max_attempts})"
+                        f"Authorization pending (attempt {attempt + 1}/{max_attempts})"
                     )
                 else:
                     verbose_logger.warning(f"Unexpected response: {resp_json}")
