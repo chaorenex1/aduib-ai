@@ -14,6 +14,8 @@ class ProviderSDKType(Enum):
     OLLAMA = "ollama"
     MODELSCOPE = "modelscope"
     GITHUB = "github"
+    GITHUB_COPILOT = "github_copilot"
+    ANTHROPIC = "anthropic"
     OTHER = "other"
 
     @classmethod

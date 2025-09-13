@@ -19,6 +19,7 @@ from ...clients.httpx_client import get_httpx_client
 
 # Constants
 GITHUB_CLIENT_ID = "Iv1.b507a08c87ecfe98"
+# GITHUB_CLIENT_ID = "Ov23lizgitIc4hYb2dIQ"
 GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code"
 GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_API_KEY_URL = "https://api.github.com/copilot_internal/v2/token"
@@ -31,7 +32,7 @@ class Authenticator:
         # Token storage paths
         self.token_dir = os.getenv(
             "GITHUB_COPILOT_TOKEN_DIR",
-            os.path.expanduser("~/.config/LLM/github_copilot"),
+            os.path.expanduser("~/.aduib_ai/config/LLM/github_copilot"),
         )
         self.access_token_file = os.path.join(
             self.token_dir,

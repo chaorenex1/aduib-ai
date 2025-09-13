@@ -34,11 +34,11 @@ class ChatCompletionRequest(BaseModel):
         default=None,
         description="The maximum number of tokens that can be generated in the completion."
     )
-    # n: Optional[int] = 1
-    # miniP: Optional[float] = None
-    # logit_bias: Optional[dict[str, float]] = None
-    # logprobs: Optional[bool] = False
-    # top_logprobs: Optional[int] = 0
+    n: Optional[int] = 1
+    miniP: Optional[float] = None
+    logit_bias: Optional[dict[str, float]] = None
+    logprobs: Optional[bool] = False
+    top_logprobs: Optional[int] = 0
     stop: Optional[Union[str, Sequence[str]]] = None
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
@@ -47,6 +47,7 @@ class ChatCompletionRequest(BaseModel):
     user: Optional[str] = None
     reasoning_effort: Optional[Literal["low", "medium", "high"]] = None
     include_reasoning: bool = None
+    thinking: bool = None
 
     @field_validator("messages", mode="before")
     @classmethod
