@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .message_entities import PromptMessage, AssistantPromptMessage, PromptMessageFunction, \
     PromptMessageToolChoiceParam, StreamOptions, AnyResponseFormat, PromptMessageRole, UserPromptMessage, \
-    SystemPromptMessage, ToolPromptMessage
+    SystemPromptMessage, ToolPromptMessage, ThinkingOptions
 from .model_entities import ModelUsage, PriceInfo
 
 
@@ -47,8 +47,10 @@ class ChatCompletionRequest(BaseModel):
     user: Optional[str] = None
     reasoning_effort: Optional[Literal["low", "medium", "high"]] = None
     include_reasoning: bool = None
-    thinking: bool = None
+    enable_thinking: bool = None
     thinking_budget: Optional[int] = None
+    thinking: Optional[ThinkingOptions] = None
+
 
     @field_validator("messages", mode="before")
     @classmethod

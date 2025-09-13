@@ -40,6 +40,10 @@ class ResponseFormat(BaseModel):
 
 AnyResponseFormat = Union[ResponseFormat, StructuralTagResponseFormat]
 
+class ThinkingOptions(BaseModel):
+    type: Optional[str] = None
+    budget_tokens: Optional[int] = None
+
 class PromptMessageRole(Enum):
     """
     Enum class for prompt message.
