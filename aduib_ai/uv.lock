@@ -82,7 +82,7 @@ requires-dist = [
     { name = "flagembedding", specifier = ">=1.3.3" },
     { name = "funasr", specifier = ">=1.2.6" },
     { name = "jieba3", specifier = ">=1.0.2" },
-    { name = "langchain-text-splitters", specifier = "==0.3.6" },
+    { name = "langchain-text-splitters", specifier = ">=0.3.6" },
     { name = "modelscope", specifier = ">=1.28.2" },
     { name = "nacos-mcp-wrapper-python" },
     { name = "nacos-sdk-python", specifier = ">=2.0.1" },

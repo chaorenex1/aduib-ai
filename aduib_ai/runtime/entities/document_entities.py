@@ -9,6 +9,7 @@ class Document(BaseModel):
     vector: Optional[list[float]] = None
     metadata: Optional[dict[str, Any]] = {}
     provider: Optional[str] = "default"
+    children: Optional[list["Document"]] = None
 
 
 class BaseDocumentTransformer(ABC):
@@ -17,9 +18,9 @@ class BaseDocumentTransformer(ABC):
     """
 
     @abstractmethod
-    def transform_document(self, document: Sequence[Document],**kwargs) -> Sequence[Document]:
+    def transform_document(self, documents: Sequence[Document],**kwargs) -> Sequence[Document]:
         """
         Transform a document list before storing it in a vector database.
-        :param document:
+        :param documents:
         :return:
         """

@@ -4,7 +4,7 @@ from contextvars import ContextVar
 from typing import Callable
 
 from fastapi import Depends
-from fastapi.security import APIKeyHeader
+from fastapi.security import APIKeyHeader, OAuth2AuthorizationCodeBearer
 from requests import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -18,17 +18,23 @@ from service.error.error import ApiKeyNotFound
 from utils import trace_uuid
 
 API_KEY_HEADER = "X-API-Key"  # 你希望客户端发送的 API Key 的请求头字段名称
+AUTHORIZATION_HEADER = "Authorization"
 api_key_header = APIKeyHeader(name=API_KEY_HEADER)
+authorization_header=APIKeyHeader(name=AUTHORIZATION_HEADER)
 logger = logging.getLogger(__name__)
 
 api_key_context: ContextVarWrappers[ApiKey]=ContextVarWrappers(ContextVar("api_key"))
 trace_id_context: ContextVarWrappers[str]=ContextVarWrappers(ContextVar("trace_id"))
 
 
-def verify_api_key_in_db(api_key: str=Depends(api_key_header)) -> None:
+def verify_api_key_in_db(api_key: str=Depends(api_key_header),authorization_token:str=Depends(authorization_header)) -> None:
     """从数据库中验证 API Key"""
     try:
-        ApiKeyService.validate_api_key(api_key)
+        if not api_key or len(api_key.strip()) == 0:
+            authorization_token=authorization_token.replace("Bearer ","")
+            ApiKeyService.validate_api_key(authorization_token)
+        else:
+            ApiKeyService.validate_api_key(api_key)
     except ApiKeyNotFound:
         raise ApiNotCurrentlyAvailableError()
 
@@ -62,9 +68,10 @@ class ApiKeyContextMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         api_key_context.clear()
-        api_key_value = request.headers.get(API_KEY_HEADER)
+        api_key_value = request.headers.get(API_KEY_HEADER) or request.headers.get(AUTHORIZATION_HEADER).replace("Bearer ", "")
         if api_key_value:
             try:
+                ApiKeyService.validate_api_key(api_key_value)
                 api_key = ApiKeyService.get_by_hash_key(api_key_value)
                 logger.info(f"Using API Key: {api_key}")
                 api_key_context.set(api_key)

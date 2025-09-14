@@ -2,14 +2,13 @@ from fastapi import APIRouter
 from starlette.requests import Request
 
 from controllers.common.base import BaseResponse, catch_exceptions
-from libs.deps import CurrentApiKeyDep
 from service.web_memo import WebMemoService
 
 router = APIRouter(tags=['web_memo'])
 
 @router.post('/web_memo')
 @catch_exceptions
-async def web_memo(request:Request,current_key:CurrentApiKeyDep):
+async def web_memo(request:Request):
     """
     Web Memo endpoint
     """

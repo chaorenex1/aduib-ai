@@ -1,5 +1,3 @@
-import os.path
-
 from fastapi import APIRouter, UploadFile, File
 from starlette.responses import StreamingResponse
 

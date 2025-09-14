@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import HTTPException
 from pydantic import BaseModel
 from configs import config
+from service.error.base import BaseServiceError
 
 from utils import jsonable_encoder
 
@@ -65,7 +66,15 @@ def catch_exceptions(func):
             else:
                 return func(*args, **kwargs)
         except BaseHttpException as e:
+            logger.error(f"BaseHttpException in \n {func.__name__}:{func.__doc__}: {e.error_msg}")
+            if config.DEBUG:
+                traceback.print_exc()
             return BaseResponse.error(e.error_code, e.error_msg)
+        except BaseServiceError as e:
+            logger.error(f"BaseServiceError in \n {func.__name__}:{func.__doc__}: {e.description}")
+            if config.DEBUG:
+                traceback.print_exc()
+            return BaseResponse.error(e.description)
         except Exception as e:
             logger.error(f"Exception in \n {func.__name__}:{func.__doc__}: {e}")
             if config.DEBUG:

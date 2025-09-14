@@ -20,15 +20,15 @@ class FileService:
             if existing_file:
                 return existing_file
             else:
-                file_path = os.path.join(config.SERVICE_URL, file_name)
-                storage_manager.save(file_name, content)
-                file_size = len(content)
-                file_name = os.path.basename(file_path)
                 file_type = os.path.splitext(file_name)[1]
+                file_path = os.path.join(config.SERVICE_URL, file_hash,file_type)
+                access_url = os.path.basename(file_path)
+                storage_manager.save(access_url, content)
+                file_size = len(content)
                 file_record = FileResource(file_name=file_name,
                                            file_type=file_type,
                                            file_abs_path=file_path,
-                                           access_url=file_path,
+                                           access_url=access_url,
                                            file_hash=file_hash,
                                            file_size=file_size)
                 session.add(file_record)
@@ -43,15 +43,15 @@ class FileService:
         cls.upload_bytes(file_name, content)
 
     @classmethod
-    def download_file(cls,filename: str,stream: bool=False):
+    def download_file(cls,file_hash: str,stream: bool=False):
         """下载文件（字节流）"""
-        if filename is None or len(filename.strip())==0:
-            raise ValueError("Filename is empty")
+        if file_hash is None or len(file_hash.strip())==0:
+            raise ValueError("file_hash is empty")
         with get_db() as session:
-            file_record = session.query(FileResource).filter_by(file_abs_path=filename).first()
+            file_record = session.query(FileResource).filter_by(file_hash=file_hash).first()
             if not file_record:
                 return None
-            content = storage_manager.load(file_record.file_name,stream)
+            content = storage_manager.load(file_record.access_url,stream)
             if not stream:
                 file_hash = hashlib.sha256(content).hexdigest()
                 if file_hash != file_record.file_hash:
@@ -59,15 +59,15 @@ class FileService:
             return content
 
     @classmethod
-    def delete_file(cls,filename: str):
+    def delete_file(cls,file_hash: str):
         """删除文件"""
-        if filename is None or len(filename.strip())==0:
-            raise ValueError("Filename is empty")
+        if file_hash is None or len(file_hash.strip())==0:
+            raise ValueError("file_hash is empty")
         with get_db() as session:
-            file_record = session.query(FileResource).filter_by(file_name=filename).first()
+            file_record = session.query(FileResource).filter_by(file_hash=file_hash).first()
             if not file_record:
                 return False
-            storage_manager.delete(file_record.file_name)
+            storage_manager.delete(file_record.access_url)
             session.delete(file_record)
             session.commit()
             return True

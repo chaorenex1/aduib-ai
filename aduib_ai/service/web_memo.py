@@ -68,13 +68,14 @@ class WebMemoService:
                 crawl_text = item.get('crawl_text', '')
                 crawl_type = item.get('crawl_type', '')
                 crawl_media = item.get('crawl_media', {})
-                screenshot = FileService.upload_base64('/his_screenshot/'+random_uuid()+".png",item.get('screenshot', ''))
+                screenshot_png = '/his_screenshot/' + random_uuid() + ".png"
+                FileService.upload_base64(screenshot_png, item.get('screenshot', ''))
                 metadata = item.get('metadata', {})
-
+                
                 history = BrowserHistory(url=url,ua=ua)
                 history.crawl_status = True
                 history.crawl_time = datetime.datetime.now()
-                history.crawl_screenshot = screenshot
+                history.crawl_screenshot = screenshot_png
                 history.crawl_content = crawl_text
                 history.crawl_type = crawl_type
                 history.crawl_media = json.dumps(crawl_media).encode('utf-8').decode('unicode-escape')
