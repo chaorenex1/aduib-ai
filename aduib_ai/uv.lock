@@ -48,7 +48,6 @@ dependencies = [
     { name = "opendal" },
     { name = "peft" },
     { name = "pgvecto-rs" },
-    { name = "pgvector" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -93,7 +92,6 @@ requires-dist = [
     { name = "opendal", specifier = ">=0.45.16" },
     { name = "peft", specifier = "==0.14.0" },
     { name = "pgvecto-rs", specifier = ">=0.2.0" },
-    { name = "pgvector", specifier = ">=0.4.1" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic", specifier = ">=2.11.3" },
     { name = "pydantic-settings", specifier = ">=2.9.1" },
@@ -2255,18 +2253,6 @@ dependencies = [
 sdist = { url = "http://mirrors.aliyun.com/pypi/packages/01/09/c0be8f54386367159fd22495635fba65ac6bbc436a34502bc2849d89f6ab/pgvecto_rs-0.2.2.tar.gz", hash = "sha256:edaa913d1747152b1407cbdf6337d51ac852547b54953ef38997433be3a75a3b" }
 wheels = [
     { url = "http://mirrors.aliyun.com/pypi/packages/ba/dc/a39ceb4fe4b72f889228119b91e0ef7fcaaf9ec662ab19acdacb74cd5eaf/pgvecto_rs-0.2.2-py3-none-any.whl", hash = "sha256:5f3f7f806813de408c45dc10a9eb418b986c4d7b7723e8fce9298f2f7d8fbbd5" },
-]
-
-[[package]]
-name = "pgvector"
-version = "0.4.1"
-source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
-dependencies = [
-    { name = "numpy" },
-]
-sdist = { url = "http://mirrors.aliyun.com/pypi/packages/44/43/9a0fb552ab4fd980680c2037962e331820f67585df740bedc4a2b50faf20/pgvector-0.4.1.tar.gz", hash = "sha256:83d3a1c044ff0c2f1e95d13dfb625beb0b65506cfec0941bfe81fd0ad44f4003" }
-wheels = [
-    { url = "http://mirrors.aliyun.com/pypi/packages/bf/21/b5735d5982892c878ff3d01bb06e018c43fc204428361ee9fc25a1b2125c/pgvector-0.4.1-py3-none-any.whl", hash = "sha256:34bb4e99e1b13d08a2fe82dda9f860f15ddcd0166fbb25bffe15821cbfeb7362" },
 ]
 
 [[package]]

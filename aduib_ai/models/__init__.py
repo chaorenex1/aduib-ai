@@ -9,6 +9,7 @@ from .provider import Provider
 from .tool import ToolCallResult, ToolInfo
 from .user import McpUser
 from .resource import FileResource
+from .document import KnowledgeBase,KnowledgeEmbeddings
 
 __all__ = ["get_db",
            "engine",
@@ -23,5 +24,7 @@ __all__ = ["get_db",
            "McpServer",
            "McpUser",
            "BrowserHistory",
-           "FileResource"
+           "FileResource",
+           "KnowledgeBase",
+           "KnowledgeEmbeddings",
            ]

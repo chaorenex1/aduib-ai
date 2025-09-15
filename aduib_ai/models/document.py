@@ -1,13 +1,14 @@
 import datetime
 
+from pgvecto_rs.sqlalchemy import VECTOR
 from sqlalchemy import Column, DateTime, Integer, String, text, UUID, Index, func, TEXT
 from sqlalchemy.dialects.postgresql import JSONB
 
 from models import Base
 
 
-
-class Document(Base):
+class KnowledgeBase(Base):
+    __tablename__ = "knowledge_document"
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"),
                 comment="id")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
@@ -17,4 +18,62 @@ class Document(Base):
     file_id = Column(String, index=True, nullable=False, comment="file id")
     rag_type = Column(String, index=True, nullable=False, comment="rag type")
     date_source_type = Column(String, index=True, nullable=False, comment="data source type")
-    data_process_rule=Column(JSONB, nullable=True, comment="data process rule")
+    data_process_rule = Column(JSONB, nullable=True, comment="data process rule")
+    embedding_model= Column(String(255), nullable=False, comment="embedding model name")
+    embedding_model_provider= Column(String(255), nullable=False, comment="embedding provider name")
+
+
+
+"""
+index = Index(
+    "emb_idx_2",
+    Item.embedding,
+    postgresql_using="vectors",
+    postgresql_with={
+        "options": f"$${IndexOption(index=Hnsw()).dumps()}$$"
+    },
+    postgresql_ops={"embedding": "vector_l2_ops"},
+)
+"""
+
+
+class KnowledgeEmbeddings(Base):
+    __tablename__ = "knowledge_embeddings"
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"), comment="id")
+    content = Column(TEXT, nullable=False, comment="content", server_default=text("''"))
+    vector = Column(VECTOR(2560), nullable=False, comment="vector")
+    metadata = Column(JSONB, nullable=False, comment="metadata", server_default=text("'{}'"))
+    hash= Column(String(64), nullable=False, comment="content hash")
+    model_name= Column(String(255), nullable=False, comment="embedding model name")
+    provider_name= Column(String(255), nullable=False, comment="embedding provider name")
+    __table_args__ = (
+        Index("idx_knowledge_embeddings_content",
+              func.to_tsvector(text("'jieba_cfg'"), content),
+              postgresql_using="gin"
+              ),
+        Index(
+            "idx_knowledge_embeddings_vector",
+            vector,
+            postgresql_using="vectors",
+            postgresql_with={
+                "options": """"$$optimizing.optimizing_threads = 30
+                                segment.max_growing_segment_size = 2000
+                                segment.max_sealed_segment_size = 30000000
+                                [indexing.hnsw]
+                                m=30
+                                ef_construction=500$$"""
+            },
+            postgresql_ops={"embedding": "vector_l2_ops"},
+        )
+    )
+
+
+
+class KnowledgeKeywords(Base):
+    __tablename__ = "knowledge_keywords"
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"), comment="id")
+    doc_id = Column(UUID(as_uuid=True), index=True, nullable=False, comment="doc_id")
+    keyword = Column(String(255), index=True, nullable=False, comment="keyword")
+    created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
+    updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
+    deleted = Column(Integer, default=0, comment="delete flag")

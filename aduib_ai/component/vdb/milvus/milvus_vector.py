@@ -5,10 +5,14 @@ from pymilvus import MilvusClient, DataType, Function, FunctionType
 from pymilvus.orm.types import infer_dtype_bydata
 from typing_extensions import Optional
 
-from ....runtime.entities.document import Document
-from ..base_vector import BaseVector
-from ..fields import Field
-from ..vector_type import VectorType
+from component.vdb.base_vector import BaseVector
+from component.vdb.fields import Field
+from component.vdb.vector_factory import AbstractVectorFactory
+from component.vdb.vector_type import VectorType
+from models import KnowledgeBase
+from runtime.entities.document_entities import Document
+from runtime.rag.embeddings.embeddings import Embeddings
+from configs import config
 
 class MilvusConfig(BaseModel):
     uri: str
@@ -46,8 +50,29 @@ class MilvusVector(BaseVector):
         res= self.client.query(self.collection_name, filter=f'metadata["doc_id"] == "{id}"', output_fields=['id'])
         return len(res)>0
 
+    def get_ids_by_metadata_field(self, key: str, value: str):
+        """
+        Get document IDs by metadata field key and value.
+        """
+        result = self.client.query(
+            collection_name=self.collection_name, filter=f'metadata["{key}"] == "{value}"', output_fields=["id"]
+        )
+        if result:
+            return [item["id"] for item in result]
+        else:
+            return None
+
     def delete_all(self):
         self.client.drop_collection(self.collection_name)
+
+    def delete_by_metadata_field(self, key: str, value: str):
+        """
+        Delete documents by metadata field key and value.
+        """
+        if self.client.has_collection(self.collection_name):
+            ids = self.get_ids_by_metadata_field(key, value)
+            if ids:
+                self.client.delete(collection_name=self.collection_name, pks=ids)
 
     def search_by_vector(self, vector: list[float], **kwargs) -> list[Document]:
         results = self.client.search(
@@ -132,3 +157,18 @@ class MilvusVector(BaseVector):
                 docs.append(doc)
 
         return docs
+
+
+class MilvusVectorFactory(AbstractVectorFactory):
+
+    def init_vector(self, dataset: KnowledgeBase, attributes: list, embeddings: Embeddings) -> BaseVector:
+        collection_name="kb_" + str(dataset.id)+"_vector"
+        milvus_config = MilvusConfig(
+            uri=config.MILVUS_URI or "",
+            token=config.MILVUS_TOKEN or "",
+            user=config.MILVUS_USER or "",
+            password=config.MILVUS_PASSWORD or "",
+            database=config.MILVUS_DATABASE or "",
+            enable_hybrid=config.MILVUS_ENABLE_HYBRID or False,
+        )
+        return MilvusVector(collection_name=collection_name,config=milvus_config)

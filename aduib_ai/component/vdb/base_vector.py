@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from ...runtime.entities.document import Document
+from runtime.entities.document_entities import Document
 
 
 class BaseVector(ABC):
@@ -36,6 +36,9 @@ class BaseVector(ABC):
 
     @abstractmethod
     def search_by_full_text(self, text: str, **kwargs) -> list[Document]:
+        raise NotImplementedError()
+
+    def delete_by_metadata_field(self, key, value):
         raise NotImplementedError()
 
 

@@ -28,13 +28,9 @@ class DocumentService:
         """Generate embeddings based on the request."""
 
         from runtime.model_manager import ModelManager
-        from . import ModelService, ProviderService
 
-        model: Model = ModelService.get_model(req.model)
-        provider: Provider = ProviderService.get_provider(model.provider_name)
-        model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
         model_manager = ModelManager()
-        model_instance = model_manager.get_model_instance(provider, model, model_list)
+        model_instance = model_manager.get_model_instance(model_name=req.model)
         return model_instance.invoke_text_embedding(texts=req)
 
     @classmethod
@@ -42,11 +38,7 @@ class DocumentService:
         """Rerank documents based on the request."""
 
         from runtime.model_manager import ModelManager
-        from . import ModelService, ProviderService
 
-        model: Model = ModelService.get_model(query.model)
-        provider: Provider = ProviderService.get_provider(model.provider_name)
-        model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
         model_manager = ModelManager()
-        model_instance = model_manager.get_model_instance(provider, model, model_list)
+        model_instance = model_manager.get_model_instance(model_name=query.model)
         return model_instance.invoke_rerank(query=query)

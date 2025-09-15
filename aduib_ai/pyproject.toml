@@ -27,7 +27,7 @@ dependencies = [
     "openai>=1.79.0",
     "opendal>=0.45.16",
     "peft==0.14.0",
-    "pgvector>=0.4.1",
+#    "pgvector>=0.4.1",
     "pgvecto_rs>=0.2.0",
     "psycopg2-binary>=2.9.10",
     "pydantic>=2.11.3",
@@ -43,7 +43,7 @@ dependencies = [
     "transformers>=4.51.0",
     "uvicorn>=0.34.2",
     "redis>=6.4.0",
-    "pyzmq"
+    "pyzmq",
 ]
 [tool.setuptools]
 packages = []

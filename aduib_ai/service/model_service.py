@@ -35,6 +35,20 @@ class ModelService:
                 raise ModelNotFound("Model not found")
         return model
 
+    @staticmethod
+    def get_model_by_provider(model_name:str,provider_name:str) -> Optional[Model]:
+        """
+        Get model by name and provider.
+        :param model_name: model name
+        :param provider_name: provider name
+        :return: model
+        """
+        with get_db() as session:
+            model = session.query(Model).filter_by(name=model_name,provider_name=provider_name).first()
+            if not model:
+                raise ModelNotFound("Model not found")
+        return model
+
 
     @staticmethod
     def create_model(req: CreateModelRequest) -> Optional[Model]:

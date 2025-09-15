@@ -6,7 +6,7 @@ from runtime.entities.document_entities import BaseDocumentTransformer, Document
 
 logger=logging.getLogger(__name__)
 
-class BaseSplitter(BaseDocumentTransformer, ABC):
+class BaseTextSplitter(BaseDocumentTransformer, ABC):
     """Base class for splitter."""
     def __init__(self,chunk_size: int = 500, chunk_overlap: int = 50):
         self._chunk_size = chunk_size

@@ -3,9 +3,9 @@ from typing import Optional, List, Any, Sequence
 from langchain_text_splitters import RecursiveCharacterTextSplitter, TokenTextSplitter
 
 from runtime.entities.document_entities import Document
-from runtime.rag.splitter.base_splitter import BaseSplitter
+from runtime.rag.splitter.base_splitter import BaseTextSplitter
 
-class RecursiveTextSplitter(BaseSplitter):
+class RecursiveTextSplitter(BaseTextSplitter):
     """RecursiveTextSplitter."""
     def __init__(self,fixed_separator: str = "\n\n",separators: Optional[List[str]] = None,**kwargs: Any):
         super().__init__(**kwargs)

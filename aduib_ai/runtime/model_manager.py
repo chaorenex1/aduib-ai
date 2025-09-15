@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional, Generator, Union, cast, Callable, Any, IO, Iterable
+from typing import Optional, Generator, Union, cast, Callable, Any, IO, Iterable, overload
 
 from fastapi import Request
 
@@ -194,14 +194,16 @@ class ModelManager:
 
     def __init__(self):
         self.provider = ProviderManager()
-    def get_model_instance(self, provider: Provider, model: Model, model_list: list[AIModelEntity]) -> ModelInstance:
-        """
-        Get model instance
-        :param provider: provider name
-        :param model_type: model type
-        :param model: model name
-        :return:
-        """
-        provider_entity = self.provider.get_provider_entity(provider,model_list)
+
+
+    def get_model_instance(self,model_name: str, provider_name: str=None) -> Optional[ModelInstance]:
+        from service import ModelService,ProviderService
+        if provider_name:
+            model: Model = ModelService.get_model_by_provider(model_name,provider_name)
+        else:
+            model: Model = ModelService.get_model(model_name)
+        provider: Provider = ProviderService.get_provider(model.provider_name)
+        model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
+        provider_entity = self.provider.get_provider_entity(provider, model_list)
         model_instance = self.provider.provider_factory.get_model_type_instance(provider_entity,json.loads(model.model_params), ModelType.value_of(model.type))
         return ModelInstance(provider_entity,model_instance, model.name)
