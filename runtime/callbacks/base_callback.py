@@ -3,7 +3,7 @@ from typing import Optional, Sequence, Union
 
 from ..entities import PromptMessage, ChatCompletionResponseChunk, ChatCompletionResponse, \
     PromptMessageFunction
-from ..providers import AiModel
+from ..model_execution import AiModel
 
 
 class Callback(ABC):

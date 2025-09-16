@@ -7,7 +7,7 @@ from typing import Optional, cast
 from runtime.entities import UserPromptMessage, ChatCompletionResponse, SystemPromptMessage, PromptMessage
 from runtime.entities.llm_entities import ChatCompletionRequest
 from runtime.entities.model_entities import ModelType
-from runtime.llm_generator.prompts import CONVERSATION_TITLE_PROMPT, GENERATOR_QA_PROMPT
+from runtime.generator.prompts import CONVERSATION_TITLE_PROMPT, GENERATOR_QA_PROMPT
 from runtime.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class LLMGenerator:
     @classmethod
     def generate_conversation_name(
-        cls, tenant_id: str, query, conversation_id: Optional[str] = None, app_id: Optional[str] = None
+        cls, query
     ):
         prompt = CONVERSATION_TITLE_PROMPT
 
@@ -60,7 +60,7 @@ class LLMGenerator:
         return name
 
     @classmethod
-    def generate_qa_document(cls, tenant_id: str, query, document_language: str):
+    def generate_qa_document(cls, query, document_language: str):
         prompt = GENERATOR_QA_PROMPT.format(language=document_language)
 
         model_manager = ModelManager()

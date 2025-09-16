@@ -8,7 +8,7 @@ from typing import Optional
 from component.vdb.vector_factory import Vector
 from models.document import KnowledgeBase
 from runtime.entities.document_entities import Document
-from runtime.llm_generator.llm_generator import LLMGenerator
+from runtime.generator.generator import LLMGenerator
 from runtime.rag.clean.clean_processor import CleanProcessor
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 from runtime.rag.extractor.extractor_runner import ExtractorRunner
@@ -138,7 +138,7 @@ class QARAGProcessor(BaseRAGProcessor):
             return
         try:
             # qa model document
-            response = LLMGenerator.generate_qa_document(document_node.content, document_language)
+            response = LLMGenerator.generate_qa_document(document_language)
             document_qa_list = self._format_split_text(response)
             qa_documents = []
             for result in document_qa_list:

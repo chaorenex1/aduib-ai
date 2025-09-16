@@ -1,22 +1,19 @@
 import decimal
 import logging
 import time
-from typing import Optional, Union, Generator, Sequence, cast, AsyncGenerator
+from typing import Optional, Union, Generator, Sequence, cast
 
-from fastapi import Request
 from pydantic import ConfigDict
 
 from configs import config
 from .base import AiModel
-from .gpt_tokenizer import GPTTokenizer
 from ..callbacks.base_callback import Callback
 from ..callbacks.console_callback import LoggingCallback
 from ..entities import PromptMessage, PromptMessageTool, ChatCompletionResponse, ChatCompletionResponseChunk, LLMUsage, \
     AssistantPromptMessage, \
-    TextPromptMessageContent, UserPromptMessage, ToolPromptMessage, PromptMessageFunction
+    TextPromptMessageContent, PromptMessageFunction
 from ..entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from ..entities.model_entities import ModelType, PriceType, PriceInfo, PriceConfig
-from ..entities.provider_entities import ProviderSDKType
 
 logger = logging.getLogger(__name__)
 

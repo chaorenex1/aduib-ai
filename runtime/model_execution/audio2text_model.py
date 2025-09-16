@@ -3,7 +3,7 @@ from typing import IO, Optional
 from pydantic import ConfigDict
 
 from ..entities.model_entities import ModelType
-from ..providers.base import AiModel
+from ..model_execution.base import AiModel
 
 
 class Audio2TextModel(AiModel):

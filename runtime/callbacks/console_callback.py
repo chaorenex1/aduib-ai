@@ -5,7 +5,7 @@ from typing import Optional, Sequence, Union
 from .base_callback import Callback
 from ..entities import PromptMessage, ChatCompletionResponseChunk, ChatCompletionResponse, \
     PromptMessageFunction
-from ..providers.base import AiModel
+from ..model_execution.base import AiModel
 
 logger = logging.getLogger(__name__)
 

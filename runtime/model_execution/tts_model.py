@@ -4,7 +4,7 @@ from typing import Optional, Iterable
 from pydantic import ConfigDict
 
 from ..entities.model_entities import ModelType
-from ..providers.base import AiModel
+from ..model_execution.base import AiModel
 
 logger = logging.getLogger(__name__)
 

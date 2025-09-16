@@ -5,7 +5,7 @@ from models import ConversationMessage
 from runtime.callbacks.base_callback import Callback
 from runtime.entities import PromptMessage, ChatCompletionResponse, ChatCompletionResponseChunk, \
     PromptMessageFunction
-from runtime.providers import AiModel
+from runtime.model_execution import AiModel
 from service import ConversationMessageService
 
 

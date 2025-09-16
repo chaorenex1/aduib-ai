@@ -3,7 +3,7 @@ import json
 from models.provider import Provider
 from .entities.model_entities import AIModelEntity
 from .entities.provider_entities import ProviderEntity, ProviderConfig, ProviderSDKType
-from .providers.model_provider_factory import ModelProviderFactory
+from .model_execution.model_provider_factory import ModelProviderFactory
 
 
 class ProviderManager:

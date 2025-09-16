@@ -1,6 +1,6 @@
 from ..entities.model_entities import ModelType
 from ..entities.rerank_entities import RerankRequest, RerankResponse
-from ..providers.base import AiModel
+from ..model_execution.base import AiModel
 
 
 class RerankModel(AiModel):

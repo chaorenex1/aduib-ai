@@ -14,12 +14,12 @@ from .entities.provider_entities import ProviderEntity
 from .entities.rerank_entities import RerankResult, RerankRequest, RerankResponse
 from .entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
 from .provider_manager import ProviderManager
-from .providers.audio2text_model import Audio2TextModel
-from .providers.base import AiModel
-from .providers.large_language_model import LlMModel
-from .providers.rerank_model import RerankModel
-from .providers.text_embedding_model import TextEmbeddingModel
-from .providers.tts_model import TTSModel
+from .model_execution.audio2text_model import Audio2TextModel
+from .model_execution.base import AiModel
+from .model_execution.large_language_model import LlMModel
+from .model_execution.rerank_model import RerankModel
+from .model_execution.text_embedding_model import TextEmbeddingModel
+from .model_execution.tts_model import TTSModel
 
 logger = logging.getLogger(__name__)
 

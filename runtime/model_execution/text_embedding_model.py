@@ -6,7 +6,7 @@ from .gpt_tokenizer import GPTTokenizer
 from ..entities.embedding_type import EmbeddingInputType
 from ..entities.model_entities import ModelType
 from ..entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
-from ..providers.base import AiModel
+from ..model_execution.base import AiModel
 
 
 class TextEmbeddingModel(AiModel):
