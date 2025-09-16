@@ -14,20 +14,28 @@ from runtime.entities.document_entities import Document
 from runtime.rag.embeddings.embeddings import Embeddings
 from configs import config
 
+
 class MilvusConfig(BaseModel):
     uri: str
     token: str
     user: str
     password: str
-    database: str="milvus"
-    enable_hybrid: bool=False
+    database: str = "milvus"
+    enable_hybrid: bool = False
+
 
 class MilvusVector(BaseVector):
-    def __init__(self, collection_name,config: MilvusConfig):
+    def __init__(self, collection_name, config: MilvusConfig):
         super().__init__(collection_name)
         self.collection_name = collection_name
         self.config = config
-        self.client = MilvusClient(uri=self.config.uri,token=self.config.token,user=config.user,password=config.password,database=config.database)
+        self.client = MilvusClient(
+            uri=self.config.uri,
+            token=self.config.token,
+            user=config.user,
+            password=config.password,
+            database=config.database,
+        )
         self.enable_hybrid = config.enable_hybrid
         self.fields = []
         self.consisency_level = "session"
@@ -42,13 +50,13 @@ class MilvusVector(BaseVector):
         self.add_texts(texts, embeddings)
 
     def delete_by_ids(self, ids: list[str]):
-        res= self.client.query(self.collection_name, filter=f'metadata["doc_id"] in {ids}', output_fields=['id'])
+        res = self.client.query(self.collection_name, filter=f'metadata["doc_id"] in {ids}', output_fields=["id"])
         if res:
             self.client.delete(collection_name=self.collection_name, ids=[r["id"] for r in res])
 
     def exists(self, id: str) -> bool:
-        res= self.client.query(self.collection_name, filter=f'metadata["doc_id"] == "{id}"', output_fields=['id'])
-        return len(res)>0
+        res = self.client.query(self.collection_name, filter=f'metadata["doc_id"] == "{id}"', output_fields=["id"])
+        return len(res) > 0
 
     def get_ids_by_metadata_field(self, key: str, value: str):
         """
@@ -104,33 +112,45 @@ class MilvusVector(BaseVector):
             score_threshold=float(kwargs.get("score_threshold") or 0.0),
         )
 
-    def create_collection(self, embeddings, metadatas:Optional[list[dict]]=None, index_params:Optional[dict]=None):
+    def create_collection(
+        self, embeddings, metadatas: Optional[list[dict]] = None, index_params: Optional[dict] = None
+    ):
         if not self.client.has_collection(self.collection_name):
             dimension = len(embeddings[0])
             # Create schema
             schema = self.client.create_schema(auto_id=True, enable_dynamic_field=True)
             if metadatas:
-                    schema.add_field(field_name=Field.METADATA_KEY.value, datatype=DataType.JSON, max_length=65535)
-            schema.add_field(field_name=Field.PRIMARY_KEY.value, datatype=DataType.INT64, auto_id=True,is_primary=True)
-            schema.add_field(field_name=Field.CONTENT_KEY.value, datatype=DataType.VARCHAR, max_length=65535,enable_analyzer=self.enable_hybrid)
+                schema.add_field(field_name=Field.METADATA_KEY.value, datatype=DataType.JSON, max_length=65535)
+            schema.add_field(field_name=Field.PRIMARY_KEY.value, datatype=DataType.INT64, auto_id=True, is_primary=True)
+            schema.add_field(
+                field_name=Field.CONTENT_KEY.value,
+                datatype=DataType.VARCHAR,
+                max_length=65535,
+                enable_analyzer=self.enable_hybrid,
+            )
 
             schema.add_field(field_name=Field.VECTOR.value, datatype=infer_dtype_bydata(embeddings[0]), dim=dimension)
             if self.enable_hybrid:
                 schema.add_field(field_name=Field.SPARSE_VECTOR, datatype=DataType.SPARSE_FLOAT_VECTOR)
-                schema.add_function(Function(
-                    name="text_bm25",
-                    input_field_names=[Field.CONTENT_KEY.value],
-                    output_field_names=[Field.SPARSE_VECTOR.value],
-                    function_type=FunctionType.BM25
-                ))
+                schema.add_function(
+                    Function(
+                        name="text_bm25",
+                        input_field_names=[Field.CONTENT_KEY.value],
+                        output_field_names=[Field.SPARSE_VECTOR.value],
+                        function_type=FunctionType.BM25,
+                    )
+                )
             # Create index
             index_params_obj = self.client.prepare_index_params()
-            index_params_obj.add_index(Field.VECTOR,**index_params)
+            index_params_obj.add_index(Field.VECTOR, **index_params)
             if self.enable_hybrid:
-                index_params_obj.add_index(field_name=Field.SPARSE_VECTOR,index_type="AUTOINDEX", metric_type="BM25")
-            return self.client.create_collection(collection_name=self.collection_name, schema=schema,
-                                                 index_params=index_params_obj,
-                                                 consistency_level=self.consisency_level,)
+                index_params_obj.add_index(field_name=Field.SPARSE_VECTOR, index_type="AUTOINDEX", metric_type="BM25")
+            return self.client.create_collection(
+                collection_name=self.collection_name,
+                schema=schema,
+                index_params=index_params_obj,
+                consistency_level=self.consisency_level,
+            )
 
     def add_texts(self, texts: list[Document], embeddings: list[list[float]]):
         insert_data_list = []
@@ -138,7 +158,7 @@ class MilvusVector(BaseVector):
             insert_data = {
                 Field.CONTENT_KEY.value: text.content,
                 Field.METADATA_KEY.value: text.metadata,
-                Field.VECTOR.value: embeddings[i]
+                Field.VECTOR.value: embeddings[i],
             }
             insert_data_list.append(insert_data)
 
@@ -160,9 +180,8 @@ class MilvusVector(BaseVector):
 
 
 class MilvusVectorFactory(AbstractVectorFactory):
-
     def init_vector(self, knowledge: KnowledgeBase, attributes: list, embeddings: Embeddings) -> BaseVector:
-        collection_name="kb_" + str(knowledge.id)+"_vector"
+        collection_name = "kb_" + str(knowledge.id) + "_vector"
         milvus_config = MilvusConfig(
             uri=config.MILVUS_URI or "",
             token=config.MILVUS_TOKEN or "",
@@ -171,4 +190,4 @@ class MilvusVectorFactory(AbstractVectorFactory):
             database=config.MILVUS_DATABASE or "",
             enable_hybrid=config.MILVUS_ENABLE_HYBRID or False,
         )
-        return MilvusVector(collection_name=collection_name,config=milvus_config)
+        return MilvusVector(collection_name=collection_name, config=milvus_config)

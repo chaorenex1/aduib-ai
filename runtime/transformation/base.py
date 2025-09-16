@@ -2,8 +2,12 @@ import logging
 from typing import Union, Generator, Any
 
 from runtime.entities import ToolPromptMessage
-from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, ChatCompletionResponse, \
-    ChatCompletionResponseChunk
+from runtime.entities.llm_entities import (
+    ChatCompletionRequest,
+    CompletionRequest,
+    ChatCompletionResponse,
+    ChatCompletionResponseChunk,
+)
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.mcp.types import Request
@@ -11,12 +15,14 @@ from runtime.tool.entities import ToolInvokeResult
 
 logger = logging.getLogger(__name__)
 
+
 class LLMTransformation:
     """Base class for all transformations."""
 
     @classmethod
-    def setup_model_parameters(cls, model_params: dict[str, Any],
-                               prompt_messages: Union[ChatCompletionRequest, CompletionRequest]):
+    def setup_model_parameters(
+        cls, model_params: dict[str, Any], prompt_messages: Union[ChatCompletionRequest, CompletionRequest]
+    ):
         """Validate model parameters."""
         if not prompt_messages.temperature:
             prompt_messages.temperature = model_params.get("temperature", None)
@@ -35,11 +41,11 @@ class LLMTransformation:
 
     @classmethod
     def transform_message(
-            cls,
-            model_params: dict,
-            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-            credentials: dict,
-            stream: bool = None,
+        cls,
+        model_params: dict,
+        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+        credentials: dict,
+        stream: bool = None,
     ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
         """
         Transform the input message using the provided credentials and raw request.
@@ -55,53 +61,53 @@ class LLMTransformation:
         return llm_result
 
     @classmethod
-    def _call_tools(cls,
-                    model_params: dict,
-                    req: Union[ChatCompletionRequest, CompletionRequest],
-                    credentials: dict,
-                    llm_result: Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]],
-                    stream: bool = None
-                    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
-
+    def _call_tools(
+        cls,
+        model_params: dict,
+        req: Union[ChatCompletionRequest, CompletionRequest],
+        credentials: dict,
+        llm_result: Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]],
+        stream: bool = None,
+    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
         if llm_result.message.tool_calls and len(llm_result.message.tool_calls) > 0:
-
             from runtime.tool.tool_manager import ToolManager
 
             tool_manager = ToolManager()
-            tool_invoke_result: ToolInvokeResult = tool_manager.invoke_tools(llm_result.message.tool_calls,
-                                                                             llm_result.id)
+            tool_invoke_result: ToolInvokeResult = tool_manager.invoke_tools(
+                llm_result.message.tool_calls, llm_result.id
+            )
             if not tool_invoke_result:
                 logger.info(f"Tool calls for message {llm_result.id} already completed successfully.")
                 return llm_result
             req.messages.append(llm_result.message)
-            req.messages.append(ToolPromptMessage(
-                content=tool_invoke_result.data,
-                tool_call_id=llm_result.message.tool_calls[0].id
-            ))
-            llm_result = cls._transform_message(model_params, prompt_messages=req, credentials=credentials, stream=stream)
+            req.messages.append(
+                ToolPromptMessage(content=tool_invoke_result.data, tool_call_id=llm_result.message.tool_calls[0].id)
+            )
+            llm_result = cls._transform_message(
+                model_params, prompt_messages=req, credentials=credentials, stream=stream
+            )
         return llm_result
 
     @classmethod
     def _transform_message(
-            cls,
-            model_params: dict,
-            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-            credentials: dict,
-            stream: bool = None
-    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
-        ...
+        cls,
+        model_params: dict,
+        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+        credentials: dict,
+        stream: bool = None,
+    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]: ...
 
     @classmethod
-    def setup_environment(cls, credentials:dict, model_params: dict):
+    def setup_environment(cls, credentials: dict, model_params: dict):
         """Validate credentials."""
         ...
 
     @classmethod
-    def transform_embeddings(cls, texts:EmbeddingRequest, credentials:dict)->TextEmbeddingResult:
+    def transform_embeddings(cls, texts: EmbeddingRequest, credentials: dict) -> TextEmbeddingResult:
         """Transform embeddings."""
         ...
 
     @classmethod
-    def transform_rerank(cls, query:RerankRequest, credentials:dict)->RerankResponse:
+    def transform_rerank(cls, query: RerankRequest, credentials: dict) -> RerankResponse:
         """Transform rerank."""
         ...

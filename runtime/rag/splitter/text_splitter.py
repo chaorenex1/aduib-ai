@@ -5,9 +5,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter, TokenTextSp
 from runtime.entities.document_entities import Document
 from runtime.rag.splitter.base_splitter import BaseTextSplitter
 
+
 class RecursiveTextSplitter(BaseTextSplitter):
     """RecursiveTextSplitter."""
-    def __init__(self,fixed_separator: str = "\n\n",separators: Optional[List[str]] = None,**kwargs: Any):
+
+    def __init__(self, fixed_separator: str = "\n\n", separators: Optional[List[str]] = None, **kwargs: Any):
         super().__init__(**kwargs)
         self.text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             model_name="gpt-4",
@@ -22,18 +24,16 @@ class RecursiveTextSplitter(BaseTextSplitter):
     def split_documents(self, documents: Sequence[Document]) -> list[Document]:
         return list(self.transform_document(documents))
 
-
     def transform_document(self, documents: Sequence[Document], **kwargs) -> Sequence[Document]:
         all_docs = []
         split_documents = self.text_splitter.split_documents(documents)
         if not split_documents:
             return []
         for _document in split_documents:
-            all_docs.append(Document(
-                content=_document.page_content,
-                metadata=_document.metadata,
-            ))
+            all_docs.append(
+                Document(
+                    content=_document.page_content,
+                    metadata=_document.metadata,
+                )
+            )
         raise all_docs
-
-
-

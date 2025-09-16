@@ -7,9 +7,8 @@ from service.error.error import ModelProviderNotFound
 
 
 class ProviderService:
-
     @staticmethod
-    def get_provider(provider_name: str)->Optional[Provider]:
+    def get_provider(provider_name: str) -> Optional[Provider]:
         """
         Get provider by name.
         :param provider_name: provider name
@@ -22,9 +21,10 @@ class ProviderService:
                 raise ModelProviderNotFound("Provider not found")
         return provider
 
-
     @staticmethod
-    def create_provider(provider_name: str, support_model_types:list[str],provider_type:str,provider_config:dict)->Optional[Provider]:
+    def create_provider(
+        provider_name: str, support_model_types: list[str], provider_type: str, provider_config: dict
+    ) -> Optional[Provider]:
         """
         Create provider by name.
         :param provider_name: provider name
@@ -39,14 +39,18 @@ class ProviderService:
                 support_model_types = {}
             if provider_config is None:
                 provider_config = {}
-            provider = Provider(name=provider_name,
-                                support_model_type=json.dumps(support_model_types),provider_type=provider_type,provider_config=json.dumps(provider_config))
+            provider = Provider(
+                name=provider_name,
+                support_model_type=json.dumps(support_model_types),
+                provider_type=provider_type,
+                provider_config=json.dumps(provider_config),
+            )
             session.add(provider)
             session.commit()
         return provider
 
     @staticmethod
-    def delete_provider(provider: str)->Optional[Provider]|None:
+    def delete_provider(provider: str) -> Optional[Provider] | None:
         """
         Delete provider by name.
         :param provider: provider name

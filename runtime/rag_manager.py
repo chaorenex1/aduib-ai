@@ -18,8 +18,8 @@ from runtime.rag.rag_processor.rag_processor_factory import RAGProcessorFactory
 
 logger = logging.getLogger(__name__)
 
-class RagManager:
 
+class RagManager:
     def __init__(self):
         self.storage = storage_manager
         self.model_manager = ModelManager()
@@ -29,7 +29,6 @@ class RagManager:
         with get_db() as session:
             for knowledge_base in knowledge_bases:
                 try:
-
                     processing_rule = knowledge_base.data_process_rule
                     if not processing_rule:
                         raise ValueError("no process rule found")
@@ -39,9 +38,7 @@ class RagManager:
                     docs = self._extract(rag_processor, knowledge_base, processing_rule)
 
                     # transform
-                    documents = self._transform(
-                        rag_processor, knowledge_base, docs, processing_rule
-                    )
+                    documents = self._transform(rag_processor, knowledge_base, docs, processing_rule)
                     # save segment
                     self._load_segments(knowledge_base, documents)
 
@@ -55,10 +52,12 @@ class RagManager:
                     logger.exception("consume document failed")
                     knowledge_base.rag_status = "error"
                     knowledge_base.error_message = str(e)
-                    knowledge_base.stopped_at =datetime.datetime.now()
+                    knowledge_base.stopped_at = datetime.datetime.now()
                     session.commit()
 
-    def _extract(self, rag_processor:BaseRAGProcessor, knowledge_base:KnowledgeBase, processing_rule:dict) -> list[Document]:
+    def _extract(
+        self, rag_processor: BaseRAGProcessor, knowledge_base: KnowledgeBase, processing_rule: dict
+    ) -> list[Document]:
         # load file
         text_docs = []
         with get_db() as session:
@@ -73,7 +72,7 @@ class RagManager:
                     )
                     text_docs = rag_processor.extract(extract_setting, process_rule_mode=processing_rule["mode"])
             # update document status to splitting and word count
-            _knowledge_base= session.query(KnowledgeBase).filter_by(id=knowledge_base.id).one_or_none()
+            _knowledge_base = session.query(KnowledgeBase).filter_by(id=knowledge_base.id).one_or_none()
             if _knowledge_base:
                 _knowledge_base.rag_status = "extracting"
                 _knowledge_base.word_count = sum(len(doc.content) for doc in text_docs)
@@ -87,10 +86,15 @@ class RagManager:
 
         return text_docs
 
-    def _transform(self, rag_processor:BaseRAGProcessor, knowledge_base:KnowledgeBase, docs:list[Document], processing_rule:dict) -> list[Document]:
+    def _transform(
+        self,
+        rag_processor: BaseRAGProcessor,
+        knowledge_base: KnowledgeBase,
+        docs: list[Document],
+        processing_rule: dict,
+    ) -> list[Document]:
         embedding_model_instance = self.model_manager.get_model_instance(
-            model_name=knowledge_base.embedding_model,
-            provider_name=knowledge_base.embedding_model_provider
+            model_name=knowledge_base.embedding_model, provider_name=knowledge_base.embedding_model_provider
         )
         documents = rag_processor.transform(
             documents=docs,
@@ -101,44 +105,44 @@ class RagManager:
 
         return documents
 
-    def _load_segments(self, knowledge_base:KnowledgeBase, documents:list[Document]):
+    def _load_segments(self, knowledge_base: KnowledgeBase, documents: list[Document]):
         # save node to document segment
         with get_db() as session:
-            docs=[]
+            docs = []
             for document in documents:
                 hash_ = document.metadata["doc_hash"]
                 # count_ = session.query(Document).filter(KnowledgeEmbeddings.hash == hash_).count()
                 # if count_:
                 #     continue
-                doc=KnowledgeEmbeddings(
+                doc = KnowledgeEmbeddings(
                     id=document.metadata["doc_id"],
                     knowledge_id=knowledge_base.id,
                     content=document.content,
                     metadata=document.metadata if document.metadata else {},
                     hash=hash_,
                     model_name=knowledge_base.embedding_model,
-                    provider_name = knowledge_base.embedding_model_provider
+                    provider_name=knowledge_base.embedding_model_provider,
                 )
                 docs.append(doc)
             session.bulk_save_objects(docs)
             session.commit()
 
         with get_db() as session:
-            _knowledge_base= session.query(KnowledgeBase).filter_by(id=knowledge_base.id).one_or_none()
+            _knowledge_base = session.query(KnowledgeBase).filter_by(id=knowledge_base.id).one_or_none()
             if _knowledge_base:
                 _knowledge_base.rag_status = "segmenting"
-                _knowledge_base.spited_at= datetime.datetime.now()
+                _knowledge_base.spited_at = datetime.datetime.now()
                 _knowledge_base.cleaned_at = datetime.datetime.now()
                 session.commit()
 
-    def _load(self, rag_processor:BaseRAGProcessor, knowledge_base:KnowledgeBase, documents:list[Document]):
+    def _load(self, rag_processor: BaseRAGProcessor, knowledge_base: KnowledgeBase, documents: list[Document]):
         """
         insert index and update document/segment status to completed
         """
 
         embedding_model_instance = self.model_manager.get_model_instance(
-                model_name=knowledge_base.embedding_model,
-                provider_name=knowledge_base.embedding_model_provider,
+            model_name=knowledge_base.embedding_model,
+            provider_name=knowledge_base.embedding_model_provider,
         )
 
         # chunk nodes by chunk size
@@ -182,7 +186,7 @@ class RagManager:
         indexing_end_at = time.perf_counter()
 
         with get_db() as session:
-            _knowledge_base= session.query(KnowledgeBase).filter_by(id=knowledge_base.id).one_or_none()
+            _knowledge_base = session.query(KnowledgeBase).filter_by(id=knowledge_base.id).one_or_none()
             if _knowledge_base:
                 _knowledge_base.rag_status = "completed"
                 _knowledge_base.indexed_at = datetime.datetime.now()
@@ -199,9 +203,7 @@ class RagManager:
             keyword = Keyword(knowledge_base)
             keyword.add_texts(documents)
 
-    def _process_chunk(
-            self, rag_processor, chunk_documents, dataset, embedding_model_instance
-    ):
+    def _process_chunk(self, rag_processor, chunk_documents, dataset, embedding_model_instance):
         # check document is paused
         tokens = 0
         if embedding_model_instance:

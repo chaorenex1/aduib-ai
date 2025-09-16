@@ -1,6 +1,7 @@
 """
 Utility functions for cleaning up async HTTP clients to prevent resource leaks.
 """
+
 import asyncio
 
 from libs.cache import in_memory_llm_clients_cache
@@ -18,17 +19,17 @@ async def close_async_clients():
     cache_dict = getattr(in_memory_llm_clients_cache, "cache_dict", {})
 
     for key, handler in cache_dict.items():
-        if hasattr(handler, 'client'):
+        if hasattr(handler, "client"):
             client = handler.client
             # Check if the httpx client has an aiohttp transport
-            if hasattr(client, '_transport') and hasattr(client._transport, 'aclose'):
+            if hasattr(client, "_transport") and hasattr(client._transport, "aclose"):
                 try:
                     await client._transport.aclose()
                 except Exception:
                     # Silently ignore errors during cleanup
                     pass
             # Also close the httpx client itself
-            if hasattr(client, 'aclose') and not client.is_closed:
+            if hasattr(client, "aclose") and not client.is_closed:
                 try:
                     await client.aclose()
                 except Exception:
@@ -36,7 +37,7 @@ async def close_async_clients():
                     pass
 
         # Handle any other objects with aclose method
-        elif hasattr(handler, 'aclose'):
+        elif hasattr(handler, "aclose"):
             try:
                 await handler.aclose()
             except Exception:

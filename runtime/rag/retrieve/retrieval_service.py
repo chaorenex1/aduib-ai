@@ -41,35 +41,39 @@ class RetrievalService:
 
         # Optimize multithreading with thread pools
         with ThreadPoolExecutor(max_workers=dify_config.RETRIEVAL_SERVICE_EXECUTORS) as executor:  # type: ignore
-            futures = [executor.submit(
-                cls.keyword_search,
-                knowledge_id=knowledge_id,
-                query=query,
-                top_k=top_k,
-                all_documents=all_documents,
-                exceptions=exceptions,
-                knowledge_ids_filter=knowledge_ids_filter,
-            ), executor.submit(
-                cls.embedding_search,
-                knowledge_id=knowledge_id,
-                query=query,
-                top_k=top_k,
-                score_threshold=score_threshold,
-                reranking_model=reranking_model,
-                all_documents=all_documents,
-                exceptions=exceptions,
-                knowledge_ids_filter=knowledge_ids_filter,
-            ), executor.submit(
-                cls.full_text_index_search,
-                knowledge_id=knowledge_id,
-                query=query,
-                top_k=top_k,
-                score_threshold=score_threshold,
-                reranking_model=reranking_model,
-                all_documents=all_documents,
-                exceptions=exceptions,
-                knowledge_ids_filter=knowledge_ids_filter,
-            )]
+            futures = [
+                executor.submit(
+                    cls.keyword_search,
+                    knowledge_id=knowledge_id,
+                    query=query,
+                    top_k=top_k,
+                    all_documents=all_documents,
+                    exceptions=exceptions,
+                    knowledge_ids_filter=knowledge_ids_filter,
+                ),
+                executor.submit(
+                    cls.embedding_search,
+                    knowledge_id=knowledge_id,
+                    query=query,
+                    top_k=top_k,
+                    score_threshold=score_threshold,
+                    reranking_model=reranking_model,
+                    all_documents=all_documents,
+                    exceptions=exceptions,
+                    knowledge_ids_filter=knowledge_ids_filter,
+                ),
+                executor.submit(
+                    cls.full_text_index_search,
+                    knowledge_id=knowledge_id,
+                    query=query,
+                    top_k=top_k,
+                    score_threshold=score_threshold,
+                    reranking_model=reranking_model,
+                    all_documents=all_documents,
+                    exceptions=exceptions,
+                    knowledge_ids_filter=knowledge_ids_filter,
+                ),
+            ]
             concurrent.futures.wait(futures, timeout=30, return_when=concurrent.futures.ALL_COMPLETED)
 
         if exceptions:

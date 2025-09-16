@@ -11,7 +11,9 @@ class BuiltinToolController(ToolController):
     A controller for managing built-in tools.
     This controller provides methods to access and manage built-in tools.
     """
+
     tools: list[BuiltinTool] = []
+
     def __init__(self) -> None:
         super().__init__()
         self.tools = self.load_tools()
@@ -26,7 +28,7 @@ class BuiltinToolController(ToolController):
                 return tool
         raise ValueError(f"Tool {tool_name} not found.")
 
-    def get_tools(self,filter_names:list[str]=None) -> list[BuiltinTool]:
+    def get_tools(self, filter_names: list[str] = None) -> list[BuiltinTool]:
         """
         Get all built-in tools.
         This method should be implemented to return a list of all built-in tools.
@@ -52,11 +54,11 @@ class BuiltinToolController(ToolController):
         """
 
         tools_dir = os.path.join(os.path.dirname(__file__), "providers")
-        tools_yamls=load_yaml_files(tools_dir)
+        tools_yamls = load_yaml_files(tools_dir)
         tool_entities = []
         tools = []
         if tools_yamls:
-            tool_entities=[ToolEntity(**tool) for tool in tools_yamls]
+            tool_entities = [ToolEntity(**tool) for tool in tools_yamls]
         for tool_entity in tool_entities:
             # get tool class, import the module
             assistant_tool_class: type[BuiltinTool] = load_single_subclass_from_source(

@@ -9,8 +9,7 @@ from models import Base
 
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_document"
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"),
-                comment="id")
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"), comment="id")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
     deleted = Column(Integer, default=0, comment="delete flag")
@@ -20,8 +19,8 @@ class KnowledgeBase(Base):
     knowledge_language = Column(String(50), nullable=False, comment="knowledge language")
     date_source_type = Column(String, index=True, nullable=False, comment="data source type")
     data_process_rule = Column(JSONB, nullable=True, comment="data process rule")
-    embedding_model= Column(String(255), nullable=False, comment="embedding model name")
-    embedding_model_provider= Column(String(255), nullable=False, comment="embedding provider name")
+    embedding_model = Column(String(255), nullable=False, comment="embedding model name")
+    embedding_model_provider = Column(String(255), nullable=False, comment="embedding provider name")
     rag_status = Column(String(50), nullable=False, comment="rag status")
     error_message = Column(String(255), nullable=False, comment="error message", server_default=text("''"))
     stop_at = Column(DateTime, nullable=True, comment="stop at")
@@ -32,8 +31,6 @@ class KnowledgeBase(Base):
     indexed_at = Column(DateTime, nullable=True, comment="embedded at")
     indexed_time = Column(Integer, nullable=True, server_default=text("0"), comment="indexed times")
     token_count = Column(Integer, nullable=True, server_default=text("0"), comment="token count")
-
-
 
 
 """
@@ -56,14 +53,13 @@ class KnowledgeEmbeddings(Base):
     content = Column(TEXT, nullable=False, comment="content", server_default=text("''"))
     vector = Column(VECTOR(2560), nullable=False, comment="vector")
     metadata = Column(JSONB, nullable=False, comment="metadata", server_default=text("'{}'"))
-    hash= Column(String(64), nullable=False, comment="content hash")
-    model_name= Column(String(255), nullable=False, comment="embedding model name")
-    provider_name= Column(String(255), nullable=False, comment="embedding provider name")
+    hash = Column(String(64), nullable=False, comment="content hash")
+    model_name = Column(String(255), nullable=False, comment="embedding model name")
+    provider_name = Column(String(255), nullable=False, comment="embedding provider name")
     __table_args__ = (
-        Index("idx_knowledge_embeddings_content",
-              func.to_tsvector(text("'jieba_cfg'"), content),
-              postgresql_using="gin"
-              ),
+        Index(
+            "idx_knowledge_embeddings_content", func.to_tsvector(text("'jieba_cfg'"), content), postgresql_using="gin"
+        ),
         Index(
             "idx_knowledge_embeddings_vector",
             vector,
@@ -77,9 +73,8 @@ class KnowledgeEmbeddings(Base):
                                 ef_construction=500$$"""
             },
             postgresql_ops={"embedding": "vector_l2_ops"},
-        )
+        ),
     )
-
 
 
 class KnowledgeKeywords(Base):

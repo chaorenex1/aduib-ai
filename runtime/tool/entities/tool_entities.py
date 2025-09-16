@@ -10,6 +10,7 @@ class McpTransportType(StrEnum):
     """
     Enum for MCP transport types.
     """
+
     STDIO = "stdio"
     SSE = "sse"
     STREAMABLE = "streamable"
@@ -32,14 +33,16 @@ class McpTransportType(StrEnum):
         else:
             raise ValueError(f"Invalid McpTransportType value: {type}")
 
+
 class ToolProviderType(StrEnum):
     """
     Enum for tool provider types.
     """
+
     BUILTIN = "builtin"
     API = "api"
     MCP = "mcp"
-    local= "local"
+    local = "local"
 
     @classmethod
     def value_of(cls, value: str) -> "ToolProviderType":
@@ -66,10 +69,11 @@ class CredentialType(StrEnum):
     """
     Enum for credential types.
     """
+
     NONE = "none"
     BASIC = "basic"
     OAUTH2 = "oauth2"
-    API_KEY= "api_key"
+    API_KEY = "api_key"
 
     @classmethod
     def to_original(cls, credential: str) -> "CredentialType":
@@ -89,7 +93,8 @@ class ToolEntity(BaseModel):
     """
     Base class for tool entities.
     """
-    name: str= ""
+
+    name: str = ""
     description: str = ""
     configs: dict = {}
     parameters: Optional[dict] = None
@@ -102,10 +107,9 @@ class ToolEntity(BaseModel):
         return self.type == ToolProviderType.local
 
 
-
 class ToolInvokeResult(BaseModel):
     name: str = ""
-    data: Optional[Union[dict, str, list,bytes,TextContent,ImageContent,EmbeddedResource]] = None
+    data: Optional[Union[dict, str, list, bytes, TextContent, ImageContent, EmbeddedResource]] = None
     success: bool = True
     error: Optional[str] = None
     meta: Optional[dict] = None

@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Sequence, Union
 
-from ..entities import PromptMessage, ChatCompletionResponseChunk, ChatCompletionResponse, \
-    PromptMessageFunction
+from ..entities import PromptMessage, ChatCompletionResponseChunk, ChatCompletionResponse, PromptMessageFunction
 from ..model_execution import AiModel
 
 
@@ -19,7 +18,7 @@ class Callback(ABC):
         llm_instance: AiModel,
         model: str,
         credentials: dict,
-        prompt_messages: Union[list[PromptMessage],str],
+        prompt_messages: Union[list[PromptMessage], str],
         model_parameters: dict,
         tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,

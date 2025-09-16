@@ -24,34 +24,35 @@ class LLMHttpHandler:
     def __init__(self, api_path: str, credentials: dict, stream: bool) -> None:
         self.credentials = credentials
         self.httpx_client = get_httpx_client()
-        api_base = credentials['api_base']
-        if api_base.endswith('/'):
+        api_base = credentials["api_base"]
+        if api_base.endswith("/"):
             api_base = api_base[:-1]
-        if api_base.endswith('/v1'):
+        if api_base.endswith("/v1"):
             api_base = api_base[:-3]
         self.path = api_base + api_path
-        self.headers = credentials['headers']
+        self.headers = credentials["headers"]
         self.stream = stream
 
     def _request(
-            self,
-            data: bytes | dict | str | None = None,
-            params: dict | None = None,
-            files: dict | None = None,
+        self,
+        data: bytes | dict | str | None = None,
+        params: dict | None = None,
+        files: dict | None = None,
     ) -> Response:
         """
         Make a request to  API.
         """
-        response = self.httpx_client.post(self.path, params=params, headers=self.headers, json=data, files=files,
-                                          stream=self.stream)
+        response = self.httpx_client.post(
+            self.path, params=params, headers=self.headers, json=data, files=files, stream=self.stream
+        )
 
         return response
 
     def _stream_request(
-            self,
-            data: bytes | dict | None = None,
-            params: dict | None = None,
-            files: dict | None = None,
+        self,
+        data: bytes | dict | None = None,
+        params: dict | None = None,
+        files: dict | None = None,
     ) -> Generator[str, None, None]:
         """
         Make a stream request to the plugin daemon inner API
@@ -64,11 +65,11 @@ class LLMHttpHandler:
                 yield line
 
     def _stream_request_with_model(
-            self,
-            type: type[T],
-            data: bytes | dict | None = None,
-            params: dict | None = None,
-            files: dict | None = None,
+        self,
+        type: type[T],
+        data: bytes | dict | None = None,
+        params: dict | None = None,
+        files: dict | None = None,
     ) -> Generator[T, None, None]:
         """
         Make a stream request to the plugin daemon inner API and yield the response as a model.
@@ -80,11 +81,11 @@ class LLMHttpHandler:
                 yield type(**json.loads(line))  # type: ignore
 
     def _request_with_model(
-            self,
-            type: type[T],
-            data: bytes | dict | None = None,
-            params: dict | None = None,
-            files: dict | None = None,
+        self,
+        type: type[T],
+        data: bytes | dict | None = None,
+        params: dict | None = None,
+        files: dict | None = None,
     ) -> T:
         """
         Make a request to the plugin daemon inner API and return the response as a model.
@@ -93,17 +94,16 @@ class LLMHttpHandler:
         json = response.json()
         return type(**json)  # type: ignore
 
-    def completion_request(self, prompt_messages: Union[ChatCompletionRequest, CompletionRequest]) -> Generator[
-                                                                                                          ChatCompletionResponse, None, None] | ChatCompletionResponse:
+    def completion_request(
+        self, prompt_messages: Union[ChatCompletionRequest, CompletionRequest]
+    ) -> Generator[ChatCompletionResponse, None, None] | ChatCompletionResponse:
         return self.completion_dict(jsonable_encoder(obj=prompt_messages, exclude_none=True, exclude_unset=True))
 
-    def completion_dict(self, prompt_messages: dict[str, Any]) -> Generator[
-                                                                         ChatCompletionResponse, None, None] | ChatCompletionResponse:
-
+    def completion_dict(
+        self, prompt_messages: dict[str, Any]
+    ) -> Generator[ChatCompletionResponse, None, None] | ChatCompletionResponse:
         if self.stream:
-            response = self._stream_request_with_model(type=ChatCompletionResponseChunk,
-                                                       data=prompt_messages
-                                                       )
+            response = self._stream_request_with_model(type=ChatCompletionResponseChunk, data=prompt_messages)
 
             def handle_stream_response() -> Generator[ChatCompletionResponse, None, None]:
                 """
@@ -113,9 +113,7 @@ class LLMHttpHandler:
 
             return handle_stream_response()
         else:
-            response = self._request_with_model(
-                type=ChatCompletionResponse,
-                data=prompt_messages)
+            response = self._request_with_model(type=ChatCompletionResponse, data=prompt_messages)
 
             def handle_no_stream_response() -> ChatCompletionResponse:
                 """
@@ -126,14 +124,9 @@ class LLMHttpHandler:
             return handle_no_stream_response()
 
     def embedding_request(self, texts: EmbeddingRequest) -> TextEmbeddingResult:
-        response = self._request_with_model(
-            type=TextEmbeddingResult,
-            data=jsonable_encoder(texts, exclude_none=True))
+        response = self._request_with_model(type=TextEmbeddingResult, data=jsonable_encoder(texts, exclude_none=True))
         return response
 
     def rerank_request(self, query: RerankRequest) -> RerankResponse:
-        response = self._request_with_model(
-            type=RerankResponse,
-            data=jsonable_encoder(query, exclude_none=True)
-        )
+        response = self._request_with_model(type=RerankResponse, data=jsonable_encoder(query, exclude_none=True))
         return response

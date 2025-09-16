@@ -7,10 +7,9 @@ from ..model_execution.base import AiModel
 
 
 class Audio2TextModel(AiModel):
+    model_type: ModelType = ModelType.ASR
 
-    model_type:ModelType = ModelType.ASR
-
-    model_config=ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=())
 
     def invoke(self, model: str, credentials: dict, file: IO[bytes], user: Optional[str] = None) -> str:
         """

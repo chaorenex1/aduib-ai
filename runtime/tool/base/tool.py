@@ -25,7 +25,7 @@ class Tool(ABC):
         self,
         tool_parameters: dict[str, Any],
         message_id: str | None = None,
-    ) -> Generator[ToolInvokeResult,None,None]:
+    ) -> Generator[ToolInvokeResult, None, None]:
         """
         Invoke the tool with the given parameters.
         :param tool_parameters: the parameters for the tool
@@ -35,15 +35,20 @@ class Tool(ABC):
         result = self._invoke(tool_parameters=tool_parameters, message_id=message_id)
 
         if isinstance(result, ToolInvokeResult):
+
             def generator() -> Generator[ToolInvokeResult, None, None]:
                 yield result
+
             return generator()
         else:
             return result
 
     @abstractmethod
-    def _invoke(self, tool_parameters: dict[str, Any],
-        message_id: str | None = None,) -> Union[ToolInvokeResult, Generator[ToolInvokeResult, None, None]]:
+    def _invoke(
+        self,
+        tool_parameters: dict[str, Any],
+        message_id: str | None = None,
+    ) -> Union[ToolInvokeResult, Generator[ToolInvokeResult, None, None]]:
         """
         Internal method to invoke the tool.
         :param tool_parameters: the parameters for the tool
@@ -62,4 +67,3 @@ class Tool(ABC):
             "description": self.entity.description,
             "parameters": self.entity.parameters,
         }
-

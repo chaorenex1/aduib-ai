@@ -12,6 +12,7 @@ AUTOMATIC_RULES: dict[str, Any] = {
     "segmentation": {"delimiter": "\n", "max_tokens": 500, "chunk_overlap": 50},
 }
 
+
 class PreProcessingRule(BaseModel):
     id: str
     enabled: bool
@@ -31,4 +32,3 @@ class SplitterRule(BaseModel):
 class RagProcessingRule(BaseModel):
     mode: str = "automatic"
     rules: SplitterRule = None
-

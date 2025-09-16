@@ -6,8 +6,8 @@ from models import Base
 
 
 class Provider(Base):
-    __tablename__ = 'provider'
-    id = Column(Integer, primary_key=True,index=True,comment="Provider ID")
+    __tablename__ = "provider"
+    id = Column(Integer, primary_key=True, index=True, comment="Provider ID")
     name = Column(String, nullable=False, unique=True, comment="Provider Name")
     support_model_type = Column(Text, nullable=False, comment="Supported Model")
     provider_type = Column(String, nullable=False, comment="Provider Type")

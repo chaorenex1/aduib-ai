@@ -4,16 +4,18 @@ from typing import Optional, Sequence, Annotated, Union, Literal, Any
 
 from pydantic import BaseModel, Field, field_validator
 
+
 class StreamOptions(BaseModel):
     include_usage: Optional[bool] = True
     continuous_usage_stats: Optional[bool] = False
+
 
 class JsonSchemaResponseFormat(BaseModel):
     name: str
     description: Optional[str] = None
     # schema is the field in openai but that causes conflicts with pydantic so
     # instead use json_schema with an alias
-    json_schema: Optional[dict[str, Any]] = Field(default=None, alias='schema')
+    json_schema: Optional[dict[str, Any]] = Field(default=None, alias="schema")
     strict: Optional[bool] = None
 
 
@@ -21,8 +23,7 @@ class StructuralTag(BaseModel):
     begin: str
     # schema is the field, but that causes conflicts with pydantic so
     # instead use structural_tag_schema with an alias
-    structural_tag_schema: Optional[dict[str, Any]] = Field(default=None,
-                                                            alias="schema")
+    structural_tag_schema: Optional[dict[str, Any]] = Field(default=None, alias="schema")
     end: str
 
 
@@ -40,9 +41,11 @@ class ResponseFormat(BaseModel):
 
 AnyResponseFormat = Union[ResponseFormat, StructuralTagResponseFormat]
 
+
 class ThinkingOptions(BaseModel):
     type: Optional[str] = None
     budget_tokens: Optional[int] = None
+
 
 class PromptMessageRole(Enum):
     """
@@ -68,8 +71,6 @@ class PromptMessageRole(Enum):
         raise ValueError(f"invalid prompt message type value {value}")
 
 
-
-
 class PromptMessageTool(BaseModel):
     """
     Model class for prompt message tool.
@@ -87,6 +88,7 @@ class PromptMessageFunction(BaseModel):
 
     type: str = "function"
     function: PromptMessageTool
+
 
 class PromptMessageNamedFunction(BaseModel):
     name: str

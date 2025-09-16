@@ -27,7 +27,6 @@ def _get_opendal_kwargs(*, scheme: str, env_file_path: str = ".env", prefix: str
 
 
 class OpenDALStorage(BaseStorage):
-
     def __init__(self, scheme: str, **kwargs):
         kwargs = kwargs or _get_opendal_kwargs(scheme=scheme)
 
@@ -91,7 +90,3 @@ class OpenDALStorage(BaseStorage):
             raise FileNotFoundError("File not found")
 
         return self.op.stat(path=filename).size
-
-
-
-

@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 class ModelType(Enum):
     """Model type enum."""
+
     LLM = "llm"
     EMBEDDING = "embedding"
     ASR = "asr"
@@ -15,25 +16,25 @@ class ModelType(Enum):
     MODERATION = "moderation"
 
     @classmethod
-    def value_of(cls, origin_model_type)->"ModelType":
+    def value_of(cls, origin_model_type) -> "ModelType":
         """Get ModelType from string."""
         for model_type in cls:
             if model_type.value == origin_model_type:
                 return model_type
         raise ValueError(f"{origin_model_type} is not a valid model type")
 
-    def to_model_type(self)->str:
-        if self==self.LLM:
+    def to_model_type(self) -> str:
+        if self == self.LLM:
             return "llm"
-        elif self==self.EMBEDDING:
+        elif self == self.EMBEDDING:
             return "embedding"
-        elif self==self.ASR:
+        elif self == self.ASR:
             return "asr"
-        elif self==self.TTS:
+        elif self == self.TTS:
             return "tts"
-        elif self==self.RERANKER:
+        elif self == self.RERANKER:
             return "reranker"
-        elif self==self.MODERATION:
+        elif self == self.MODERATION:
             return "moderation"
         else:
             raise ValueError(f"{self} is not a valid model type")
@@ -134,7 +135,7 @@ class PriceConfig(BaseModel):
     input: Decimal
     output: Optional[Decimal] = None
     unit: Decimal = Decimal("1.0")
-    currency: str= "USD"
+    currency: str = "USD"
 
 
 class AIModelEntity(ProviderModel):
@@ -168,8 +169,3 @@ class PriceInfo(BaseModel):
     unit: Decimal
     total_amount: Decimal
     currency: str
-
-
-
-
-

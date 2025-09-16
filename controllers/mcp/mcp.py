@@ -13,11 +13,14 @@ from runtime.mcp.server.mcp_server import MCPServerStreamableHTTPRequestHandler
 from runtime.mcp.types import ClientRequest, ClientNotification
 from runtime.mcp.utils import create_mcp_error_response, compact_generate_response
 
-router = APIRouter(tags=['mcp'],prefix="/mcp")
+router = APIRouter(tags=["mcp"], prefix="/mcp")
+
 
 class McpServerStatus(StrEnum):
     ACTIVE = "active"
     INACTIVE = "inactive"
+
+
 """
 streamable http request handler
 json schema:
@@ -34,9 +37,10 @@ json schema:
 }
 """
 
+
 @router.post(path="/{server_code}")
 @catch_exceptions
-async def mcp_chat_completions(server_code: str, request: Request, current_key:CurrentApiKeyDep):
+async def mcp_chat_completions(server_code: str, request: Request, current_key: CurrentApiKeyDep):
     mcp_server: McpServer = None
     with get_db() as session:
         mcp_server = session.query(McpServer).filter(McpServer.server_code == server_code).first()
@@ -44,10 +48,10 @@ async def mcp_chat_completions(server_code: str, request: Request, current_key:C
     json = await request.json()
     request_id = json.get("id", 1)
     if not mcp_server:
-        return create_mcp_error_response(request_id,types.INVALID_REQUEST, "Server Not Found")
+        return create_mcp_error_response(request_id, types.INVALID_REQUEST, "Server Not Found")
 
     if mcp_server.status != McpServerStatus.ACTIVE:
-        return create_mcp_error_response(request_id,types.INVALID_REQUEST, "Server is not active")
+        return create_mcp_error_response(request_id, types.INVALID_REQUEST, "Server is not active")
 
     try:
         request: ClientRequest | ClientNotification = ClientRequest.model_validate(json)
@@ -60,6 +64,6 @@ async def mcp_chat_completions(server_code: str, request: Request, current_key:C
                 create_mcp_error_response(request_id, types.INVALID_PARAMS, f"Invalid MCP request: {str(e)}")
             )
 
-    mcp_server_handler = MCPServerStreamableHTTPRequestHandler(request,mcp_server)
+    mcp_server_handler = MCPServerStreamableHTTPRequestHandler(request, mcp_server)
     response = mcp_server_handler.handle()
     return compact_generate_response(response)

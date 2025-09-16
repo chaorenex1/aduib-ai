@@ -17,20 +17,22 @@ from envs.llm.Lib.multiprocessing.pool import worker
 from pydantic import BaseModel
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-logger = logging.getLogger('transformers')
+logger = logging.getLogger("transformers")
 
 
 class TransformersConfig:
     """Configuration class for transformers"""
+
     FRONTEND_TCP_ADDRESS = "tcp://127.0.0.1:5555"
     BACKEND_TCP_ADDRESS = "tcp://127.0.0.1:5556"
     BACKEND_IPC_PATH = "ipc://" + os.path.expanduser("~/.aduib_ai/tmp/workers")
-    CONNECTION_TIMEOUT = 2*60000  # milliseconds
+    CONNECTION_TIMEOUT = 2 * 60000  # milliseconds
 
 
 class TaskReq(BaseModel):
     worker_id: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
+
 
 class TaskResp(BaseModel):
     worker_id: Optional[str] = None
@@ -41,10 +43,15 @@ class TaskResp(BaseModel):
 class TransformersLoader(ABC):
     """Abstract base class for loading transformer models."""
 
-    def __init__(self, model: str, model_path: str,max_context_length:int=8192,
-                 device: str = 'cpu',
-                 instruction: Optional[str] = None,
-                 system_prompt: Optional[str] = None):
+    def __init__(
+        self,
+        model: str,
+        model_path: str,
+        max_context_length: int = 8192,
+        device: str = "cpu",
+        instruction: Optional[str] = None,
+        system_prompt: Optional[str] = None,
+    ):
         self.model = model.strip()
         self.model_path = model_path
         self.device = device
@@ -73,17 +80,14 @@ class EmbeddingTransformersLoader(TransformersLoader):
         """Initialize the Embedding model"""
         try:
             # Load tokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model or self.model_path,
-                trust_remote_code=True
-            )
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model or self.model_path, trust_remote_code=True)
 
             # Load model
             from transformers import AutoModel
-            self.model_instance = AutoModel.from_pretrained(
-                self.model or self.model_path,
-                trust_remote_code=True
-            ).to(self.device).eval()
+
+            self.model_instance = (
+                AutoModel.from_pretrained(self.model or self.model_path, trust_remote_code=True).to(self.device).eval()
+            )
 
             # Set pad token if not exists
             if self.tokenizer.pad_token is None:
@@ -102,49 +106,45 @@ class EmbeddingTransformersLoader(TransformersLoader):
 
             # Extract data
             request_data = data.data
-            texts = request_data.get('texts', [])
-            encoding_format = request_data.get('encoding_format', 'float')
-            dimension = request_data.get('dimension', self._get_embedding_dimension())
-            normalize_embeddings = request_data.get('normalize_embeddings', True)
-            batch_size = request_data.get('batch_size', 32)
+            texts = request_data.get("texts", [])
+            encoding_format = request_data.get("encoding_format", "float")
+            dimension = request_data.get("dimension", self._get_embedding_dimension())
+            normalize_embeddings = request_data.get("normalize_embeddings", True)
+            batch_size = request_data.get("batch_size", 32)
 
             # Validate input
             if not texts:
                 raise ValueError("'texts' must be provided and non-empty")
 
             # Generate embeddings
-            embeddings = self._generate_embeddings(texts, normalize_embeddings, batch_size,dimension)
+            embeddings = self._generate_embeddings(texts, normalize_embeddings, batch_size, dimension)
 
             # Convert to requested format
-            if encoding_format == 'base64':
+            if encoding_format == "base64":
                 embeddings = self._encode_embeddings_base64(embeddings)
 
             return TaskResp(
                 worker_id=str(self.worker_id),
                 data={
-                    'embeddings': embeddings,
-                    'model': self.model,
-                    'encoding_format': encoding_format,
-                    'dimensions': dimension
+                    "embeddings": embeddings,
+                    "model": self.model,
+                    "encoding_format": encoding_format,
+                    "dimensions": dimension,
                 },
-                success=True
+                success=True,
             )
 
         except Exception as e:
             logger.error(f"Error in Embedding transform: {e}")
-            return TaskResp(
-                worker_id=str(self.worker_id),
-                data={"error": str(e)},
-                success=False
-            )
+            return TaskResp(worker_id=str(self.worker_id), data={"error": str(e)}, success=False)
 
     def _adaptive_batch_size(self, total_items: int, available_memory_mb: int = None) -> int:
         """根据可用内存动态调整批大小"""
         if available_memory_mb is None:
             # 获取可用GPU内存
             if torch.cuda.is_available():
-                available_memory_mb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 2)
-                used_memory_mb = torch.cuda.memory_allocated() / (1024 ** 2)
+                available_memory_mb = torch.cuda.get_device_properties(0).total_memory / (1024**2)
+                used_memory_mb = torch.cuda.memory_allocated() / (1024**2)
                 available_memory_mb = available_memory_mb - used_memory_mb
             else:
                 available_memory_mb = 1024  # 默认1GB
@@ -158,14 +158,16 @@ class EmbeddingTransformersLoader(TransformersLoader):
             return min(8, total_items)
 
     @torch.no_grad()
-    def _generate_embeddings(self, texts: list, normalize: bool = True, batch_size: int = 32, target_dimension: int = None) -> list:
+    def _generate_embeddings(
+        self, texts: list, normalize: bool = True, batch_size: int = 32, target_dimension: int = None
+    ) -> list:
         """Generate embeddings using transformers model with batching"""
         batch_size = self._adaptive_batch_size(batch_size)
         all_embeddings = []
 
         # Process in batches
         for i in range(0, len(texts), batch_size):
-            batch_texts = texts[i:i + batch_size]
+            batch_texts = texts[i : i + batch_size]
             batch_embeddings = self._process_batch(batch_texts, normalize, target_dimension)
             all_embeddings.extend(batch_embeddings)
 
@@ -177,21 +179,18 @@ class EmbeddingTransformersLoader(TransformersLoader):
     def _cleanup_memory(self):
         """Clean up memory to prevent OOM"""
         import gc
+
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             # torch.cuda.ipc_collect()
             # torch.cuda.synchronize()
 
-    def _process_batch(self, batch_texts: list, normalize: bool,target_dimension:int) -> list:
+    def _process_batch(self, batch_texts: list, normalize: bool, target_dimension: int) -> list:
         """Process a batch of texts"""
         # Tokenize batch
         inputs = self.tokenizer(
-            batch_texts,
-            padding=True,
-            truncation=True,
-            max_length=self.max_context_length,
-            return_tensors="pt"
+            batch_texts, padding=True, truncation=True, max_length=self.max_context_length, return_tensors="pt"
         )
 
         # Move to device
@@ -203,14 +202,14 @@ class EmbeddingTransformersLoader(TransformersLoader):
 
         # Apply pooling strategy
         pooling_strategy = self._get_pooling_strategy()
-        if pooling_strategy == 'mean':
-            embeddings = self._mean_pooling(outputs.last_hidden_state, inputs['attention_mask'])
-        elif pooling_strategy == 'cls':
+        if pooling_strategy == "mean":
+            embeddings = self._mean_pooling(outputs.last_hidden_state, inputs["attention_mask"])
+        elif pooling_strategy == "cls":
             embeddings = self._cls_pooling(outputs.last_hidden_state)
-        elif pooling_strategy == 'max':
-            embeddings = self._max_pooling(outputs.last_hidden_state, inputs['attention_mask'])
+        elif pooling_strategy == "max":
+            embeddings = self._max_pooling(outputs.last_hidden_state, inputs["attention_mask"])
         else:
-            embeddings = self._mean_pooling(outputs.last_hidden_state, inputs['attention_mask'])
+            embeddings = self._mean_pooling(outputs.last_hidden_state, inputs["attention_mask"])
 
         # Normalize if requested
         if normalize:
@@ -227,14 +226,14 @@ class EmbeddingTransformersLoader(TransformersLoader):
         model_name = (self.model or self.model_path).lower()
 
         # Common embedding model patterns
-        if any(name in model_name for name in ['sentence-transformers', 'all-minilm', 'all-mpnet']):
-            return 'mean'
-        elif any(name in model_name for name in ['bert', 'roberta', 'deberta']):
-            return 'cls'
-        elif 'bge' in model_name:
-            return 'cls'
+        if any(name in model_name for name in ["sentence-transformers", "all-minilm", "all-mpnet"]):
+            return "mean"
+        elif any(name in model_name for name in ["bert", "roberta", "deberta"]):
+            return "cls"
+        elif "bge" in model_name:
+            return "cls"
         else:
-            return 'mean'  # Default to mean pooling
+            return "mean"  # Default to mean pooling
 
     def _mean_pooling(self, model_output: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         """Apply mean pooling to get sentence embeddings"""
@@ -273,7 +272,7 @@ class EmbeddingTransformersLoader(TransformersLoader):
             bytes_data = np_array.tobytes()
 
             # Encode to base64
-            encoded = base64.b64encode(bytes_data).decode('utf-8')
+            encoded = base64.b64encode(bytes_data).decode("utf-8")
             encoded_embeddings.append(encoded)
 
         return encoded_embeddings
@@ -289,14 +288,14 @@ class EmbeddingTransformersLoader(TransformersLoader):
 
                 # Apply same pooling as in transform
                 pooling_strategy = self._get_pooling_strategy()
-                if pooling_strategy == 'mean':
-                    test_embedding = self._mean_pooling(test_output.last_hidden_state, test_input['attention_mask'])
-                elif pooling_strategy == 'cls':
+                if pooling_strategy == "mean":
+                    test_embedding = self._mean_pooling(test_output.last_hidden_state, test_input["attention_mask"])
+                elif pooling_strategy == "cls":
                     test_embedding = self._cls_pooling(test_output.last_hidden_state)
-                elif pooling_strategy == 'max':
-                    test_embedding = self._max_pooling(test_output.last_hidden_state, test_input['attention_mask'])
+                elif pooling_strategy == "max":
+                    test_embedding = self._max_pooling(test_output.last_hidden_state, test_input["attention_mask"])
                 else:
-                    test_embedding = self._mean_pooling(test_output.last_hidden_state, test_input['attention_mask'])
+                    test_embedding = self._mean_pooling(test_output.last_hidden_state, test_input["attention_mask"])
 
                 return test_embedding.size(-1)
 
@@ -311,14 +310,13 @@ class ReRankTransformersLoader(TransformersLoader):
     def init_model(self):
         """Initialize the ReRank model"""
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model or self.model_path,
-            padding_side='left',
-            trust_remote_code=True
+            self.model or self.model_path, padding_side="left", trust_remote_code=True
         )
-        self.model_instance = AutoModelForCausalLM.from_pretrained(
-            self.model or self.model_path,
-            trust_remote_code=True
-        ).to(self.device).eval()
+        self.model_instance = (
+            AutoModelForCausalLM.from_pretrained(self.model or self.model_path, trust_remote_code=True)
+            .to(self.device)
+            .eval()
+        )
 
         # Set default instruction if not provided
         if not self.instruction:
@@ -347,9 +345,9 @@ class ReRankTransformersLoader(TransformersLoader):
 
             # Extract data
             request_data = data.data
-            queries = request_data.get('query', [])
-            documents = request_data.get('documents', [])
-            top_n = request_data.get('top_n', len(documents))
+            queries = request_data.get("query", [])
+            documents = request_data.get("documents", [])
+            top_n = request_data.get("top_n", len(documents))
 
             # Validate input
             if not queries or not documents:
@@ -363,20 +361,13 @@ class ReRankTransformersLoader(TransformersLoader):
 
             return TaskResp(
                 worker_id=str(self.worker_id),
-                data={
-                    'reranked_documents': sorted_results,
-                    'scores': scores[:top_n]
-                },
-                success=True
+                data={"reranked_documents": sorted_results, "scores": scores[:top_n]},
+                success=True,
             )
 
         except Exception as e:
             logger.error(f"Error in ReRank transform: {e}")
-            return TaskResp(
-                worker_id=str(self.worker_id),
-                data={"error": str(e)},
-                success=False
-            )
+            return TaskResp(worker_id=str(self.worker_id), data={"error": str(e)}, success=False)
 
     @torch.no_grad()
     def _compute_rerank_scores(self, task: str, queries: list, documents: list, batch_size: int = 8) -> list:
@@ -388,7 +379,7 @@ class ReRankTransformersLoader(TransformersLoader):
         prefix = (
             "<|im_start|>system\n"
             "Judge whether the Document meets the requirements based on the Query "
-            "and the Instruct provided. Note that the answer can only be \"yes\" or \"no\"."
+            'and the Instruct provided. Note that the answer can only be "yes" or "no".'
             "<|im_end|>\n<|im_start|>user\n"
         )
         suffix = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
@@ -400,29 +391,31 @@ class ReRankTransformersLoader(TransformersLoader):
 
         # 分批处理减少内存占用
         for i in range(0, len(queries), batch_size):
-            batch_queries = queries[i:i + batch_size]
-            batch_documents = documents[i:i + batch_size]
+            batch_queries = queries[i : i + batch_size]
+            batch_documents = documents[i : i + batch_size]
 
             # 处理当前批次
             batch_scores = self._process_batch_scores(
-                task, batch_queries, batch_documents,
-                prefix_tokens, suffix_tokens,
-                token_true_id, token_false_id
+                task, batch_queries, batch_documents, prefix_tokens, suffix_tokens, token_true_id, token_false_id
             )
 
             all_scores.extend(batch_scores)
         return all_scores
 
-    def _process_batch_scores(self, task: str, queries: list, documents: list,
-                              prefix_tokens: list, suffix_tokens: list,
-                              token_true_id: int, token_false_id: int) -> list:
+    def _process_batch_scores(
+        self,
+        task: str,
+        queries: list,
+        documents: list,
+        prefix_tokens: list,
+        suffix_tokens: list,
+        token_true_id: int,
+        token_false_id: int,
+    ) -> list:
         """Process a single batch with memory optimization"""
 
         # 格式化文本对
-        pairs = [
-            self._format_instruction(task, query, doc)
-            for query, doc in zip(queries, documents)
-        ]
+        pairs = [self._format_instruction(task, query, doc) for query, doc in zip(queries, documents)]
 
         # 分词处理
         max_input_length = self.max_context_length - len(prefix_tokens) - len(suffix_tokens)
@@ -434,20 +427,20 @@ class ReRankTransformersLoader(TransformersLoader):
             truncation=True,
             max_length=max_input_length,
             return_tensors="pt",
-            add_special_tokens=False
+            add_special_tokens=False,
         )
 
         # 添加前缀和后缀
         input_ids = []
         attention_masks = []
 
-        for i, input_id in enumerate(encoded['input_ids']):
+        for i, input_id in enumerate(encoded["input_ids"]):
             # 构建完整输入
             full_input = prefix_tokens + input_id.tolist() + suffix_tokens
 
             # 截断到最大长度
             if len(full_input) > self.max_context_length:
-                full_input = full_input[:self.max_context_length]
+                full_input = full_input[: self.max_context_length]
 
             input_ids.append(full_input)
             attention_masks.append([1] * len(full_input))
@@ -461,8 +454,8 @@ class ReRankTransformersLoader(TransformersLoader):
 
         # 转换为tensor并移动到设备
         inputs = {
-            'input_ids': torch.tensor(input_ids, device=self.device),
-            'attention_mask': torch.tensor(attention_masks, device=self.device)
+            "input_ids": torch.tensor(input_ids, device=self.device),
+            "attention_mask": torch.tensor(attention_masks, device=self.device),
         }
 
         try:
@@ -472,10 +465,7 @@ class ReRankTransformersLoader(TransformersLoader):
                 logits = outputs.logits[:, -1, :].detach().cpu()
 
                 # 计算分数
-                scores_tensor = torch.stack([
-                    logits[:, token_false_id],
-                    logits[:, token_true_id]
-                ], dim=1)
+                scores_tensor = torch.stack([logits[:, token_false_id], logits[:, token_true_id]], dim=1)
 
                 scores_tensor = torch.nn.functional.log_softmax(scores_tensor, dim=1)
                 scores = scores_tensor[:, 1].exp().cpu().tolist()
@@ -484,42 +474,47 @@ class ReRankTransformersLoader(TransformersLoader):
 
         finally:
             # 确保清理所有中间变量
-            locals_to_clean = ['inputs','outputs','logits', 'scores_tensor', 'input_ids','full_input','input_ids', 'attention_masks', 'encoded', 'pairs','queries','documents']
+            locals_to_clean = [
+                "inputs",
+                "outputs",
+                "logits",
+                "scores_tensor",
+                "input_ids",
+                "full_input",
+                "input_ids",
+                "attention_masks",
+                "encoded",
+                "pairs",
+                "queries",
+                "documents",
+            ]
             for var_name in locals_to_clean:
                 if var_name in locals():
                     del locals()[var_name]
             import gc
+
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
     def _format_instruction(self, instruction: str, query: str, doc: str) -> str:
         """Format instruction template"""
-        return (
-            f"<Instruct>: {instruction}\n"
-            f"<Query>: {query}\n"
-            f"<Document>: {doc}"
-        )
+        return f"<Instruct>: {instruction}\n<Query>: {query}\n<Document>: {doc}"
 
     def _process_inputs(self, pairs: list, prefix_tokens: list, suffix_tokens: list):
         """Process input pairs for tokenization"""
         inputs = self.tokenizer(
             pairs,
             padding=False,
-            truncation='longest_first',
+            truncation="longest_first",
             return_attention_mask=False,
-            max_length=self.max_context_length - len(prefix_tokens) - len(suffix_tokens)
+            max_length=self.max_context_length - len(prefix_tokens) - len(suffix_tokens),
         )
 
-        for i, ele in enumerate(inputs['input_ids']):
-            inputs['input_ids'][i] = prefix_tokens + ele + suffix_tokens
+        for i, ele in enumerate(inputs["input_ids"]):
+            inputs["input_ids"][i] = prefix_tokens + ele + suffix_tokens
 
-        inputs = self.tokenizer.pad(
-            inputs,
-            padding=True,
-            return_tensors="pt",
-            max_length=self.max_context_length
-        )
+        inputs = self.tokenizer.pad(inputs, padding=True, return_tensors="pt", max_length=self.max_context_length)
 
         for key in inputs:
             inputs[key] = inputs[key].to(self.model_instance.device)
@@ -542,7 +537,6 @@ class ReRankTransformersLoader(TransformersLoader):
         scored_docs = list(zip(scores, documents))
         scored_docs.sort(key=lambda x: x[0], reverse=True)
         return [doc for score, doc in scored_docs[:top_n]]
-
 
 
 class ZMQBroker:
@@ -607,51 +601,32 @@ class ZMQBroker:
         """Handle message from client"""
         try:
             # 接收客户端消息
-            client_id,empty, message_data = self.frontend.recv_multipart()
+            client_id, empty, message_data = self.frontend.recv_multipart()
 
             # 解析任务请求
             try:
-                message_json = json.loads(message_data.decode('utf-8'))
+                message_json = json.loads(message_data.decode("utf-8"))
                 task_req = TaskReq.model_validate(message_json)
             except Exception as e:
                 traceback.print_exc()
                 logger.error(f"Failed to parse client message: {e}")
                 # 发送错误响应给客户端
-                error_resp = TaskResp(
-                    worker_id="",
-                    data={"error": f"Invalid message format: {str(e)}"},
-                    success=False
-                )
-                self.frontend.send_multipart([
-                    client_id,
-                    b"",
-                    error_resp.model_dump_json().encode('utf-8')
-                ])
+                error_resp = TaskResp(worker_id="", data={"error": f"Invalid message format: {str(e)}"}, success=False)
+                self.frontend.send_multipart([client_id, b"", error_resp.model_dump_json().encode("utf-8")])
                 return
 
             # 根据worker_id进行路由
             target_worker = task_req.worker_id
             if not target_worker:
-                error_resp = TaskResp(
-                    worker_id="",
-                    data={"error": "No worker_id specified in request"},
-                    success=False
-                )
-                self.frontend.send_multipart([
-                    client_id,
-                    b"",
-                    error_resp.model_dump_json().encode('utf-8')
-                ])
+                error_resp = TaskResp(worker_id="", data={"error": "No worker_id specified in request"}, success=False)
+                self.frontend.send_multipart([client_id, b"", error_resp.model_dump_json().encode("utf-8")])
                 return
 
             # 存储客户端到worker的映射关系
             self._client_worker_mapping[target_worker] = client_id
 
             # 转发消息给指定的worker
-            self.backend.send_multipart([
-                target_worker.encode('utf-8'),
-                b"", message_data
-            ])
+            self.backend.send_multipart([target_worker.encode("utf-8"), b"", message_data])
 
             logger.debug(f"Routed message from client {client_id.decode()} to worker {target_worker}")
 
@@ -662,12 +637,12 @@ class ZMQBroker:
         """Handle message from worker"""
         try:
             # 接收worker响应
-            worker_id,empty, response_data = self.backend.recv_multipart()
+            worker_id, empty, response_data = self.backend.recv_multipart()
 
             # 将响应转发回对应的客户端
-            worker_id_key = worker_id.decode('utf-8')
-            client_id = self._client_worker_mapping.get(worker_id_key,"client".encode('utf-8'))
-            self.frontend.send_multipart([client_id,b"", response_data])
+            worker_id_key = worker_id.decode("utf-8")
+            client_id = self._client_worker_mapping.get(worker_id_key, "client".encode("utf-8"))
+            self.frontend.send_multipart([client_id, b"", response_data])
 
             # 清理映射关系
             if worker_id_key in self._client_worker_mapping:
@@ -724,7 +699,7 @@ class ZMQWorker:
             self.socket = self.ctx.socket(zmq.DEALER)  # 改为DEALER配合ROUTER broker
 
             # 设置worker身份标识
-            self.socket.setsockopt(zmq.IDENTITY, self.transformer_loader.worker_id.encode('utf-8'))
+            self.socket.setsockopt(zmq.IDENTITY, self.transformer_loader.worker_id.encode("utf-8"))
 
             backend_address = self._get_backend_address()
             self.socket.connect(backend_address)
@@ -736,14 +711,18 @@ class ZMQWorker:
             logger.info(f"Worker {self.transformer_loader.worker_id} started and ready")
             self.poller = zmq.Poller()
             self.poller.register(self.socket, zmq.POLLIN)
-            self.socket.send_multipart([
-                b"",
-                TaskResp(
-                    worker_id=self.transformer_loader.worker_id,
-                    data={"status": "ready","type":"HEALTH_CHECK"},
-                    success=True
-                ).model_dump_json().encode('utf-8')
-            ])
+            self.socket.send_multipart(
+                [
+                    b"",
+                    TaskResp(
+                        worker_id=self.transformer_loader.worker_id,
+                        data={"status": "ready", "type": "HEALTH_CHECK"},
+                        success=True,
+                    )
+                    .model_dump_json()
+                    .encode("utf-8"),
+                ]
+            )
             self._run_loop()
 
         except Exception as e:
@@ -756,35 +735,27 @@ class ZMQWorker:
         """Main worker loop"""
         while self._running:
             try:
-                sockets=dict(self.poller.poll())
+                sockets = dict(self.poller.poll())
                 if self.socket in sockets:
                     # 接收消息
                     _, message_data = self.socket.recv_multipart()
 
                     try:
-                        message_json = json.loads(message_data.decode('utf-8'))
+                        message_json = json.loads(message_data.decode("utf-8"))
                         task_req = TaskReq.model_validate(message_json)
 
                         # 处理任务
                         response = self._process_task(task_req)
 
                         # 发送响应
-                        self.socket.send_multipart([
-                            b"",
-                            response.model_dump_json().encode('utf-8')
-                        ])
+                        self.socket.send_multipart([b"", response.model_dump_json().encode("utf-8")])
 
                     except Exception as e:
                         logger.error(f"Error processing task: {e}")
                         error_resp = TaskResp(
-                            worker_id=self.transformer_loader.worker_id,
-                            data={"error": str(e)},
-                            success=False
+                            worker_id=self.transformer_loader.worker_id, data={"error": str(e)}, success=False
                         )
-                        self.socket.send_multipart([
-                            b"",
-                            error_resp.model_dump_json().encode('utf-8')
-                        ])
+                        self.socket.send_multipart([b"", error_resp.model_dump_json().encode("utf-8")])
 
             except zmq.Again:
                 continue
@@ -800,17 +771,16 @@ class ZMQWorker:
                 return TaskResp(
                     worker_id=self.transformer_loader.worker_id,
                     data={"status": "ready" if self._ready else "not ready"},
-                    success=self._ready
+                    success=self._ready,
                 )
 
             # 检查worker ID匹配
             if task_req.worker_id != self.transformer_loader.worker_id:
                 logger.warning(
-                    f"Worker ID mismatch: expected {self.transformer_loader.worker_id}, got {task_req.worker_id}")
+                    f"Worker ID mismatch: expected {self.transformer_loader.worker_id}, got {task_req.worker_id}"
+                )
                 return TaskResp(
-                    worker_id=self.transformer_loader.worker_id,
-                    data={"error": f"Worker ID mismatch"},
-                    success=False
+                    worker_id=self.transformer_loader.worker_id, data={"error": f"Worker ID mismatch"}, success=False
                 )
 
             # 检查worker是否就绪
@@ -818,7 +788,7 @@ class ZMQWorker:
                 return TaskResp(
                     worker_id=self.transformer_loader.worker_id,
                     data={"error": "Worker is not ready yet"},
-                    success=False
+                    success=False,
                 )
 
             # 处理实际任务
@@ -826,11 +796,7 @@ class ZMQWorker:
 
         except Exception as e:
             logger.error(f"Error processing task: {e}")
-            return TaskResp(
-                worker_id=self.transformer_loader.worker_id,
-                data={"error": str(e)},
-                success=False
-            )
+            return TaskResp(worker_id=self.transformer_loader.worker_id, data={"error": str(e)}, success=False)
 
     def _get_backend_address(self):
         """Get backend address based on platform"""
@@ -876,7 +842,7 @@ class ZMQClient:
         try:
             self.ctx = zmq.Context()
             self.socket = self.ctx.socket(zmq.DEALER)
-            self.socket.setsockopt(zmq.IDENTITY, "client".encode('utf-8'))
+            self.socket.setsockopt(zmq.IDENTITY, "client".encode("utf-8"))
             self.socket.setsockopt(zmq.RCVTIMEO, TransformersConfig.CONNECTION_TIMEOUT)
             self.socket.setsockopt(zmq.SNDTIMEO, TransformersConfig.CONNECTION_TIMEOUT)
             self.socket.connect(TransformersConfig.FRONTEND_TCP_ADDRESS)
@@ -887,14 +853,16 @@ class ZMQClient:
     def send_and_receive(self, message: TaskReq) -> TaskResp:
         """Send request and receive response"""
         try:
-            self.socket.send_multipart([b"",json.dumps(message.model_dump()).encode('utf-8')])
-            _,data = self.socket.recv_multipart()
-            resp = TaskResp.model_validate(json.loads(data.decode('utf-8')))
-            if resp.worker_id==message.worker_id:
+            self.socket.send_multipart([b"", json.dumps(message.model_dump()).encode("utf-8")])
+            _, data = self.socket.recv_multipart()
+            resp = TaskResp.model_validate(json.loads(data.decode("utf-8")))
+            if resp.worker_id == message.worker_id:
                 return resp
             else:
-                logger.debug("filtered invalid response due to worker_id mismatch, req_worker_id="
-                               f"{message.worker_id}, resp_worker_id={resp.worker_id}")
+                logger.debug(
+                    "filtered invalid response due to worker_id mismatch, req_worker_id="
+                    f"{message.worker_id}, resp_worker_id={resp.worker_id}"
+                )
         except zmq.Again:
             raise TimeoutError("Request timeout")
         except Exception as e:
@@ -928,11 +896,7 @@ class TransformersManager:
             try:
                 context = multiprocessing.get_context("spawn")
                 broker = ZMQBroker()
-                self._broker_process = context.Process(
-                    target=broker.start,
-                    daemon=False,
-                    name="transformers-broker"
-                )
+                self._broker_process = context.Process(target=broker.start, daemon=False, name="transformers-broker")
                 self._broker_process.start()
                 self._setup_signal_handlers()
 
@@ -958,11 +922,7 @@ class TransformersManager:
             try:
                 context = multiprocessing.get_context("spawn")
                 worker = ZMQWorker(loader)
-                process = context.Process(
-                    target=worker.start,
-                    daemon=False,
-                    name=f"worker-{loader.model}"
-                )
+                process = context.Process(target=worker.start, daemon=False, name=f"worker-{loader.model}")
                 process.start()
                 self._worker_processes[loader.model] = process
                 self._worker_ready_status[loader.model] = False
@@ -996,7 +956,7 @@ class TransformersManager:
                 with ZMQClient().connect() as client:
                     # health_req = TaskReq(worker_id=model, data={"type": "HEALTH_CHECK"})
                     _, data = client.socket.recv_multipart()
-                    response = TaskResp.model_validate(json.loads(data.decode('utf-8')))
+                    response = TaskResp.model_validate(json.loads(data.decode("utf-8")))
 
                     if response.success and response.data.get("status") == "ready":
                         self._worker_ready_status[model] = True
@@ -1090,9 +1050,6 @@ class TransformersManager:
         """Get status of all workers"""
         with self._lock:
             return {
-                model: {
-                    "alive": process.is_alive(),
-                    "ready": self._worker_ready_status.get(model, False)
-                }
+                model: {"alive": process.is_alive(), "ready": self._worker_ready_status.get(model, False)}
                 for model, process in self._worker_processes.items()
             }

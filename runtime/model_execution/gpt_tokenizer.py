@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 _tokenizer: Any = None
 _lock = Lock()
 
+
 class GPTTokenizer:
     """
     Singleton class to manage the GPT tokenizer.
@@ -22,8 +23,7 @@ class GPTTokenizer:
                         import tiktoken
                     except ImportError:
                         logger.error(
-                            "tiktoken package is not installed. "
-                            "Please install it with `pip install tiktoken`."
+                            "tiktoken package is not installed. Please install it with `pip install tiktoken`."
                         )
                         raise ImportError(
                             "Could not import tiktoken python package. "
@@ -47,7 +47,6 @@ class GPTTokenizer:
         """
         tokenizer = GPTTokenizer.get_tokenizer()
         return len(tokenizer.encode(text, allowed_special="all"))
-
 
     @staticmethod
     def get_encoder() -> Any:

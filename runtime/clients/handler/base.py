@@ -11,10 +11,12 @@ T = TypeVar("T", bound=(BaseModel | dict | list | bool | str))
 
 logger = logging.getLogger(__name__)
 
+
 class BaseClient:
     """
     Base class for clients
     """
+
     def _request(
         self,
         method: str,

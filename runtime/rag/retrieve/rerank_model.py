@@ -6,7 +6,8 @@ from runtime.entities.rerank_entities import RerankRequest
 from runtime.model_manager import ModelManager, ModelInstance
 from runtime.rag.retrieve.rerank_base import BaseRerankRunner
 
-logger= logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+
 
 class RankerModelRunner(BaseRerankRunner):
     """Interface for data post-processing document."""
@@ -24,7 +25,6 @@ class RankerModelRunner(BaseRerankRunner):
         score_threshold: Optional[float] = None,
         top_n: Optional[int] = None,
     ) -> list[Document]:
-
         return self.run(query, documents, score_threshold, top_n)
 
     def run(
@@ -63,7 +63,7 @@ class RankerModelRunner(BaseRerankRunner):
         documents = unique_documents
 
         rerank_result = self.rerank_model_instance.invoke_rerank(
-            query=RerankRequest(model=self.rerank_model_instance.model,query=query,documents=docs,top_n=top_n)
+            query=RerankRequest(model=self.rerank_model_instance.model, query=query, documents=docs, top_n=top_n)
         )
 
         rerank_documents = []
@@ -97,6 +97,5 @@ class RankerModelRunner(BaseRerankRunner):
                 )
                 return rerank_model_instance
             except Exception as e:
-
                 return None
         return None

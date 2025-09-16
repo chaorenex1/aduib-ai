@@ -11,5 +11,5 @@ __all__ = [
     "ModelService",
     "CompletionService",
     "ConversationMessageService",
-    "FileService"
+    "FileService",
 ]

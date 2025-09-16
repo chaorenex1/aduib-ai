@@ -9,8 +9,7 @@ class StorageConfig(BaseSettings):
         "s3",
         "local",
     ] = Field(
-        description="Type of storage to use."
-        " Options: 'opendal', '(deprecated) local', 's3'.",
+        description="Type of storage to use. Options: 'opendal', '(deprecated) local', 's3'.",
         default="s3",
     )
 

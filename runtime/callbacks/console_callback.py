@@ -3,8 +3,7 @@ import logging
 from typing import Optional, Sequence, Union
 
 from .base_callback import Callback
-from ..entities import PromptMessage, ChatCompletionResponseChunk, ChatCompletionResponse, \
-    PromptMessageFunction
+from ..entities import PromptMessage, ChatCompletionResponseChunk, ChatCompletionResponse, PromptMessageFunction
 from ..model_execution.base import AiModel
 
 logger = logging.getLogger(__name__)
@@ -16,7 +15,7 @@ class LoggingCallback(Callback):
         llm_instance: AiModel,
         model: str,
         credentials: dict,
-        prompt_messages: Union[list[PromptMessage],str],
+        prompt_messages: Union[list[PromptMessage], str],
         model_parameters: dict,
         tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,

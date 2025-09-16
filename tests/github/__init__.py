@@ -2,12 +2,14 @@ import json
 
 import requests
 
+
 def main():
     """
     Test to get the list of models add Header api_key: testkey
     """
     GITHUB_COPILOT_API_BASE = "https://api.githubcopilot.com"
-    from runtime.transformation.github.Authenticator import Authenticator,GetAPIKeyError
+    from runtime.transformation.github.Authenticator import Authenticator, GetAPIKeyError
+
     authenticator = Authenticator()
     # dynamic_api_base = (
     #         authenticator.get_api_base() or GITHUB_COPILOT_API_BASE
@@ -25,7 +27,6 @@ def main():
     # data = response.json()
     # print(json.dumps(data, indent=2))
     print(authenticator.get_models())
-
 
 
 if __name__ == "__main__":

@@ -16,11 +16,12 @@ from runtime.clients.httpx_client.aiohttp_transport import LLMAiohttpTransport
 
 # https://www.python-httpx.org/advanced/timeouts
 _DEFAULT_TIMEOUT = httpx.Timeout(timeout=5.0, connect=5.0)
-_DEFAULT_TTL_FOR_HTTPX_CLIENTS=3600  # seconds
+_DEFAULT_TTL_FOR_HTTPX_CLIENTS = 3600  # seconds
 
 VerifyTypes = Union[str, bool, ssl.SSLContext]
 
 verbose_logger = logging.getLogger("verbose")
+
 
 def str_to_bool(value: Optional[str]) -> Optional[bool]:
     """
@@ -44,6 +45,7 @@ def str_to_bool(value: Optional[str]) -> Optional[bool]:
         return False
     else:
         return None
+
 
 def get_ssl_configuration(
     ssl_verify: Optional[VerifyTypes] = None,
@@ -78,9 +80,7 @@ def get_ssl_configuration(
     # Get ssl_verify from environment or LLM settings if not provided
     if ssl_verify is None:
         ssl_verify = os.getenv("SSL_VERIFY")
-        ssl_verify_bool = (
-            str_to_bool(ssl_verify) if isinstance(ssl_verify, str) else ssl_verify
-        )
+        ssl_verify_bool = str_to_bool(ssl_verify) if isinstance(ssl_verify, str) else ssl_verify
         if ssl_verify_bool is not None:
             ssl_verify = ssl_verify_bool
 
@@ -126,11 +126,7 @@ def mask_sensitive_info(error_message):
             masked_message = error_message[: key_index + 4] + "[REDACTED_API_KEY]"
         else:
             # Replace the key with redacted value, keeping other parameters
-            masked_message = (
-                error_message[: key_index + 4]
-                + "[REDACTED_API_KEY]"
-                + error_message[next_param:]
-            )
+            masked_message = error_message[: key_index + 4] + "[REDACTED_API_KEY]" + error_message[next_param:]
 
         return masked_message
 
@@ -138,9 +134,7 @@ def mask_sensitive_info(error_message):
 
 
 class MaskedHTTPStatusError(httpx.HTTPStatusError):
-    def __init__(
-        self, original_error, message: Optional[str] = None, text: Optional[str] = None
-    ):
+    def __init__(self, original_error, message: Optional[str] = None, text: Optional[str] = None):
         # Create a new error with the masked URL
         masked_url = mask_sensitive_info(str(original_error.request.url))
         # Create a new error that looks like the original, but with a masked URL
@@ -236,15 +230,16 @@ class AsyncHTTPHandler:
         follow_redirects: Optional[bool] = None,
     ):
         # Set follow_redirects to UseClientDefault if None
-        _follow_redirects = (
-            follow_redirects if follow_redirects is not None else USE_CLIENT_DEFAULT
-        )
+        _follow_redirects = follow_redirects if follow_redirects is not None else USE_CLIENT_DEFAULT
 
         params = params or {}
         params.update(HTTPHandler.extract_query_params(url))
 
         response = await self.client.get(
-            url, params=params, headers=headers, follow_redirects=_follow_redirects  # type: ignore
+            url,
+            params=params,
+            headers=headers,
+            follow_redirects=_follow_redirects,  # type: ignore
         )
         return response
 
@@ -260,7 +255,6 @@ class AsyncHTTPHandler:
         files: Optional[RequestFiles] = None,
         content: Any = None,
     ):
-
         start_time = time.time()
         try:
             if timeout is None:
@@ -282,9 +276,7 @@ class AsyncHTTPHandler:
             return response
         except (httpx.RemoteProtocolError, httpx.ConnectError):
             # Retry the request with a new session if there is a connection error
-            new_client = self.create_client(
-                timeout=timeout, concurrent_limit=1, event_hooks=self.event_hooks
-            )
+            new_client = self.create_client(timeout=timeout, concurrent_limit=1, event_hooks=self.event_hooks)
             try:
                 return await self.single_connection_post_request(
                     url=url,
@@ -336,16 +328,20 @@ class AsyncHTTPHandler:
                 timeout = self.timeout
 
             req = self.client.build_request(
-                "PUT", url, data=data, json=json, params=params, headers=headers, timeout=timeout  # type: ignore
+                "PUT",
+                url,
+                data=data,
+                json=json,
+                params=params,
+                headers=headers,
+                timeout=timeout,  # type: ignore
             )
             response = await self.client.send(req)
             response.raise_for_status()
             return response
         except (httpx.RemoteProtocolError, httpx.ConnectError):
             # Retry the request with a new session if there is a connection error
-            new_client = self.create_client(
-                timeout=timeout, concurrent_limit=1, event_hooks=self.event_hooks
-            )
+            new_client = self.create_client(timeout=timeout, concurrent_limit=1, event_hooks=self.event_hooks)
             try:
                 return await self.single_connection_post_request(
                     url=url,
@@ -391,16 +387,20 @@ class AsyncHTTPHandler:
                 timeout = self.timeout
 
             req = self.client.build_request(
-                "PATCH", url, data=data, json=json, params=params, headers=headers, timeout=timeout  # type: ignore
+                "PATCH",
+                url,
+                data=data,
+                json=json,
+                params=params,
+                headers=headers,
+                timeout=timeout,  # type: ignore
             )
             response = await self.client.send(req)
             response.raise_for_status()
             return response
         except (httpx.RemoteProtocolError, httpx.ConnectError):
             # Retry the request with a new session if there is a connection error
-            new_client = self.create_client(
-                timeout=timeout, concurrent_limit=1, event_hooks=self.event_hooks
-            )
+            new_client = self.create_client(timeout=timeout, concurrent_limit=1, event_hooks=self.event_hooks)
             try:
                 return await self.single_connection_post_request(
                     url=url,
@@ -445,16 +445,20 @@ class AsyncHTTPHandler:
             if timeout is None:
                 timeout = self.timeout
             req = self.client.build_request(
-                "DELETE", url, data=data, json=json, params=params, headers=headers, timeout=timeout  # type: ignore
+                "DELETE",
+                url,
+                data=data,
+                json=json,
+                params=params,
+                headers=headers,
+                timeout=timeout,  # type: ignore
             )
             response = await self.client.send(req, stream=stream)
             response.raise_for_status()
             return response
         except (httpx.RemoteProtocolError, httpx.ConnectError):
             # Retry the request with a new session if there is a connection error
-            new_client = self.create_client(
-                timeout=timeout, concurrent_limit=1, event_hooks=self.event_hooks
-            )
+            new_client = self.create_client(timeout=timeout, concurrent_limit=1, event_hooks=self.event_hooks)
             try:
                 return await self.single_connection_post_request(
                     url=url,
@@ -494,7 +498,13 @@ class AsyncHTTPHandler:
         Used for retrying connection client errors.
         """
         req = client.build_request(
-            "POST", url, data=data, json=json, params=params, headers=headers, content=content  # type: ignore
+            "POST",
+            url,
+            data=data,
+            json=json,
+            params=params,
+            headers=headers,
+            content=content,  # type: ignore
         )
         response = await client.send(req, stream=stream)
         response.raise_for_status()
@@ -510,8 +520,8 @@ class AsyncHTTPHandler:
     def _create_async_transport(
         ssl_context: Optional[ssl.SSLContext] = None,
         async_type: Optional[str] = "aiohttp",
-        ssl_verify: Optional[bool] = None
-    ) -> Optional[Union[AsyncHTTPTransport,LLMAiohttpTransport]]:
+        ssl_verify: Optional[bool] = None,
+    ) -> Optional[Union[AsyncHTTPTransport, LLMAiohttpTransport]]:
         """
         - Creates a transport for httpx.AsyncClient
             - if LLM.force_ipv4 is True, it will return AsyncHTTPTransport with local_address="0.0.0.0"
@@ -530,9 +540,7 @@ class AsyncHTTPHandler:
         # AIOHTTP TRANSPORT is off by default
         #########################################################
         if async_type == "aiohttp":
-            return AsyncHTTPHandler._create_aiohttp_transport(
-                ssl_context=ssl_context, ssl_verify=ssl_verify
-            )
+            return AsyncHTTPHandler._create_aiohttp_transport(ssl_context=ssl_context, ssl_verify=ssl_verify)
 
         #########################################################
         # HTTPX TRANSPORT is used when aiohttp is not installed
@@ -580,15 +588,13 @@ class AsyncHTTPHandler:
         - False: disable SSL verification
         """
 
-        connector_kwargs = AsyncHTTPHandler._get_ssl_connector_kwargs(
-            ssl_verify=ssl_verify, ssl_context=ssl_context
-        )
+        connector_kwargs = AsyncHTTPHandler._get_ssl_connector_kwargs(ssl_verify=ssl_verify, ssl_context=ssl_context)
         #########################################################
         # Check if user enabled aiohttp trust env
         # use for HTTP_PROXY, HTTPS_PROXY, etc.
         ########################################################
-        trust_env: bool =  True
-        trust_env=str_to_bool(os.getenv("AIOHTTP_TRUST_ENV", "True"))
+        trust_env: bool = True
+        trust_env = str_to_bool(os.getenv("AIOHTTP_TRUST_ENV", "True"))
         verbose_logger.debug("Creating AiohttpTransport...")
         return LLMAiohttpTransport(
             client=lambda: ClientSession(
@@ -655,14 +661,15 @@ class HTTPHandler:
         follow_redirects: Optional[bool] = None,
     ):
         # Set follow_redirects to UseClientDefault if None
-        _follow_redirects = (
-            follow_redirects if follow_redirects is not None else USE_CLIENT_DEFAULT
-        )
+        _follow_redirects = follow_redirects if follow_redirects is not None else USE_CLIENT_DEFAULT
         params = params or {}
         params.update(self.extract_query_params(url))
 
         response = self.client.get(
-            url, params=params, headers=headers, follow_redirects=_follow_redirects  # type: ignore
+            url,
+            params=params,
+            headers=headers,
+            follow_redirects=_follow_redirects,  # type: ignore
         )
 
         return response
@@ -707,7 +714,14 @@ class HTTPHandler:
                 )
             else:
                 req = self.client.build_request(
-                    "POST", url, data=data, json=json, params=params, headers=headers, files=files, content=content  # type: ignore
+                    "POST",
+                    url,
+                    data=data,
+                    json=json,
+                    params=params,
+                    headers=headers,
+                    files=files,
+                    content=content,  # type: ignore
                 )
             response = self.client.send(req, stream=stream)
             response.raise_for_status()
@@ -741,11 +755,22 @@ class HTTPHandler:
         try:
             if timeout is not None:
                 req = self.client.build_request(
-                    "PATCH", url, data=data, json=json, params=params, headers=headers, timeout=timeout  # type: ignore
+                    "PATCH",
+                    url,
+                    data=data,
+                    json=json,
+                    params=params,
+                    headers=headers,
+                    timeout=timeout,  # type: ignore
                 )
             else:
                 req = self.client.build_request(
-                    "PATCH", url, data=data, json=json, params=params, headers=headers  # type: ignore
+                    "PATCH",
+                    url,
+                    data=data,
+                    json=json,
+                    params=params,
+                    headers=headers,  # type: ignore
                 )
             response = self.client.send(req, stream=stream)
             response.raise_for_status()
@@ -780,11 +805,22 @@ class HTTPHandler:
         try:
             if timeout is not None:
                 req = self.client.build_request(
-                    "PUT", url, data=data, json=json, params=params, headers=headers, timeout=timeout  # type: ignore
+                    "PUT",
+                    url,
+                    data=data,
+                    json=json,
+                    params=params,
+                    headers=headers,
+                    timeout=timeout,  # type: ignore
                 )
             else:
                 req = self.client.build_request(
-                    "PUT", url, data=data, json=json, params=params, headers=headers  # type: ignore
+                    "PUT",
+                    url,
+                    data=data,
+                    json=json,
+                    params=params,
+                    headers=headers,  # type: ignore
                 )
             response = self.client.send(req, stream=stream)
             return response
@@ -806,11 +842,22 @@ class HTTPHandler:
         try:
             if timeout is not None:
                 req = self.client.build_request(
-                    "DELETE", url, data=data, json=json, params=params, headers=headers, timeout=timeout  # type: ignore
+                    "DELETE",
+                    url,
+                    data=data,
+                    json=json,
+                    params=params,
+                    headers=headers,
+                    timeout=timeout,  # type: ignore
                 )
             else:
                 req = self.client.build_request(
-                    "DELETE", url, data=data, json=json, params=params, headers=headers  # type: ignore
+                    "DELETE",
+                    url,
+                    data=data,
+                    json=json,
+                    params=params,
+                    headers=headers,  # type: ignore
                 )
             response = self.client.send(req, stream=stream)
             response.raise_for_status()
@@ -874,9 +921,7 @@ def get_async_httpx_client(
     if params is not None:
         _new_client = AsyncHTTPHandler(**params)
     else:
-        _new_client = AsyncHTTPHandler(
-            timeout=httpx.Timeout(timeout=600.0, connect=5.0)
-        )
+        _new_client = AsyncHTTPHandler(timeout=httpx.Timeout(timeout=600.0, connect=5.0))
 
     in_memory_llm_clients_cache.set_cache(
         key=_cache_key_name,

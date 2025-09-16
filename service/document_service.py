@@ -24,7 +24,7 @@ class DocumentService:
         return list(self.documents.keys())
 
     @classmethod
-    def embeddings(cls, req:EmbeddingRequest)->TextEmbeddingResult:
+    def embeddings(cls, req: EmbeddingRequest) -> TextEmbeddingResult:
         """Generate embeddings based on the request."""
 
         from runtime.model_manager import ModelManager
@@ -34,7 +34,7 @@ class DocumentService:
         return model_instance.invoke_text_embedding(texts=req)
 
     @classmethod
-    def rerank(cls, query:RerankRequest)->RerankResponse:
+    def rerank(cls, query: RerankRequest) -> RerankResponse:
         """Rerank documents based on the request."""
 
         from runtime.model_manager import ModelManager

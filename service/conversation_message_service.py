@@ -7,9 +7,8 @@ from runtime.entities import LLMUsage
 
 
 class ConversationMessageService:
-
     @classmethod
-    def add_conversation_message(cls,message:ConversationMessage) -> ConversationMessage:
+    def add_conversation_message(cls, message: ConversationMessage) -> ConversationMessage:
         """
         Add a conversation message to the database.
         :param message: ConversationMessage object to be added.
@@ -17,17 +16,19 @@ class ConversationMessageService:
         """
         with get_db() as session:
             llm_usage = LLMUsage.model_validate(obj=json.loads(message.usage))
-            usage=MessageTokenUsage(message_id=message.message_id,
-                                    model_name=message.model_name,
-                                    provider_name=message.provider_name,
-                                    prompt_tokens=llm_usage.prompt_tokens,
-                                    completion_tokens=llm_usage.completion_tokens,
-                                    total_tokens=llm_usage.total_tokens,
-                                    prompt_unit_price=llm_usage.prompt_unit_price,
-                                    prompt_price=llm_usage.prompt_price,
-                                    completion_unit_price=llm_usage.completion_unit_price,
-                                    completion_price=llm_usage.completion_price,
-                                    total_price=llm_usage.total_price)
+            usage = MessageTokenUsage(
+                message_id=message.message_id,
+                model_name=message.model_name,
+                provider_name=message.provider_name,
+                prompt_tokens=llm_usage.prompt_tokens,
+                completion_tokens=llm_usage.completion_tokens,
+                total_tokens=llm_usage.total_tokens,
+                prompt_unit_price=llm_usage.prompt_unit_price,
+                prompt_price=llm_usage.prompt_price,
+                completion_unit_price=llm_usage.completion_unit_price,
+                completion_price=llm_usage.completion_price,
+                total_price=llm_usage.total_price,
+            )
 
             session.add(usage)
             session.add(message)
@@ -36,11 +37,11 @@ class ConversationMessageService:
         return message
 
     @classmethod
-    def search_conversation_message(cls,search_text:str):
+    def search_conversation_message(cls, search_text: str):
         pass
 
     @classmethod
-    def update_conversation_message_state(cls,message_id, state:str) -> None:
+    def update_conversation_message_state(cls, message_id, state: str) -> None:
         """
         Update the state of a conversation message by its ID.
         :param message_id: The ID of the conversation message to update.

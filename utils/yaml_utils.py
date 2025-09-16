@@ -55,10 +55,11 @@ def load_yaml_files(file_path: str, ignore_error: bool = True, default_value: An
     yaml_contents = []
     for root, _, files in os.walk(file_path):
         for yaml_file in files:
-            if yaml_file.endswith('.yaml') and not yaml_file.startswith('__'):
+            if yaml_file.endswith(".yaml") and not yaml_file.startswith("__"):
                 try:
-                    yaml_content = load_yaml_file(os.path.join(root, yaml_file),
-                                                  ignore_error=ignore_error, default_value=default_value)
+                    yaml_content = load_yaml_file(
+                        os.path.join(root, yaml_file), ignore_error=ignore_error, default_value=default_value
+                    )
                     yaml_contents.append(yaml_content)
                 except Exception as e:
                     if not ignore_error:

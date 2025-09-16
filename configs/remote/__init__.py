@@ -19,6 +19,4 @@ class DiscoveryConfig(BaseSettings):
     SERVICE_TRANSPORT_SCHEME: str = Field(default="grpc", description="Service transport scheme, e.g., http or https")
 
 
-
-
 __all__ = ["RemoteSettingsSource", "RemoteSettingsSourceConfig", "RemoteSettingsSourceName", "DiscoveryConfig"]

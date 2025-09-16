@@ -15,9 +15,7 @@ logger = logging.getLogger(__name__)
 
 class LLMGenerator:
     @classmethod
-    def generate_conversation_name(
-        cls, query
-    ):
+    def generate_conversation_name(cls, query):
         prompt = CONVERSATION_TITLE_PROMPT
 
         if len(query) > 2000:
@@ -33,15 +31,13 @@ class LLMGenerator:
         )
         prompts = [UserPromptMessage(content=prompt)]
 
-        request=ChatCompletionRequest(
+        request = ChatCompletionRequest(
             model=model_instance.model,
             messages=prompts,
             temperature=0.01,
             stream=False,
         )
-        response:ChatCompletionResponse= model_instance.invoke_llm(
-            prompt_messages=request
-        )
+        response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
         answer = cast(str, response.message.content)
         cleaned_answer = re.sub(r"^.*(\{.*\}).*$", r"\1", answer, flags=re.DOTALL)
         if cleaned_answer is None:
@@ -77,8 +73,6 @@ class LLMGenerator:
             temperature=0.01,
             stream=False,
         )
-        response: ChatCompletionResponse = model_instance.invoke_llm(
-            prompt_messages=request
-        )
+        response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
         answer = cast(str, response.message.content)
         return answer.strip()

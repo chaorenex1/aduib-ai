@@ -14,14 +14,12 @@ from runtime.rag.extractor.text_extractor import TextExtractor
 
 
 class ExtractorRunner:
-
     @classmethod
-    def extract(cls, extraction_setting:ExtractionSetting) -> list[Document]:
-
-        if extraction_setting.extraction_source==ExtractionSourceType.FILE:
+    def extract(cls, extraction_setting: ExtractionSetting) -> list[Document]:
+        if extraction_setting.extraction_source == ExtractionSourceType.FILE:
             with tempfile.TemporaryDirectory() as tmpdir:
-                file:FileResource = extraction_setting.extraction_file
-                suffix=Path(file.access_url).suffix
+                file: FileResource = extraction_setting.extraction_file
+                suffix = Path(file.access_url).suffix
                 file_path = f"{tmpdir}/{next(tempfile._get_candidate_names())}{suffix}"  # type: ignore
                 storage_manager.download(file.access_url, file_path)
             input_file = Path(file_path)
@@ -33,12 +31,12 @@ class ExtractorRunner:
                 ...
             elif file_type in [".xls", ".xlsx"]:
                 ...
-            elif file_type==".csv":
+            elif file_type == ".csv":
                 ...
             elif file_type in [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif"]:
                 ...
             elif file_type in [".md", ".markdown", ".mdx"]:
-                extractor = MarkdownExtractor(file_path, encoding='utf-8')
+                extractor = MarkdownExtractor(file_path, encoding="utf-8")
             elif file_type in [".html", ".htm", ".xml"]:
                 extractor = HtmlExtractor(file_path)
             else:

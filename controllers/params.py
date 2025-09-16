@@ -14,7 +14,7 @@ class CreateModelRequest(BaseModel):
     max_tokens: int
     input_price: float | None = 0.0
     output_price: float | None = 0.0
-    model_configs: dict[str, Any]| None = {}
+    model_configs: dict[str, Any] | None = {}
     model_feature: list[str] | None = []
 
 
@@ -56,8 +56,6 @@ class ModelList(BaseModel):
     data: list[ModelCard] = Field(default_factory=list)
 
 
-
-
 class MCPServerBase(BaseModel):
     server_url: str = None
     server_code: str = None
@@ -67,8 +65,10 @@ class MCPServerBase(BaseModel):
     configs: Optional[str] = None
     credentials: Optional[str] = None
 
+
 class MCPServerCreate(MCPServerBase):
     pass
+
 
 class MCPServerUpdate(BaseModel):
     server_url: str = None
@@ -78,6 +78,7 @@ class MCPServerUpdate(BaseModel):
     status: Optional[str] = Field("active", pattern="^(active|inactive)$")
     configs: Optional[str] = None
     credentials: Optional[str] = None
+
 
 class MCPServerOut(MCPServerBase):
     id: uuid.UUID

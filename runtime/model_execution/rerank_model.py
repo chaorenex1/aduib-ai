@@ -10,10 +10,7 @@ class RerankModel(AiModel):
 
     model_type: ModelType = ModelType.RERANKER
 
-    def invoke(
-        self,
-        query: RerankRequest
-    ) -> RerankResponse:
+    def invoke(self, query: RerankRequest) -> RerankResponse:
         """
         Invoke rerank model
 
@@ -28,10 +25,10 @@ class RerankModel(AiModel):
         """
         try:
             from ..transformation import get_llm_transformation
-            transformation = get_llm_transformation(
-                self.credentials.get("sdk_type", "openai_like"))
 
-            credentials = transformation.setup_environment(self.credentials,self.model_params)
+            transformation = get_llm_transformation(self.credentials.get("sdk_type", "openai_like"))
+
+            credentials = transformation.setup_environment(self.credentials, self.model_params)
             # if not query.score_threshold:
             #     query.score_threshold = 0.8
             result: RerankResponse = transformation.transform_rerank(

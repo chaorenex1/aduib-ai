@@ -17,10 +17,10 @@ from controllers.route import api_router
 from libs.context import LoggingMiddleware, TraceIdContextMiddleware, ApiKeyContextMiddleware
 from utils.snowflake_id import init_idGenerator
 
-log=logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
-def create_app_with_configs()->AduibAIApp:
+def create_app_with_configs() -> AduibAIApp:
     def custom_generate_unique_id(route: APIRoute) -> str:
         return f"{route.tags[0]}-{route.name}"
 
@@ -28,9 +28,9 @@ def create_app_with_configs()->AduibAIApp:
         title=config.APP_NAME,
         generate_unique_id_function=custom_generate_unique_id,
         debug=config.DEBUG,
-        lifespan=lifespan
+        lifespan=lifespan,
     )
-    app.config=config
+    app.config = config
     if config.APP_HOME:
         app.app_home = config.APP_HOME
     else:
@@ -44,7 +44,7 @@ def create_app_with_configs()->AduibAIApp:
     return app
 
 
-def create_app()->AduibAIApp:
+def create_app() -> AduibAIApp:
     start_time = time.perf_counter()
     app = create_app_with_configs()
     init_logging(app)
@@ -82,9 +82,10 @@ async def run_service_register(app: AduibAIApp):
     from aduib_rpc.server.rpc_execution.service_call import load_service_plugins
     from aduib_rpc.discover.registry.registry_factory import ServiceRegistryFactory
     from aduib_rpc.discover.service import AduibServiceFactory
+
     service = await ServiceRegistryFactory.start_service_registry(registry_config)
     factory = AduibServiceFactory(service_instance=service)
-    load_service_plugins('rpc.client')
+    load_service_plugins("rpc.client")
     await factory.run_server()
 
 

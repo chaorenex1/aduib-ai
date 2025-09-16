@@ -16,20 +16,22 @@ logger = logging.getLogger(__name__)
 class BaseHttpException(HTTPException):
     error_code = 0
     error_msg = ""
+
     def __init__(self, error_code: int, error_msg: str):
         super().__init__(status_code=error_code, detail=error_msg)
         self.error_code = error_code
         self.error_msg = error_msg
 
 
-
 class BaseResponse(BaseModel):
     """
     Base response class for all responses
     """
+
     code: int
     msg: str
-    data: dict[str, Any]= None
+    data: dict[str, Any] = None
+
     def __init__(self, code: int = 0, msg: str = "success", data=None):
         super().__init__(code=code, msg=msg, data=data if data is not None else {})
         if data is None:
@@ -39,25 +41,23 @@ class BaseResponse(BaseModel):
         self.data = data
 
     def to_dict(self) -> dict:
-        return {
-            "code": self.code,
-            "msg": self.msg,
-            "data": self.data
-        }
+        return {"code": self.code, "msg": self.msg, "data": self.data}
+
     @classmethod
     def ok(cls, data: Any | None = None) -> "BaseResponse":
-        return cls(code=0, msg="success", data=jsonable_encoder(obj=data, exclude_none=True) if data is not None else {})
+        return cls(
+            code=0, msg="success", data=jsonable_encoder(obj=data, exclude_none=True) if data is not None else {}
+        )
 
     @classmethod
     def error(cls, error_code: int, error_msg: str) -> "BaseResponse":
         return cls(code=error_code, msg=error_msg, data={})
 
 
-
-
 def catch_exceptions(func):
     """A decorator to catch exceptions and return a standardized error response."""
     import functools
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         try:
@@ -80,4 +80,5 @@ def catch_exceptions(func):
             if config.DEBUG:
                 traceback.print_exc()
             return BaseResponse.error(500, str(e))
+
     return wrapper

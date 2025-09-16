@@ -18,7 +18,7 @@ class BaseDocumentTransformer(ABC):
     """
 
     @abstractmethod
-    def transform_document(self, documents: Sequence[Document],**kwargs) -> Sequence[Document]:
+    def transform_document(self, documents: Sequence[Document], **kwargs) -> Sequence[Document]:
         """
         Transform a document list before storing it in a vector database.
         :param documents:

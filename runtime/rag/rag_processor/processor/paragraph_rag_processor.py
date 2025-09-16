@@ -16,9 +16,7 @@ from runtime.rag.retrieve.retrieval_service import RetrievalService
 
 class ParagraphRAGProcessor(BaseRAGProcessor):
     def extract(self, extract_setting: ExtractionSetting, **kwargs) -> list[Document]:
-        text_docs = ExtractorRunner.extract(
-            extraction_setting=extract_setting
-        )
+        text_docs = ExtractorRunner.extract(extraction_setting=extract_setting)
         return text_docs
 
     def transform(self, documents: list[Document], **kwargs) -> list[Document]:
@@ -85,8 +83,15 @@ class ParagraphRAGProcessor(BaseRAGProcessor):
             else:
                 keyword.delete()
 
-    def retrieve(self, retrieval_method: str, query: str, knowledge: KnowledgeBase, top_k: int, score_threshold: float,
-                 reranking_model: dict) -> list[Document]:
+    def retrieve(
+        self,
+        retrieval_method: str,
+        query: str,
+        knowledge: KnowledgeBase,
+        top_k: int,
+        score_threshold: float,
+        reranking_model: dict,
+    ) -> list[Document]:
         # Set search parameters.
         results = RetrievalService.retrieve(
             knowledge_id=knowledge.id,

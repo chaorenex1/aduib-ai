@@ -13,6 +13,7 @@ class TextEmbeddingModel(AiModel):
     """
     Model class for text embedding model.
     """
+
     model_type: ModelType = ModelType.EMBEDDING
 
     # pydantic configs
@@ -32,13 +33,13 @@ class TextEmbeddingModel(AiModel):
         """
         try:
             from ..transformation import get_llm_transformation
-            transformation = get_llm_transformation(
-                self.credentials.get("sdk_type", "openai_like"))
 
-            credentials = transformation.setup_environment(self.credentials,self.model_params)
+            transformation = get_llm_transformation(self.credentials.get("sdk_type", "openai_like"))
+
+            credentials = transformation.setup_environment(self.credentials, self.model_params)
             if not texts.dimensions:
                 texts.dimensions = self._get_max_tokens()
-            result:TextEmbeddingResult= transformation.transform_embeddings(
+            result: TextEmbeddingResult = transformation.transform_embeddings(
                 texts=texts,
                 credentials=credentials,
             )
@@ -52,8 +53,7 @@ class TextEmbeddingModel(AiModel):
 
         :return: max tokens
         """
-        return self.model_params.get("MAX_EMBEDDING_TOKENS",1024)
-
+        return self.model_params.get("MAX_EMBEDDING_TOKENS", 1024)
 
     def get_num_tokens(self, texts: list[str]) -> int:
         """
@@ -70,6 +70,3 @@ class TextEmbeddingModel(AiModel):
             return total_tokens
         except Exception as e:
             raise e
-
-
-

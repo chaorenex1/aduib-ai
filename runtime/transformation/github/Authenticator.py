@@ -39,12 +39,8 @@ class Authenticator:
             self.token_dir,
             os.getenv("GITHUB_COPILOT_ACCESS_TOKEN_FILE", "access-token"),
         )
-        self.api_key_file = os.path.join(
-            self.token_dir, os.getenv("GITHUB_COPILOT_API_KEY_FILE", "api-key.json")
-        )
-        self.models_file = os.path.join(
-            self.token_dir, os.getenv("GITHUB_COPILOT_API_KEY_FILE", "models.json")
-        )
+        self.api_key_file = os.path.join(self.token_dir, os.getenv("GITHUB_COPILOT_API_KEY_FILE", "api-key.json"))
+        self.models_file = os.path.join(self.token_dir, os.getenv("GITHUB_COPILOT_API_KEY_FILE", "models.json"))
         self._ensure_token_dir()
 
     def get_access_token(self) -> str:
@@ -63,9 +59,7 @@ class Authenticator:
                 if access_token:
                     return access_token
         except IOError:
-            verbose_logger.warning(
-                "No existing access token found or error reading file"
-            )
+            verbose_logger.warning("No existing access token found or error reading file")
 
         for attempt in range(3):
             verbose_logger.debug(f"Access token acquisition attempt {attempt + 1}/3")
@@ -195,13 +189,9 @@ class Authenticator:
                 if "token" in response_json:
                     return response_json
                 else:
-                    verbose_logger.warning(
-                        f"API key response missing token: {response_json}"
-                    )
+                    verbose_logger.warning(f"API key response missing token: {response_json}")
             except httpx.HTTPStatusError as e:
-                verbose_logger.error(
-                    f"HTTP error refreshing API key (attempt {attempt + 1}/{max_retries}): {str(e)}"
-                )
+                verbose_logger.error(f"HTTP error refreshing API key (attempt {attempt + 1}/{max_retries}): {str(e)}")
             except Exception as e:
                 verbose_logger.error(f"Unexpected error refreshing API key: {str(e)}")
 
@@ -262,7 +252,7 @@ class Authenticator:
                 "openai-intent": "conversation-panel",
                 "x-github-api-version": "2025-04-01",
                 "x-request-id": str(uuid.uuid4()),
-                "x-vscode-user-agent-library-version": "electron-fetch"
+                "x-vscode-user-agent-library-version": "electron-fetch",
             }
             if vision:
                 headers["copilot-vision-request"] = "true"
@@ -352,13 +342,8 @@ class Authenticator:
                 if "access_token" in resp_json:
                     verbose_logger.info("Authentication successful!")
                     return resp_json["access_token"]
-                elif (
-                        "error" in resp_json
-                        and resp_json.get("error") == "authorization_pending"
-                ):
-                    verbose_logger.debug(
-                        f"Authorization pending (attempt {attempt + 1}/{max_attempts})"
-                    )
+                elif "error" in resp_json and resp_json.get("error") == "authorization_pending":
+                    verbose_logger.debug(f"Authorization pending (attempt {attempt + 1}/{max_attempts})")
                 else:
                     verbose_logger.warning(f"Unexpected response: {resp_json}")
             except httpx.HTTPStatusError as e:
@@ -374,9 +359,7 @@ class Authenticator:
                     status_code=400,
                 )
             except Exception as e:
-                verbose_logger.error(
-                    f"Unexpected error polling for access token: {str(e)}"
-                )
+                verbose_logger.error(f"Unexpected error polling for access token: {str(e)}")
                 raise GetAccessTokenError(
                     message=f"Failed to get access token: {str(e)}",
                     status_code=400,
@@ -408,7 +391,6 @@ class Authenticator:
 
         print(  # noqa: T201
             f"Please visit {verification_uri} and enter code {user_code} to authenticate.",
-
             # When this is running in docker, it may not be flushed immediately
             # so we force flush to ensure the user sees the message
             flush=True,

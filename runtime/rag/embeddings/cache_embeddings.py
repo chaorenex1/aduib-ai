@@ -47,9 +47,8 @@ class CacheEmbeddings(Embeddings):
                 for i in range(0, len(embedding_queue_texts), 10):
                     batch_texts = embedding_queue_texts[i : i + 10]
                     embedding_result = self._model_instance.invoke_text_embedding(
-                        texts=EmbeddingRequest(
-                            input=batch_texts, model=self._model_instance.model
-                        ), input_type=EmbeddingInputType.DOCUMENT
+                        texts=EmbeddingRequest(input=batch_texts, model=self._model_instance.model),
+                        input_type=EmbeddingInputType.DOCUMENT,
                     )
 
                     for vector in embedding_result.embeddings:
@@ -81,9 +80,8 @@ class CacheEmbeddings(Embeddings):
             return [float(x) for x in decoded_embedding]
         try:
             embedding_result = self._model_instance.invoke_text_embedding(
-                texts=EmbeddingRequest(
-                    input=[text], model=self._model_instance.model
-                ), input_type=EmbeddingInputType.QUERY
+                texts=EmbeddingRequest(input=[text], model=self._model_instance.model),
+                input_type=EmbeddingInputType.QUERY,
             )
 
             embedding_results = embedding_result.embeddings[0]

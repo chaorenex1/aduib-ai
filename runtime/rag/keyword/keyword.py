@@ -17,37 +17,45 @@ class Keyword:
         with redis_client.lock(lock_name, timeout=600):
             for text in texts:
                 keywords = self._keyword_processor.extract_keywords(text=text.content, **kwargs)
-                if len(keywords)>0:
+                if len(keywords) > 0:
                     doc_id = text.metadata.get("doc_id")
                     keyword_list = []
                     for kw in keywords:
-                        keyword_list.append(KnowledgeKeywords(
-                            doc_id=doc_id,
-                            keyword=kw,
-                        ))
+                        keyword_list.append(
+                            KnowledgeKeywords(
+                                doc_id=doc_id,
+                                keyword=kw,
+                            )
+                        )
                     with get_db() as session:
                         session.bulk_save_objects(keyword_list)
                         session.commit()
-
 
     def add_texts(self, texts: list[Document], **kwargs):
         lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             for text in texts:
-
                 keywords = self._keyword_processor.extract_keywords(text=text.content, **kwargs)
                 if len(keywords) > 0:
                     doc_id = text.metadata.get("doc_id")
                     keyword_list = []
                     with get_db() as session:
                         for kw in keywords:
-                            kw__count = session.query(KnowledgeKeywords).filter(KnowledgeKeywords.doc_id == doc_id,
-                                                                            KnowledgeKeywords.keyword == kw, ).count()
+                            kw__count = (
+                                session.query(KnowledgeKeywords)
+                                .filter(
+                                    KnowledgeKeywords.doc_id == doc_id,
+                                    KnowledgeKeywords.keyword == kw,
+                                )
+                                .count()
+                            )
                             if kw__count == 0:
-                                keyword_list.append(KnowledgeKeywords(
-                                    doc_id=doc_id,
-                                    keyword=kw,
-                                ))
+                                keyword_list.append(
+                                    KnowledgeKeywords(
+                                        doc_id=doc_id,
+                                        keyword=kw,
+                                    )
+                                )
                         session.bulk_save_objects(keyword_list)
                         session.commit()
 

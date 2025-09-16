@@ -8,7 +8,6 @@ class JiebaKeyword:
     def __init__(self):
         import jieba.analyse  # type: ignore
 
-
         jieba.analyse.default_tfidf.stop_words = STOPWORDS  # type: ignore
 
     def extract_keywords(self, text: str, max_keywords_per_chunk: Optional[int] = 10) -> set[str]:

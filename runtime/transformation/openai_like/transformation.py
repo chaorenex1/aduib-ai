@@ -13,6 +13,7 @@ class OpenAILikeTransformation(LLMTransformation):
     """
     Translates from OpenAI_like API to provider-specific API.
     """
+
     provider_type = "openai_like"
 
     @classmethod
@@ -20,7 +21,7 @@ class OpenAILikeTransformation(LLMTransformation):
         _credentials = credentials["credentials"]
         if "api_key" not in _credentials or not _credentials["api_key"]:
             raise ValueError("api_key is required in credentials")
-        headers = {"Authorization": f"Bearer {_credentials['api_key']}", "X-Api-Key": _credentials['api_key']}
+        headers = {"Authorization": f"Bearer {_credentials['api_key']}", "X-Api-Key": _credentials["api_key"]}
         api_base = _credentials.get("api_base", "https://api.openai.com/v1")
         user_agent = "AduibLLM-OpenAI-Client/1.0"
         if params:
@@ -28,28 +29,30 @@ class OpenAILikeTransformation(LLMTransformation):
         if user_agent:
             headers["User-Agent"] = user_agent
         headers["Content-Type"] = "application/json;charset=utf-8"
-        return {"api_key": _credentials["api_key"], "api_base": api_base, "headers": headers,
-                "sdk_type": credentials["sdk_type"]}
+        return {
+            "api_key": _credentials["api_key"],
+            "api_base": api_base,
+            "headers": headers,
+            "sdk_type": credentials["sdk_type"],
+        }
 
     @classmethod
-    def _transform_message(cls, model_params: dict,
-                           prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-                           credentials: dict,
-                           stream: bool = None) -> Union[
-        ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
-        llm_http_handler = LLMHttpHandler('/v1/chat/completions', credentials, stream)
+    def _transform_message(
+        cls,
+        model_params: dict,
+        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+        credentials: dict,
+        stream: bool = None,
+    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
+        llm_http_handler = LLMHttpHandler("/v1/chat/completions", credentials, stream)
         return llm_http_handler.completion_request(prompt_messages)
 
     @classmethod
     def transform_embeddings(cls, texts: EmbeddingRequest, credentials: dict) -> TextEmbeddingResult:
-        llm_http_handler = LLMHttpHandler('/v1/embeddings', credentials, False)
+        llm_http_handler = LLMHttpHandler("/v1/embeddings", credentials, False)
         return llm_http_handler.embedding_request(texts)
 
     @classmethod
     def transform_rerank(cls, query: RerankRequest, credentials: dict) -> RerankResponse:
-        llm_http_handler = LLMHttpHandler('/v1/rerank', credentials, False)
+        llm_http_handler = LLMHttpHandler("/v1/rerank", credentials, False)
         return llm_http_handler.rerank_request(query)
-
-
-
-

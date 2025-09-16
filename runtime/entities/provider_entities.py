@@ -48,6 +48,7 @@ class ProviderSDKType(Enum):
         else:
             raise ValueError(f"{self} is not a valid sdk type")
 
+
 class ProviderConfig(BaseModel):
     """
     Model class for provider config.
@@ -56,6 +57,7 @@ class ProviderConfig(BaseModel):
     provider: str
     credentials: dict
     sdk_type: ProviderSDKType
+
 
 class ProviderEntity(BaseModel):
     """

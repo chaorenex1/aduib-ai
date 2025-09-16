@@ -4,10 +4,10 @@ from runtime.transformation.github.transformation import GithubCopilotTransforma
 from runtime.transformation.openai_like.transformation import OpenAILikeTransformation
 from runtime.transformation.transformers.transformation import TransformersTransformation
 
-LLMTransformations:dict[ProviderSDKType, type[LLMTransformation]] = {
+LLMTransformations: dict[ProviderSDKType, type[LLMTransformation]] = {
     ProviderSDKType.OPENAI_LIKE: OpenAILikeTransformation,
     ProviderSDKType.TRANSFORMER: TransformersTransformation,
-    ProviderSDKType.GITHUB_COPILOT: GithubCopilotTransformation
+    ProviderSDKType.GITHUB_COPILOT: GithubCopilotTransformation,
 }
 
 

@@ -24,9 +24,7 @@ class QARAGProcessor(BaseRAGProcessor):
     """Question Answering RAG processor."""
 
     def extract(self, extract_setting: ExtractionSetting, **kwargs) -> list[Document]:
-        text_docs = ExtractorRunner.extract(
-            extraction_setting=extract_setting
-        )
+        text_docs = ExtractorRunner.extract(extraction_setting=extract_setting)
         return text_docs
 
     def transform(self, documents: list[Document], **kwargs) -> list[Document]:
@@ -112,8 +110,15 @@ class QARAGProcessor(BaseRAGProcessor):
             else:
                 keyword.delete()
 
-    def retrieve(self, retrieval_method: str, query: str, knowledge: KnowledgeBase, top_k: int, score_threshold: float,
-                 reranking_model: dict) -> list[Document]:
+    def retrieve(
+        self,
+        retrieval_method: str,
+        query: str,
+        knowledge: KnowledgeBase,
+        top_k: int,
+        score_threshold: float,
+        reranking_model: dict,
+    ) -> list[Document]:
         # Set search parameters.
         results = RetrievalService.retrieve(
             knowledge_id=knowledge.id,
@@ -145,7 +150,7 @@ class QARAGProcessor(BaseRAGProcessor):
                 qa_document = Document(content=result["question"], metadata=document_node.metadata.copy())
                 if qa_document.metadata is not None:
                     doc_id = str(uuid.uuid4())
-                    hash= hashlib.sha256(result["question"]).hexdigest()
+                    hash = hashlib.sha256(result["question"]).hexdigest()
                     qa_document.metadata["answer"] = result["answer"]
                     qa_document.metadata["doc_id"] = doc_id
                     qa_document.metadata["doc_hash"] = hash

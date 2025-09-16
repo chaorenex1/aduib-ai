@@ -20,24 +20,26 @@ logger = logging.getLogger(__name__)
 
 class MCPServerStreamableHTTPRequestHandler:
     def __init__(
-        self, request:  types.ClientRequest | types.ClientNotification,mcp_server: McpServer,
+        self,
+        request: types.ClientRequest | types.ClientNotification,
+        mcp_server: McpServer,
     ):
         self.request = request
-        self.mcp_server= mcp_server
+        self.mcp_server = mcp_server
         self.end_user = self.retrieve_end_user()
-        self.mcp_tool_controller=McpToolController(server_url=self.mcp_server.server_url)
+        self.mcp_tool_controller = McpToolController(server_url=self.mcp_server.server_url)
 
     @property
     def request_type(self):
         return type(self.request.root)
 
     @property
-    def parameter_schema(self,parameters: dict | None = None, required: list | None = None):
+    def parameter_schema(self, parameters: dict | None = None, required: list | None = None):
         return {
-                "type": "object",
-                "properties": parameters,
-                "required": required,
-            }
+            "type": "object",
+            "properties": parameters,
+            "required": required,
+        }
 
     @property
     def capabilities(self):
@@ -122,7 +124,8 @@ class MCPServerStreamableHTTPRequestHandler:
                     name=tool.entity.name,
                     description=tool.entity.description,
                     inputSchema=tool.entity.parameters,
-                ) for tool in tools
+                )
+                for tool in tools
             ],
         )
 
@@ -131,13 +134,15 @@ class MCPServerStreamableHTTPRequestHandler:
             raise ValueError("User not found")
         request = cast(types.CallToolRequest, self.request.root)
         params = request.params
-        tool_invoke_result=self.mcp_tool_controller.get_tool(params.name).invoke(tool_parameters=params.arguments,message_id="")
-        result =next(tool_invoke_result)
+        tool_invoke_result = self.mcp_tool_controller.get_tool(params.name).invoke(
+            tool_parameters=params.arguments, message_id=""
+        )
+        result = next(tool_invoke_result)
         if result.success:
-            call_tool_result = types.CallToolResult(content=result.data,_meta=result.meta)
+            call_tool_result = types.CallToolResult(content=result.data, _meta=result.meta)
             return call_tool_result
         else:
-            return types.ErrorData(message=result.error,code=-32603)
+            return types.ErrorData(message=result.error, code=-32603)
 
     def retrieve_end_user(self):
         with get_db() as session:

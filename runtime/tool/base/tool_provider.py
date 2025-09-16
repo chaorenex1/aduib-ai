@@ -4,9 +4,8 @@ from .tool import Tool
 
 
 class ToolController(ABC):
-
     @abstractmethod
-    def get_tool(self, tool_name: str) -> Tool| None:
+    def get_tool(self, tool_name: str) -> Tool | None:
         """
         Get a tool by its name.
         :param tool_name: The name of the tool.
@@ -15,7 +14,7 @@ class ToolController(ABC):
         pass
 
     @abstractmethod
-    def get_tools(self,filter_names:list[str]=None) -> list[Tool]:
+    def get_tools(self, filter_names: list[str] = None) -> list[Tool]:
         """
         Get tool list
         :return: A list of the tool

@@ -54,6 +54,7 @@ redis_client = RedisClientWrapper()
 
 def init_cache(app: AduibAIApp):
     from configs import config
+
     global redis_client
     connection_class: type[Connection] = Connection
     resp_protocol = config.REDIS_SERIALIZATION_PROTOCOL
@@ -78,9 +79,7 @@ def init_cache(app: AduibAIApp):
 
     if config.REDIS_USE_SENTINEL:
         assert config.REDIS_SENTINELS is not None, "REDIS_SENTINELS must be set when REDIS_USE_SENTINEL is True"
-        sentinel_hosts = [
-            (node.split(":")[0], int(node.split(":")[1])) for node in config.REDIS_SENTINELS.split(",")
-        ]
+        sentinel_hosts = [(node.split(":")[0], int(node.split(":")[1])) for node in config.REDIS_SENTINELS.split(",")]
         sentinel = Sentinel(
             sentinel_hosts,
             sentinel_kwargs={
@@ -120,7 +119,6 @@ def init_cache(app: AduibAIApp):
 
     app.extensions["cache"] = redis_client
     logger.info("Redis initialized successfully")
-
 
 
 def redis_fallback(default_return: Any = None):

@@ -16,12 +16,13 @@ from runtime.rag.embeddings.embeddings import Embeddings
 
 logger = logging.getLogger(__name__)
 
+
 class PGVectoRS(BaseVector):
-    def __init__(self, collection_name: str,dim: int):
+    def __init__(self, collection_name: str, dim: int):
         super().__init__(collection_name)
         self.dim = dim
         self._collection_name = collection_name or KnowledgeEmbeddings.__tablename__
-        self._table=KnowledgeEmbeddings
+        self._table = KnowledgeEmbeddings
         self._distance_op = "<=>"
 
     def get_type(self) -> str:
@@ -44,7 +45,7 @@ class PGVectoRS(BaseVector):
         #         session.execute(alter_statement)
         #         session.commit()
         #     redis_client.set(collection_exist_cache_key, 1, ex=3600)
-        ... # PGVector with SQLAlchemy creates the table automatically if it does not exist.
+        ...  # PGVector with SQLAlchemy creates the table automatically if it does not exist.
 
     def add_texts(self, documents: list[Document], embeddings: list[list[float]], **kwargs):
         pks = []
@@ -67,7 +68,9 @@ class PGVectoRS(BaseVector):
     def get_ids_by_metadata_field(self, key: str, value: str):
         result = None
         with get_db() as session:
-            select_statement = sql_text(f"SELECT id FROM {self._collection_name} WHERE metadata->>'{key}' = '{value}'; ")
+            select_statement = sql_text(
+                f"SELECT id FROM {self._collection_name} WHERE metadata->>'{key}' = '{value}'; "
+            )
             result = session.execute(select_statement).fetchall()
         if result:
             return [item[0] for item in result]

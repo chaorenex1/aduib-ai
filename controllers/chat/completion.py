@@ -6,20 +6,21 @@ from controllers.common.base import catch_exceptions
 from runtime.entities.llm_entities import CompletionRequest, ChatCompletionRequest
 from service.completion_service import CompletionService
 
-router = APIRouter(tags=['completion'])
+router = APIRouter(tags=["completion"])
 
-@router.post('/completions')
+
+@router.post("/completions")
 @catch_exceptions
-def completion(req:CompletionRequest) -> Any:
+def completion(req: CompletionRequest) -> Any:
     """
     Completion endpoint
     """
     return CompletionService.create_completion(req)
 
 
-@router.post('/chat/completions')
+@router.post("/chat/completions")
 @catch_exceptions
-def completion(req:ChatCompletionRequest) -> Any:
+def completion(req: ChatCompletionRequest) -> Any:
     """
     Completion endpoint
     """

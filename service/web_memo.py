@@ -15,9 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class WebMemoService:
-
     @classmethod
-    async def handle_web_memo(cls,data:dict[str,str]):
+    async def handle_web_memo(cls, data: dict[str, str]):
         """
         Handle web memo by fetching and processing the content from the given URL.
         :param data: Dictionary containing the URL and other relevant information.
@@ -26,14 +25,15 @@ class WebMemoService:
         url = data.get("url")
         ua = data.get("ua")
         with get_db() as session:
-            api_key:Optional[ApiKey] = session.query(ApiKey).filter(ApiKey.source == 'aduib_mcp_server').first()
+            api_key: Optional[ApiKey] = session.query(ApiKey).filter(ApiKey.source == "aduib_mcp_server").first()
             if not api_key:
                 raise ApiKeyNotFound
 
         try:
             from configs import config
             from rpc.client import CrawlService
-            host,port = NetUtils.get_ip_and_free_port()
+
+            host, port = NetUtils.get_ip_and_free_port()
             notify_url = f"http://{host}:{config.APP_PORT}/v1/web_memo/notify?api_key={api_key.hash_key}"
             crawl_service = CrawlService()
             resp = await crawl_service.crawl([url], notify_url)
@@ -44,7 +44,7 @@ class WebMemoService:
             raise RuntimeError(f"Error fetching web memo: {e}")
 
     @classmethod
-    async def handle_web_memo_notify(cls, body:dict[str,Any],api_hash_key:str, ua:str="") -> None:
+    async def handle_web_memo_notify(cls, body: dict[str, Any], api_hash_key: str, ua: str = "") -> None:
         """
         Handle notification from the crawl service with the fetched content.
         :param body: Dictionary containing the notification data.
@@ -53,32 +53,32 @@ class WebMemoService:
         :return: None
         """
         with get_db() as session:
-            api_key:Optional[ApiKey] = session.query(ApiKey).filter(ApiKey.source == 'aduib_mcp_server').first()
+            api_key: Optional[ApiKey] = session.query(ApiKey).filter(ApiKey.source == "aduib_mcp_server").first()
             if not api_key or api_key.hash_key != api_hash_key:
                 raise ApiKeyNotFound
 
-            status = body.get('success', False)
+            status = body.get("success", False)
             if not status:
                 logger.warning("Web memo crawl failed or no results")
                 return
-            result = body.get('results', [])
+            result = body.get("results", [])
 
             for item in result:
-                url= item.get('url', '')
-                crawl_text = item.get('crawl_text', '')
-                crawl_type = item.get('crawl_type', '')
-                crawl_media = item.get('crawl_media', {})
-                screenshot_png = '/his_screenshot/' + random_uuid() + ".png"
-                FileService.upload_base64(screenshot_png, item.get('screenshot', ''))
-                metadata = item.get('metadata', {})
-                
-                history = BrowserHistory(url=url,ua=ua)
+                url = item.get("url", "")
+                crawl_text = item.get("crawl_text", "")
+                crawl_type = item.get("crawl_type", "")
+                crawl_media = item.get("crawl_media", {})
+                screenshot_png = "/his_screenshot/" + random_uuid() + ".png"
+                FileService.upload_base64(screenshot_png, item.get("screenshot", ""))
+                metadata = item.get("metadata", {})
+
+                history = BrowserHistory(url=url, ua=ua)
                 history.crawl_status = True
                 history.crawl_time = datetime.datetime.now()
                 history.crawl_screenshot = screenshot_png
                 history.crawl_content = crawl_text
                 history.crawl_type = crawl_type
-                history.crawl_media = json.dumps(crawl_media).encode('utf-8').decode('unicode-escape')
-                history.crawl_metadata = json.dumps(metadata).encode('utf-8').decode('unicode-escape')
+                history.crawl_media = json.dumps(crawl_media).encode("utf-8").decode("unicode-escape")
+                history.crawl_metadata = json.dumps(metadata).encode("utf-8").decode("unicode-escape")
                 session.add(history)
                 session.commit()

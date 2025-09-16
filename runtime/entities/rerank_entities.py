@@ -24,7 +24,6 @@ class RerankResponse(BaseModel):
     results: list[RerankResult]
 
 
-
 class RerankRequest(BaseModel):
     model: Optional[str] = None
     query: Union[str, list[str]]

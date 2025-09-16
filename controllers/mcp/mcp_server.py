@@ -10,7 +10,8 @@ from models import McpServer, get_db
 from runtime.mcp.client.mcp_client import McpClient
 from utils import generate_string
 
-router = APIRouter(tags=['mcp_server'],prefix="/mcp_server")
+router = APIRouter(tags=["mcp_server"], prefix="/mcp_server")
+
 
 # Create
 @router.post("/servers/")
@@ -81,17 +82,17 @@ def delete_server(server_id: str):
 @catch_exceptions
 async def init_tools(server_code: str):
     with get_db() as db:
-        mcp_server:Optional[McpServer] = db.query(McpServer).filter(McpServer.server_code == server_code).first()
+        mcp_server: Optional[McpServer] = db.query(McpServer).filter(McpServer.server_code == server_code).first()
         if not mcp_server:
             raise ServiceError(message="server not found")
 
         mcp_config = json.loads(mcp_server.configs)
-        mcp_config['credential_type'] = mcp_server.credentials
+        mcp_config["credential_type"] = mcp_server.credentials
         mcp_client = McpClient.build_client(mcp_server.server_url, mcp_config)
         try:
             async with mcp_client.get_client_session() as client_session:
                 await client_session.initialize()
-                tools_response  = await client_session.list_tools()
+                tools_response = await client_session.list_tools()
                 if tools_response is None:
                     raise ServiceError(message="failed to fetch tools from mcp server")
 
@@ -99,8 +100,8 @@ async def init_tools(server_code: str):
 
                 from models import ToolInfo
 
-                tools_infos:list[ToolInfo] = []
-                for tool in tools_response.tools :
+                tools_infos: list[ToolInfo] = []
+                for tool in tools_response.tools:
                     print(tool)
                     tool_info = ToolInfo(
                         name=tool.name,
@@ -111,7 +112,11 @@ async def init_tools(server_code: str):
                         credentials=mcp_server.credentials,
                         configs=mcp_server.configs,
                     )
-                    existing_tool = db.query(ToolInfo).filter(ToolInfo.name == tool.name, ToolInfo.provider == mcp_server.name).first()
+                    existing_tool = (
+                        db.query(ToolInfo)
+                        .filter(ToolInfo.name == tool.name, ToolInfo.provider == mcp_server.name)
+                        .first()
+                    )
                     if existing_tool:
                         tool_info.id = existing_tool.tool_id
 
@@ -120,7 +125,7 @@ async def init_tools(server_code: str):
                 db.commit()
             return BaseResponse.ok(data=mcp_server)
         except Exception as e:
-            return BaseResponse.error(error_code=500,error_msg=f"failed to fetch tools from mcp server: {e}")
+            return BaseResponse.error(error_code=500, error_msg=f"failed to fetch tools from mcp server: {e}")
 
 
 @router.post("/init_servers/")
@@ -138,12 +143,12 @@ async def init_servers(server: MCPServerCreate):
         db.refresh(db_server)
 
         mcp_config = json.loads(server.configs)
-        mcp_config['credential_type'] = db_server.credentials
+        mcp_config["credential_type"] = db_server.credentials
         mcp_client = McpClient.build_client(db_server.server_url, mcp_config)
         try:
             async with mcp_client.get_client_session() as client_session:
                 await client_session.initialize()
-                tools_response  = await client_session.list_tools()
+                tools_response = await client_session.list_tools()
                 if tools_response is None:
                     raise ServiceError(message="failed to fetch tools from mcp server")
 
@@ -151,8 +156,8 @@ async def init_servers(server: MCPServerCreate):
 
                 from models import ToolInfo
 
-                tools_infos:list[ToolInfo] = []
-                for tool in tools_response.tools :
+                tools_infos: list[ToolInfo] = []
+                for tool in tools_response.tools:
                     print(tool)
                     tool_info = ToolInfo(
                         name=tool.name,
@@ -163,7 +168,11 @@ async def init_servers(server: MCPServerCreate):
                         credentials=db_server.credentials,
                         configs=db_server.configs,
                     )
-                    existing_tool = db.query(ToolInfo).filter(ToolInfo.name == tool.name, ToolInfo.provider == db_server.name).first()
+                    existing_tool = (
+                        db.query(ToolInfo)
+                        .filter(ToolInfo.name == tool.name, ToolInfo.provider == db_server.name)
+                        .first()
+                    )
                     if existing_tool:
                         tool_info.id = existing_tool.tool_id
 
@@ -174,4 +183,4 @@ async def init_servers(server: MCPServerCreate):
         except Exception as e:
             db.delete(db_server)
             db.commit()
-            return BaseResponse.error(error_code=500,error_msg=f"failed to fetch tools from mcp server: {e}")
+            return BaseResponse.error(error_code=500, error_msg=f"failed to fetch tools from mcp server: {e}")

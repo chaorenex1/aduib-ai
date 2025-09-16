@@ -8,11 +8,10 @@ from botocore.exceptions import ClientError
 from configs import config
 from .base_storage import BaseStorage
 
-log=logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class S3Storage(BaseStorage):
-
     def __init__(self):
         super().__init__()
         self.bucket_name = config.S3_BUCKET_NAME
@@ -54,7 +53,7 @@ class S3Storage(BaseStorage):
     def delete(self, filename: str):
         self.client.delete_object(Bucket=self.bucket_name, Key=filename)
 
-    def download(self, filename: str,target_file_path:str):
+    def download(self, filename: str, target_file_path: str):
         self.download(filename, target_file_path)
 
     def size(self, filename: str) -> int:

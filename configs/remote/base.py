@@ -19,13 +19,12 @@ class RemoteSettingsSource:
         return value
 
 
-
 class NacosSettingsSource(RemoteSettingsSource):
     """
     A settings source that retrieves configuration settings from Nacos
     """
 
-    def __init__(self, configs:Mapping[str, Any]):
+    def __init__(self, configs: Mapping[str, Any]):
         super().__init__(configs)
         self.configs = configs
         self.client = NacosClient(
@@ -39,9 +38,8 @@ class NacosSettingsSource(RemoteSettingsSource):
         asyncio.run(self.client.register_config_listener(self.data_id))
 
     def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[Any, str, bool]:
-        remote_configs=self.client.get_config_sync(self.data_id)
+        remote_configs = self.client.get_config_sync(self.data_id)
         if not remote_configs:
             self.client.publish_config_sync(self.data_id, json.dumps(self.configs, indent=4))
-            remote_configs=self.configs
+            remote_configs = self.configs
         return remote_configs.get(field_name), field_name, False
-

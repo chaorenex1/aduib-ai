@@ -16,7 +16,7 @@ from component.cache.redis_cache import redis_client
 from configs import config
 from runtime.tool.entities.tool_entities import CredentialType, McpTransportType
 
-logger=logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class RedisTokenStorage(TokenStorage):
@@ -35,7 +35,9 @@ class RedisTokenStorage(TokenStorage):
     async def set_tokens(self, tokens: OAuthToken) -> None:
         """Store tokens."""
         if tokens.expires_in:
-            self.redis_client.setex("mcp_oauth_tokens",timedelta(seconds=tokens.expires_in), tokens.model_dump_json(exclude_none=True))
+            self.redis_client.setex(
+                "mcp_oauth_tokens", timedelta(seconds=tokens.expires_in), tokens.model_dump_json(exclude_none=True)
+            )
         else:
             self.redis_client.set("mcp_oauth_tokens", tokens.model_dump_json(exclude_none=True))
 
@@ -50,17 +52,21 @@ class RedisTokenStorage(TokenStorage):
         """Store client information."""
         self.redis_client.set("mcp_oauth_client_info", client_info.model_dump_json(exclude_none=True))
 
+
 class McpClient:
     """A implementation of an MCP client."""
-    def __init__(self, server_url:str,mcp_config:dict[str,Any]):
-        self.oauth_auth:Any =None
+
+    def __init__(self, server_url: str, mcp_config: dict[str, Any]):
+        self.oauth_auth: Any = None
         self.server_url = server_url
         if server_url.endswith("/"):
             self.server_url = server_url[:-1]
         self.mcp_config = mcp_config
         if self.mcp_config is not None:
             self.authed = mcp_config.get("authed", False)
-            self.client_type = McpTransportType.to_original(mcp_config.get("client_type", "streamable"))  # 'streamable' or 'non-streamable'
+            self.client_type = McpTransportType.to_original(
+                mcp_config.get("client_type", "streamable")
+            )  # 'streamable' or 'non-streamable'
             self.user_agent = mcp_config.get("user_agent", config.DEFAULT_USER_AGENT)
 
         if self.authed:
@@ -68,12 +74,9 @@ class McpClient:
         else:
             self.credential_type = CredentialType.NONE
 
-
-    def get_client_header(self) -> dict[str,str]:
+    def get_client_header(self) -> dict[str, str]:
         """Get the headers for the MCP client."""
-        headers = {
-            "User-Agent": self.user_agent
-        }
+        headers = {"User-Agent": self.user_agent}
         match self.credential_type:
             case CredentialType.BASIC:
                 pass
@@ -92,27 +95,35 @@ class McpClient:
         return headers
 
     @classmethod
-    def build_client(cls,server_url:str,mcp_config:dict[str,Any]) -> "McpClient":
+    def build_client(cls, server_url: str, mcp_config: dict[str, Any]) -> "McpClient":
         """Factory method to create an McpClient instance."""
         return cls(server_url, mcp_config)
 
-    async def get_client_session(self)-> AsyncGenerator[ClientSession, None]:
+    async def get_client_session(self) -> AsyncGenerator[ClientSession, None]:
         """Get an asynchronous context manager for the MCP client session."""
         if self.client_type == McpTransportType.STREAMABLE:
             from mcp.client.streamable_http import streamablehttp_client
-            async with streamablehttp_client(self.server_url+"/mcp", headers=self.get_client_header(),
-                                             auth=self.oauth_auth) as (read, write, _):
+
+            async with streamablehttp_client(
+                self.server_url + "/mcp", headers=self.get_client_header(), auth=self.oauth_auth
+            ) as (read, write, _):
                 async with ClientSession(read, write) as session:
                     yield session  # <-- 保证外部能用，退出时自动清理
 
         elif self.client_type == McpTransportType.SSE:
             from mcp.client.sse import sse_client
-            async with sse_client(self.server_url+"/sse", headers=self.get_client_header(), auth=self.oauth_auth) as (read,write,_):
+
+            async with sse_client(self.server_url + "/sse", headers=self.get_client_header(), auth=self.oauth_auth) as (
+                read,
+                write,
+                _,
+            ):
                 async with ClientSession(read, write) as session:
                     yield session
 
         elif self.client_type == McpTransportType.STDIO:
             from mcp.client.stdio import stdio_client
+
             server_params = StdioServerParameters(
                 command="uv",
                 args=["run", "server", self.server_url, "stdio"],
@@ -134,7 +145,7 @@ class McpClient:
             case CredentialType.BASIC:
                 self.auth_info = {
                     "username": mcp_config.get("username", ""),
-                    "password": mcp_config.get("password", "")
+                    "password": mcp_config.get("password", ""),
                 }
                 self.oauth_auth = BasicAuth(self.auth_info["username"], self.auth_info["password"])
             case CredentialType.OAUTH2:
@@ -170,12 +181,11 @@ class McpClient:
             case _:
                 raise ValueError(f"Unsupported credential type: {self.credential_type}")
 
-    async def handle_redirect(self,auth_url: str) -> None:
+    async def handle_redirect(self, auth_url: str) -> None:
         logger.debug(auth_url)
-        redirect_url= requests.get(url=auth_url, headers={"User-Agent": self.user_agent}).text
+        redirect_url = requests.get(url=auth_url, headers={"User-Agent": self.user_agent}).text
         logger.debug(f"Redirect URL: {redirect_url}")
-        redis_client.setex("mcp_oauth_redirect_url",timedelta(seconds=10), redirect_url)
-
+        redis_client.setex("mcp_oauth_redirect_url", timedelta(seconds=10), redirect_url)
 
     async def handle_callback(self) -> tuple[str, str | None]:
         logger.debug("Waiting for authorization...")

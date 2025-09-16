@@ -1,13 +1,15 @@
 """
 使用雪花算法生成唯一ID
 """
+
 import logging
 import time
 
 from aduib_app import AduibAIApp
 from configs import config
 
-log=logging.getLogger(__name__)
+log = logging.getLogger(__name__)
+
 
 class SnowflakeIDGenerator:
     def __init__(self):
@@ -69,7 +71,7 @@ class SnowflakeIDGenerator:
             timestamp = self._current_timestamp()
         return timestamp
 
-    def generate(self)->int:
+    def generate(self) -> int:
         timestamp = self._current_timestamp()
 
         # 如果时间戳没有变化，使用序列号递增
@@ -83,10 +85,12 @@ class SnowflakeIDGenerator:
         self.last_timestamp = timestamp
 
         # 构建 ID
-        snowflake_id = ((timestamp << self.timestamp_left_shift) |
-                        (self.datacenter_id << self.datacenter_id_left_shift) |
-                        (self.machine_id << self.machine_id_left_shift) |
-                        self.sequence)
+        snowflake_id = (
+            (timestamp << self.timestamp_left_shift)
+            | (self.datacenter_id << self.datacenter_id_left_shift)
+            | (self.machine_id << self.machine_id_left_shift)
+            | self.sequence
+        )
         return snowflake_id
 
     def init(self, machine_id, datacenter_id):
@@ -95,10 +99,10 @@ class SnowflakeIDGenerator:
 
 id_generator = SnowflakeIDGenerator()
 
-def init_idGenerator(app:AduibAIApp):
+
+def init_idGenerator(app: AduibAIApp):
     id_generator.init(config.SNOWFLAKE_WORKER_ID, config.SNOWFLAKE_DATACENTER_ID)
     app.extensions["id_generator"] = id_generator
     log.info(
-        f"Snowflake IDGenerator initialized with machine_id={config.SNOWFLAKE_WORKER_ID}, datacenter_id={config.SNOWFLAKE_DATACENTER_ID}")
-
-
+        f"Snowflake IDGenerator initialized with machine_id={config.SNOWFLAKE_WORKER_ID}, datacenter_id={config.SNOWFLAKE_DATACENTER_ID}"
+    )

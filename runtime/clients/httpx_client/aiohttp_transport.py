@@ -81,13 +81,11 @@ class AiohttpResponseStream(httpx.AsyncByteStream):
 
     async def __aiter__(self) -> typing.AsyncIterator[bytes]:
         try:
-            async for chunk in self._aiohttp_response.content.iter_chunked(
-                    self.CHUNK_SIZE
-            ):
+            async for chunk in self._aiohttp_response.content.iter_chunked(self.CHUNK_SIZE):
                 yield chunk
         except (
-                aiohttp.ClientPayloadError,
-                aiohttp.client_exceptions.ClientPayloadError,
+            aiohttp.ClientPayloadError,
+            aiohttp.client_exceptions.ClientPayloadError,
         ) as e:
             # Handle incomplete transfers more gracefully
             # Log the error but don't re-raise if we've already yielded some data
@@ -110,9 +108,7 @@ class AiohttpResponseStream(httpx.AsyncByteStream):
 
 
 class AiohttpTransport(httpx.AsyncBaseTransport):
-    def __init__(
-            self, client: Union[ClientSession, Callable[[], ClientSession]]
-    ) -> None:
+    def __init__(self, client: Union[ClientSession, Callable[[], ClientSession]]) -> None:
         self.client = client
 
         #########################################################
@@ -164,11 +160,7 @@ class LLMAiohttpTransport(AiohttpTransport):
             current_loop = asyncio.get_running_loop()
 
             # If session is from a different or closed loop, recreate it
-            if (
-                    session_loop is None
-                    or session_loop != current_loop
-                    or session_loop.is_closed()
-            ):
+            if session_loop is None or session_loop != current_loop or session_loop.is_closed():
                 # Clean up the old session
                 try:
                     # Note: not awaiting close() here as it might be from a different loop
@@ -194,8 +186,8 @@ class LLMAiohttpTransport(AiohttpTransport):
         return self.client
 
     async def handle_async_request(
-            self,
-            request: httpx.Request,
+        self,
+        request: httpx.Request,
     ) -> httpx.Response:
         from aiohttp import ClientTimeout
         from yarl import URL as YarlURL

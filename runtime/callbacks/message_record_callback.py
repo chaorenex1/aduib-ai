@@ -3,25 +3,44 @@ from typing import Union, Optional, Sequence
 from libs.context import validate_api_key_in_internal
 from models import ConversationMessage
 from runtime.callbacks.base_callback import Callback
-from runtime.entities import PromptMessage, ChatCompletionResponse, ChatCompletionResponseChunk, \
-    PromptMessageFunction
+from runtime.entities import PromptMessage, ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessageFunction
 from runtime.model_execution import AiModel
 from service import ConversationMessageService
 
 
 class MessageRecordCallback(Callback):
-    """ Message record callback for logging conversation messages to the database. """
+    """Message record callback for logging conversation messages to the database."""
 
-    def on_new_chunk(self, llm_instance: AiModel, chunk: ChatCompletionResponseChunk, model: str, credentials: dict,
-                     prompt_messages: Sequence[PromptMessage], model_parameters: dict,
-                     tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
-                     stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None):
+    def on_new_chunk(
+        self,
+        llm_instance: AiModel,
+        chunk: ChatCompletionResponseChunk,
+        model: str,
+        credentials: dict,
+        prompt_messages: Sequence[PromptMessage],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+    ):
         pass
 
-    def on_after_invoke(self, llm_instance: AiModel, result: ChatCompletionResponse, model: str, credentials: dict,
-                        prompt_messages: Sequence[PromptMessage], model_parameters: dict,
-                        tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
-                        stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None) -> None:
+    def on_after_invoke(
+        self,
+        llm_instance: AiModel,
+        result: ChatCompletionResponse,
+        model: str,
+        credentials: dict,
+        prompt_messages: Sequence[PromptMessage],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+    ) -> None:
         """
         After invoke callback
 
@@ -39,14 +58,14 @@ class MessageRecordCallback(Callback):
         """
         if not validate_api_key_in_internal():
             return
-        message_id = model_parameters.get('message_id')
+        message_id = model_parameters.get("message_id")
         if not message_id:
             return
-        message_content:str =""
+        message_content: str = ""
         if isinstance(result.message.content, str):
             message_content = result.message.content
         elif isinstance(result.message.content, list):
-            message_content = ''.join([content.data for content in result.message.content])
+            message_content = "".join([content.data for content in result.message.content])
 
         ConversationMessageService.add_conversation_message(
             ConversationMessage(
@@ -57,13 +76,24 @@ class MessageRecordCallback(Callback):
                 content=message_content,
                 system_prompt="",
                 usage=result.usage.model_dump_json(exclude_none=True),
-                state="success",)
+                state="success",
+            )
         )
 
-    def on_invoke_error(self, llm_instance: AiModel, ex: Exception, model: str, credentials: dict,
-                        prompt_messages: list[PromptMessage], model_parameters: dict,
-                        tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
-                        stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None) -> None:
+    def on_invoke_error(
+        self,
+        llm_instance: AiModel,
+        ex: Exception,
+        model: str,
+        credentials: dict,
+        prompt_messages: list[PromptMessage],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+    ) -> None:
         """
         Invoke error callback
 
@@ -81,7 +111,7 @@ class MessageRecordCallback(Callback):
         """
         if not validate_api_key_in_internal():
             return
-        message_id = model_parameters.get('message_id')
+        message_id = model_parameters.get("message_id")
         if not message_id:
             return
         ConversationMessageService.update_conversation_message_state(
@@ -89,10 +119,19 @@ class MessageRecordCallback(Callback):
             state="failed",
         )
 
-    def on_before_invoke(self, llm_instance: AiModel, model: str, credentials: dict,
-                         prompt_messages: Union[list[PromptMessage], str], model_parameters: dict,
-                         tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
-                         stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None) -> None:
+    def on_before_invoke(
+        self,
+        llm_instance: AiModel,
+        model: str,
+        credentials: dict,
+        prompt_messages: Union[list[PromptMessage], str],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+    ) -> None:
         """
         Before invoke callback
 
@@ -109,21 +148,21 @@ class MessageRecordCallback(Callback):
         """
         if not validate_api_key_in_internal():
             return
-        role:str = ""
-        system_prompt:str = ""
-        content:str = ""
+        role: str = ""
+        system_prompt: str = ""
+        content: str = ""
         if isinstance(prompt_messages, list) and prompt_messages:
-            role= prompt_messages[-1].role.value
+            role = prompt_messages[-1].role.value
             if prompt_messages[-1].content:
                 content = prompt_messages[-1].content
-            system_prompt= prompt_messages[0].content if prompt_messages[0].role.value == "system" else ""
+            system_prompt = prompt_messages[0].content if prompt_messages[0].role.value == "system" else ""
         elif isinstance(prompt_messages, str):
             role = "user"
             content = prompt_messages
 
         ConversationMessageService.add_conversation_message(
             ConversationMessage(
-                message_id=model_parameters.get('message_id'),
+                message_id=model_parameters.get("message_id"),
                 model_name=model,
                 provider_name=llm_instance.provider_name,
                 role=role,

@@ -20,18 +20,20 @@ from utils import trace_uuid
 API_KEY_HEADER = "X-API-Key"  # 你希望客户端发送的 API Key 的请求头字段名称
 AUTHORIZATION_HEADER = "Authorization"
 api_key_header = APIKeyHeader(name=API_KEY_HEADER)
-authorization_header=APIKeyHeader(name=AUTHORIZATION_HEADER)
+authorization_header = APIKeyHeader(name=AUTHORIZATION_HEADER)
 logger = logging.getLogger(__name__)
 
-api_key_context: ContextVarWrappers[ApiKey]=ContextVarWrappers(ContextVar("api_key"))
-trace_id_context: ContextVarWrappers[str]=ContextVarWrappers(ContextVar("trace_id"))
+api_key_context: ContextVarWrappers[ApiKey] = ContextVarWrappers(ContextVar("api_key"))
+trace_id_context: ContextVarWrappers[str] = ContextVarWrappers(ContextVar("trace_id"))
 
 
-def verify_api_key_in_db(api_key: str=Depends(api_key_header),authorization_token:str=Depends(authorization_header)) -> None:
+def verify_api_key_in_db(
+    api_key: str = Depends(api_key_header), authorization_token: str = Depends(authorization_header)
+) -> None:
     """从数据库中验证 API Key"""
     try:
         if not api_key or len(api_key.strip()) == 0:
-            authorization_token=authorization_token.replace("Bearer ","")
+            authorization_token = authorization_token.replace("Bearer ", "")
             ApiKeyService.validate_api_key(authorization_token)
         else:
             ApiKeyService.validate_api_key(api_key)
@@ -46,9 +48,10 @@ def validate_api_key_in_internal() -> bool:
     if not api_key:
         return False
     try:
-        return api_key.source==ApikeySource.INTERNAL.value
+        return api_key.source == ApikeySource.INTERNAL.value
     except ApiKeyNotFound:
         return False
+
 
 def validate_api_key_in_external() -> bool:
     """验证外部请求的 API Key"""
@@ -57,10 +60,9 @@ def validate_api_key_in_external() -> bool:
     if not api_key:
         return False
     try:
-        return api_key.source==ApikeySource.EXTERNAL.value
+        return api_key.source == ApikeySource.EXTERNAL.value
     except ApiKeyNotFound:
         return False
-
 
 
 class ApiKeyContextMiddleware(BaseHTTPMiddleware):
@@ -68,7 +70,9 @@ class ApiKeyContextMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         api_key_context.clear()
-        api_key_value = request.headers.get(API_KEY_HEADER) or request.headers.get(AUTHORIZATION_HEADER).replace("Bearer ", "")
+        api_key_value = request.headers.get(API_KEY_HEADER) or request.headers.get(AUTHORIZATION_HEADER).replace(
+            "Bearer ", ""
+        )
         if api_key_value:
             try:
                 ApiKeyService.validate_api_key(api_key_value)
@@ -83,8 +87,10 @@ class ApiKeyContextMiddleware(BaseHTTPMiddleware):
         api_key_context.clear()
         return response
 
+
 class TraceIdContextMiddleware(BaseHTTPMiddleware):
     """Middleware to extract and store Trace ID in request context."""
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         trace_id_context.clear()
         trace_id = trace_uuid()
@@ -95,10 +101,7 @@ class TraceIdContextMiddleware(BaseHTTPMiddleware):
         return response
 
 
-
-class LoggingMiddleware(
-    BaseHTTPMiddleware
-):
+class LoggingMiddleware(BaseHTTPMiddleware):
     """Middleware to log requests and responses."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:

@@ -29,21 +29,19 @@ class BaseRAGProcessor(ABC):
 
     @abstractmethod
     def retrieve(
-            self,
-            retrieval_method: str,
-            query: str,
-            knowledge: KnowledgeBase,
-            top_k: int,
-            score_threshold: float,
-            reranking_model: dict,
+        self,
+        retrieval_method: str,
+        query: str,
+        knowledge: KnowledgeBase,
+        top_k: int,
+        score_threshold: float,
+        reranking_model: dict,
     ) -> list[Document]:
         raise NotImplementedError
 
-
-    def get_splitter(self,process_rule_mode: str,
-                     chunk_size: int,
-                     chunk_overlap: int,
-                     separator: str, **kwargs) -> BaseTextSplitter:
+    def get_splitter(
+        self, process_rule_mode: str, chunk_size: int, chunk_overlap: int, separator: str, **kwargs
+    ) -> BaseTextSplitter:
         """
         Get the splitter object according to the processing rule.
         """
@@ -52,23 +50,16 @@ class BaseRAGProcessor(ABC):
 
         if process_rule_mode in ["custom", "hierarchical"]:
             # The user-defined segmentation rule
-            text_splitter= RecursiveTextSplitter(
-                chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap,
-                fixed_separator=separator,
-                **kwargs
+            text_splitter = RecursiveTextSplitter(
+                chunk_size=chunk_size, chunk_overlap=chunk_overlap, fixed_separator=separator, **kwargs
             )
         else:
-
-            text_splitter=RecursiveTextSplitter(
-                chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap,
-                separator=separator,
-                **kwargs
+            text_splitter = RecursiveTextSplitter(
+                chunk_size=chunk_size, chunk_overlap=chunk_overlap, separator=separator, **kwargs
             )
         return text_splitter
 
-    def remove_leading_symbols(self,text: str) -> str:
+    def remove_leading_symbols(self, text: str) -> str:
         """
         Remove leading punctuation or symbols from the given text.
 

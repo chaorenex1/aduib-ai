@@ -22,11 +22,7 @@ def init_logging(app: AduibAIApp):
                 backupCount=config.LOG_FILE_BACKUP_COUNT,
             )
         )
-    logging.basicConfig(
-        level=config.LOG_LEVEL,
-        format=config.LOG_FORMAT,
-        handlers=log_handlers
-    )
+    logging.basicConfig(level=config.LOG_LEVEL, format=config.LOG_FORMAT, handlers=log_handlers)
     logging.root.setLevel(config.LOG_LEVEL)
     logging.root.addHandler(sh)
     log_tz = config.LOG_TZ

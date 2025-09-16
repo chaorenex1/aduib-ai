@@ -8,9 +8,10 @@ from service.provider_service import ProviderService
 
 router = APIRouter(tags=["models"])
 
-@router.post('/models/add')
+
+@router.post("/models/add")
 @catch_exceptions
-def create_model(req: CreateModelRequest)-> BaseResponse:
+def create_model(req: CreateModelRequest) -> BaseResponse:
     """
     创建一个新的模型
     """
@@ -19,24 +20,24 @@ def create_model(req: CreateModelRequest)-> BaseResponse:
         return BaseResponse(code=500, msg="模型创建失败")
     return BaseResponse(code=200, msg="模型创建成功")
 
-@router.post('/providers/add')
+
+@router.post("/providers/add")
 @catch_exceptions
-def create_model(req: CreateProviderRequest)-> BaseResponse:
+def create_model(req: CreateProviderRequest) -> BaseResponse:
     """
     创建一个新的模型提供者
     """
-    provider = ProviderService.create_provider(req.provider_name,
-                                               req.supported_model_types,
-                                               req.provider_type,
-                                               req.provider_config)
+    provider = ProviderService.create_provider(
+        req.provider_name, req.supported_model_types, req.provider_type, req.provider_config
+    )
     if not provider:
         return BaseResponse(code=500, msg="模型提供者创建失败")
     return BaseResponse(code=200, msg="模型提供者创建成功")
 
 
-@router.get('/models')
+@router.get("/models")
 @catch_exceptions
-def get_models(current_key:CurrentApiKeyDep):
+def get_models(current_key: CurrentApiKeyDep):
     """
     获取模型信息
     """

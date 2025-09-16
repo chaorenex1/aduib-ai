@@ -8,7 +8,7 @@ class BaseVector(ABC):
         self.collection_name = collection_name
 
     @abstractmethod
-    def get_type(self)->str:
+    def get_type(self) -> str:
         raise NotImplementedError()
 
     @abstractmethod
@@ -40,5 +40,3 @@ class BaseVector(ABC):
 
     def delete_by_metadata_field(self, key, value):
         raise NotImplementedError()
-
-

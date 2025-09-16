@@ -4,11 +4,12 @@ from starlette.requests import Request
 from controllers.common.base import BaseResponse, catch_exceptions
 from service.web_memo import WebMemoService
 
-router = APIRouter(tags=['web_memo'])
+router = APIRouter(tags=["web_memo"])
 
-@router.post('/web_memo')
+
+@router.post("/web_memo")
 @catch_exceptions
-async def web_memo(request:Request):
+async def web_memo(request: Request):
     """
     Web Memo endpoint
     """
@@ -17,14 +18,13 @@ async def web_memo(request:Request):
     return BaseResponse.ok()
 
 
-
-@router.post('/web_memo/notify')
+@router.post("/web_memo/notify")
 @catch_exceptions
-async def notify(request:Request):
+async def notify(request: Request):
     """
     Web Memo endpoint
     """
     body = await request.json()
-    api_hash_key = request.query_params.get('api_key','')
-    await WebMemoService.handle_web_memo_notify(body,api_hash_key)
+    api_hash_key = request.query_params.get("api_key", "")
+    await WebMemoService.handle_web_memo_notify(body, api_hash_key)
     return BaseResponse.ok()

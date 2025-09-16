@@ -16,6 +16,7 @@ from pydantic.networks import AnyUrl, NameEmail
 from pydantic.types import SecretBytes, SecretStr
 from pydantic_core import Url
 
+
 def _model_dump(model: BaseModel, mode: Literal["json", "python"] = "json", **kwargs: Any) -> Any:
     return model.model_dump(mode=mode, **kwargs)
 

@@ -23,23 +23,23 @@ from .model_execution.tts_model import TTSModel
 
 logger = logging.getLogger(__name__)
 
-class ModelInstance:
 
+class ModelInstance:
     """
     Model Instance
     """
 
-    def __init__(self,provider:ProviderEntity, model_instance: AiModel, model: str):
+    def __init__(self, provider: ProviderEntity, model_instance: AiModel, model: str):
         self.provider = provider
         self.model_instance = model_instance
-        self.credentials= provider.provider_credential.credentials
+        self.credentials = provider.provider_credential.credentials
         self.credentials["sdk_type"] = provider.provider_credential.sdk_type
         self.model = model
 
     def invoke_llm(
-            self,
-            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-            callbacks: Optional[list[Callback]] = None,
+        self,
+        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+        callbacks: Optional[list[Callback]] = None,
     ) -> Union[ChatCompletionResponse, Generator]:
         """
         Invoke large language model
@@ -56,11 +56,10 @@ class ModelInstance:
             Union[ChatCompletionResponse, Generator],
             self._invoke(
                 function=self.model_type_instance.invoke,
-                prompt_messages= prompt_messages,
+                prompt_messages=prompt_messages,
                 callbacks=callbacks,
             ),
         )
-
 
     def invoke_text_embedding(
         self, texts: EmbeddingRequest, input_type: EmbeddingInputType = EmbeddingInputType.DOCUMENT
@@ -104,10 +103,7 @@ class ModelInstance:
             ),
         )
 
-    def invoke_rerank(
-        self,
-        query: RerankRequest
-    ) -> RerankResponse:
+    def invoke_rerank(self, query: RerankRequest) -> RerankResponse:
         """
         Invoke rerank model
 
@@ -202,7 +198,6 @@ class ModelInstance:
             raise e
 
 
-
 class ModelManager:
     """
     Model Manager
@@ -211,26 +206,31 @@ class ModelManager:
     def __init__(self):
         self.provider = ProviderManager()
 
+    def get_model_instance(self, model_name: str, provider_name: str = None) -> Optional[ModelInstance]:
+        from service import ModelService, ProviderService
 
-    def get_model_instance(self,model_name: str, provider_name: str=None) -> Optional[ModelInstance]:
-        from service import ModelService,ProviderService
         if provider_name:
-            model: Model = ModelService.get_model_by_provider(model_name,provider_name)
+            model: Model = ModelService.get_model_by_provider(model_name, provider_name)
         else:
             model: Model = ModelService.get_model(model_name)
         provider: Provider = ProviderService.get_provider(model.provider_name)
         model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
         provider_entity = self.provider.get_provider_entity(provider, model_list)
-        model_instance = self.provider.provider_factory.get_model_type_instance(provider_entity,json.loads(model.model_params), ModelType.value_of(model.type))
-        return ModelInstance(provider_entity,model_instance, model.name)
+        model_instance = self.provider.provider_factory.get_model_type_instance(
+            provider_entity, json.loads(model.model_params), ModelType.value_of(model.type)
+        )
+        return ModelInstance(provider_entity, model_instance, model.name)
 
     def get_default_model_instance(self, model_type):
-        from service import ModelService,ProviderService
+        from service import ModelService, ProviderService
+
         model: Model = ModelService.get_default_model(model_type)
         if not model:
             return None
         provider: Provider = ProviderService.get_provider(model.provider_name)
         model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
         provider_entity = self.provider.get_provider_entity(provider, model_list)
-        model_instance = self.provider.provider_factory.get_model_type_instance(provider_entity,json.loads(model.model_params), ModelType.value_of(model.type))
-        return ModelInstance(provider_entity,model_instance, model.name)
+        model_instance = self.provider.provider_factory.get_model_type_instance(
+            provider_entity, json.loads(model.model_params), ModelType.value_of(model.type)
+        )
+        return ModelInstance(provider_entity, model_instance, model.name)

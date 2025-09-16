@@ -8,10 +8,10 @@ from .model import model
 api_router = APIRouter()
 api_router.include_router(completion.router)
 
-#auth
+# auth
 api_router.include_router(api_key.router)
 
-#models
+# models
 api_router.include_router(model.router)
 
 # mcp_server
@@ -22,8 +22,10 @@ api_router.include_router(mcp.router)
 
 # web_memo
 from .web_memo import web_memo
+
 api_router.include_router(web_memo.router)
 
 # document
 from .document import document
+
 api_router.include_router(document.router)

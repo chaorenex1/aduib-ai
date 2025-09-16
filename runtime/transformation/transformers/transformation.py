@@ -8,10 +8,13 @@ from runtime.entities.rerank_entities import RerankRequest, RerankResponse, Rera
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.mcp.types import Request
 from runtime.transformation import OpenAILikeTransformation
-from runtime.transformation.transformers.transformers_manager import TransformersManager, ReRankTransformersLoader, \
-    EmbeddingTransformersLoader
+from runtime.transformation.transformers.transformers_manager import (
+    TransformersManager,
+    ReRankTransformersLoader,
+    EmbeddingTransformersLoader,
+)
 
-logger = logging.getLogger('transformers')
+logger = logging.getLogger("transformers")
 
 
 class TransformersTransformation(OpenAILikeTransformation):
@@ -23,7 +26,7 @@ class TransformersTransformation(OpenAILikeTransformation):
         _credentials = credentials["credentials"]
         return {
             "models_path": _credentials.get("models_path", ""),
-            "sdk_type": credentials.get("sdk_type", "transformers")
+            "sdk_type": credentials.get("sdk_type", "transformers"),
         }
 
     @classmethod
@@ -35,8 +38,7 @@ class TransformersTransformation(OpenAILikeTransformation):
         return cls._manager_instance
 
     @classmethod
-    def _ensure_model_loaded(cls, model_name: str, model_path: str, device: str = 'cpu',
-                             model_type: str = 'rerank'):
+    def _ensure_model_loaded(cls, model_name: str, model_path: str, device: str = "cpu", model_type: str = "rerank"):
         """Ensure model is loaded and worker is started"""
         if model_name in cls._initialized_models:
             return
@@ -45,18 +47,10 @@ class TransformersTransformation(OpenAILikeTransformation):
             manager = cls._get_manager()
 
             # Create appropriate loader based on model type
-            if model_type == 'rerank':
-                loader = ReRankTransformersLoader(
-                    model=model_name,
-                    model_path=model_path,
-                    device=device
-                )
-            elif model_type == 'embedding':
-                loader = EmbeddingTransformersLoader(
-                    model=model_name,
-                    model_path=model_path,
-                    device=device
-                )
+            if model_type == "rerank":
+                loader = ReRankTransformersLoader(model=model_name, model_path=model_path, device=device)
+            elif model_type == "embedding":
+                loader = EmbeddingTransformersLoader(model=model_name, model_path=model_path, device=device)
             else:
                 raise ValueError(f"Unsupported model type: {model_type}")
 
@@ -79,16 +73,16 @@ class TransformersTransformation(OpenAILikeTransformation):
             if os.path.exists(models_path) and not os.path.isabs(model_name):
                 model_path = os.path.join(models_path, model_name)
 
-            device = 'cpu'
+            device = "cpu"
 
             # Ensure model is loaded
-            cls._ensure_model_loaded(model_name, model_path, device, 'rerank')
+            cls._ensure_model_loaded(model_name, model_path, device, "rerank")
 
             # Prepare task data
             task_data = {
-                'query': [query.query] * len(query.documents),
-                'documents': [doc for doc in query.documents],
-                'top_n': query.top_n or len(query.documents)
+                "query": [query.query] * len(query.documents),
+                "documents": [doc for doc in query.documents],
+                "top_n": query.top_n or len(query.documents),
             }
 
             # Send task to manager
@@ -102,23 +96,19 @@ class TransformersTransformation(OpenAILikeTransformation):
                 raise RuntimeError(f"Rerank failed: {response.data.get('error', 'Unknown error')}")
 
             # Convert to RerankResponse format
-            reranked_docs = response.data['reranked_documents']
-            scores = response.data['scores']
+            reranked_docs = response.data["reranked_documents"]
+            scores = response.data["scores"]
 
             # Create response objects
             from runtime.entities.rerank_entities import RerankDocument
+
             results = []
             for i, (doc_text, score) in enumerate(zip(reranked_docs, scores)):
                 # Find original document index
-                original_index = next(
-                    idx for idx, doc in enumerate(query.documents)
-                    if doc == doc_text
+                original_index = next(idx for idx, doc in enumerate(query.documents) if doc == doc_text)
+                results.append(
+                    RerankResult(index=original_index, document=RerankDocument(text=doc_text), relevance_score=score)
                 )
-                results.append(RerankResult(
-                    index=original_index,
-                    document=RerankDocument(text=doc_text),
-                    relevance_score=score
-                ))
 
             # Optionally stop worker to free resources
             manager.stop_worker(model_name)
@@ -128,10 +118,7 @@ class TransformersTransformation(OpenAILikeTransformation):
                 id="rerank-" + os.urandom(8).hex(),
                 model=model_name,
                 results=results,
-                usage=RerankUsage(
-                    total_tokens=sum(len(doc.split()) for doc in query.documents
-                                     )
-                )
+                usage=RerankUsage(total_tokens=sum(len(doc.split()) for doc in query.documents)),
             )
 
         except Exception as e:
@@ -150,16 +137,16 @@ class TransformersTransformation(OpenAILikeTransformation):
             if os.path.exists(models_path) and not os.path.isabs(model_name):
                 model_path = os.path.join(models_path, model_name)
 
-            device = 'cpu'
+            device = "cpu"
 
             # Ensure model is loaded
-            cls._ensure_model_loaded(model_name, model_path, device, 'embedding')
+            cls._ensure_model_loaded(model_name, model_path, device, "embedding")
 
             # Prepare task data
             task_data = {
-                'texts': texts.input if isinstance(texts.input, list) else [texts.input],
-                'encoding_format': texts.encoding_format,
-                'dimension': texts.dimensions
+                "texts": texts.input if isinstance(texts.input, list) else [texts.input],
+                "encoding_format": texts.encoding_format,
+                "dimension": texts.dimensions,
             }
 
             # Send task to manager
@@ -173,18 +160,18 @@ class TransformersTransformation(OpenAILikeTransformation):
                 raise RuntimeError(f"Embedding failed: {response.data.get('error', 'Unknown error')}")
 
             # Convert to TextEmbeddingResult format
-            embeddings = response.data['embeddings']
-            encoding_format = response.data.get('encoding_format', 'float')
+            embeddings = response.data["embeddings"]
+            encoding_format = response.data.get("encoding_format", "float")
 
             from runtime.entities.text_embedding_entities import EmbeddingsResponse
+
             data = []
             for i, embedding in enumerate(embeddings):
-                data.append(EmbeddingsResponse(
-                    index=i,
-                    embedding=embedding,
-                    object='embedding',
-                    encoding_format=encoding_format
-                ))
+                data.append(
+                    EmbeddingsResponse(
+                        index=i, embedding=embedding, object="embedding", encoding_format=encoding_format
+                    )
+                )
 
             return TextEmbeddingResult(
                 object="list",
@@ -198,33 +185,38 @@ class TransformersTransformation(OpenAILikeTransformation):
             raise e
 
     @classmethod
-    def transform_message(cls, model_params: dict, prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-                          credentials: dict, raw_request: Request, stream: bool = None) -> Union[
-        ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
+    def transform_message(
+        cls,
+        model_params: dict,
+        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+        credentials: dict,
+        raw_request: Request,
+        stream: bool = None,
+    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
         """Transform chat completion request using transformers manager"""
         try:
             # Extract model information
-            model_name = credentials.get('model_name') or model_params.get('model')
-            model_path = credentials.get('model_path', model_name)
-            device = credentials.get('device', 'cpu')
+            model_name = credentials.get("model_name") or model_params.get("model")
+            model_path = credentials.get("model_path", model_name)
+            device = credentials.get("device", "cpu")
 
             # Ensure model is loaded
-            cls._ensure_model_loaded(model_name, model_path, device, 'chat')
+            cls._ensure_model_loaded(model_name, model_path, device, "chat")
 
             # Prepare task data
             if isinstance(prompt_messages, ChatCompletionRequest):
                 task_data = {
-                    'messages': [msg.model_dump() for msg in prompt_messages.messages],
-                    'max_tokens': prompt_messages.max_tokens,
-                    'temperature': prompt_messages.temperature,
-                    'stream': stream or False
+                    "messages": [msg.model_dump() for msg in prompt_messages.messages],
+                    "max_tokens": prompt_messages.max_tokens,
+                    "temperature": prompt_messages.temperature,
+                    "stream": stream or False,
                 }
             else:
                 task_data = {
-                    'prompt': prompt_messages.prompt,
-                    'max_tokens': prompt_messages.max_tokens,
-                    'temperature': prompt_messages.temperature,
-                    'stream': stream or False
+                    "prompt": prompt_messages.prompt,
+                    "max_tokens": prompt_messages.max_tokens,
+                    "temperature": prompt_messages.temperature,
+                    "stream": stream or False,
                 }
 
             # Send task to manager
@@ -235,7 +227,7 @@ class TransformersTransformation(OpenAILikeTransformation):
                 raise RuntimeError(f"Chat completion failed: {response.data.get('error', 'Unknown error')}")
 
             # Return response data
-            return response.data['response']
+            return response.data["response"]
 
         except Exception as e:
             logger.error(f"Error in message transformation: {e}")

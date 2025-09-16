@@ -12,8 +12,9 @@ class CurrentTimeTool(BuiltinTool):
     A tool to get the current time.
     """
 
-    def _invoke(self, tool_parameters: dict[str, Any], message_id: str | None = None) -> Union[
-        ToolInvokeResult, Generator[ToolInvokeResult, None, None]]:
+    def _invoke(
+        self, tool_parameters: dict[str, Any], message_id: str | None = None
+    ) -> Union[ToolInvokeResult, Generator[ToolInvokeResult, None, None]]:
         """
         invoke tools
         """
@@ -27,7 +28,7 @@ class CurrentTimeTool(BuiltinTool):
                 meta={
                     "timezone": tz,
                     "format": fm,
-                }
+                },
             )
 
         try:
@@ -40,7 +41,7 @@ class CurrentTimeTool(BuiltinTool):
                 meta={
                     "timezone": tz,
                     "format": fm,
-                }
+                },
             )
         return ToolInvokeResult(
             name=self.entity.name,
@@ -48,5 +49,5 @@ class CurrentTimeTool(BuiltinTool):
             meta={
                 "timezone": tz.zone,
                 "format": fm,
-            }
+            },
         )

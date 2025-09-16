@@ -11,10 +11,9 @@ from ..entities.provider_entities import ProviderEntity
 
 
 class ModelProviderFactory:
-
-    def get_model_type_instance(self, provider: ProviderEntity,
-                                model_params: dict,
-                                model_type: ModelType) -> None | AiModel:
+    def get_model_type_instance(
+        self, provider: ProviderEntity, model_params: dict, model_type: ModelType
+    ) -> None | AiModel:
         """
         Get model type instance by provider name and model type
         :param provider: provider name
@@ -42,4 +41,3 @@ class ModelProviderFactory:
             return ModerationModel(**init_params)  # type: ignore
         elif model_type == ModelType.TTS:
             return TTSModel(**init_params)  # type: ignore
-

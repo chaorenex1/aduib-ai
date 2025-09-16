@@ -11,13 +11,12 @@ from ..entities.provider_entities import ProviderEntity
 
 
 class AiModel(BaseModel):
-    model_type: str=Field(description="Model type")
-    provider_name: str=Field(description="Provider name")
-    model_provider: ProviderEntity=Field(description="Model provider")
+    model_type: str = Field(description="Model type")
+    provider_name: str = Field(description="Provider name")
+    model_provider: ProviderEntity = Field(description="Model provider")
     started_at: float = Field(description="Invoke start time", default=0)
     model_params: dict = Field(description="Model parameters", default_factory=dict)
     credentials: dict = Field(description="Model credentials", default_factory=dict)
-
 
     def get_messages(self, prompt_messages) -> Union[list[PromptMessage], str]:
         messages: Union[list[PromptMessage], str]
@@ -27,8 +26,7 @@ class AiModel(BaseModel):
             messages = prompt_messages.prompt
         return messages
 
-
-    def get_model_schema(self,model: Optional[str] = None) -> Optional[AIModelEntity]:
+    def get_model_schema(self, model: Optional[str] = None) -> Optional[AIModelEntity]:
         """
         Get model schema
         :param model: model name
@@ -37,8 +35,7 @@ class AiModel(BaseModel):
         """
         return ModelService.get_ai_model(model)
 
-
-    def get_message_id(self)-> str:
+    def get_message_id(self) -> str:
         """
         Get message id
         :return: message id

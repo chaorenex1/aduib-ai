@@ -9,6 +9,7 @@ class BuiltinTool(Tool):
     """
     The base class of a builtin tool
     """
+
     def tool_provider_type(self) -> ToolProviderType:
         """
         Get the tool provider type.
@@ -18,8 +19,9 @@ class BuiltinTool(Tool):
         return ToolProviderType.BUILTIN
 
     @abstractmethod
-    def _invoke(self, tool_parameters: dict[str, Any], message_id: str | None = None) -> Union[
-        ToolInvokeResult, Generator[ToolInvokeResult, None, None]]:
+    def _invoke(
+        self, tool_parameters: dict[str, Any], message_id: str | None = None
+    ) -> Union[ToolInvokeResult, Generator[ToolInvokeResult, None, None]]:
         """
         Invoke the tool with the given parameters.
         """

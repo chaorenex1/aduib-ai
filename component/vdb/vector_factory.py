@@ -33,7 +33,7 @@ class AbstractVectorFactory(ABC):
 class Vector:
     def __init__(self, knowledge: KnowledgeBase, attributes: Optional[list] = None):
         if attributes is None:
-            attributes = ["knowledge_id","doc_id", "doc_hash"]
+            attributes = ["knowledge_id", "doc_id", "doc_hash"]
         self._knowledge = knowledge
         self._embeddings = self._get_embeddings()
         self._attributes = attributes
@@ -49,9 +49,11 @@ class Vector:
         match vector_type:
             case VectorType.MILVUS:
                 from component.vdb.milvus import MilvusVectorFactory
+
                 return MilvusVectorFactory
             case VectorType.PGVECTO_RS:
                 from component.vdb.pgvecto_rs import PGVectoRSFactory
+
                 return PGVectoRSFactory
             case _:
                 raise ValueError(f"Vector store {vector_type} is not supported.")
