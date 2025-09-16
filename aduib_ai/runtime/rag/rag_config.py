@@ -27,3 +27,8 @@ class SplitterRule(BaseModel):
     pre_processing_rules: list[PreProcessingRule] = []
     segmentation: Segmentation
 
+
+class RagProcessingRule(BaseModel):
+    mode: str = "automatic"
+    rules: SplitterRule = None
+

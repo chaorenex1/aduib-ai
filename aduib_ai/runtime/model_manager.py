@@ -39,14 +39,12 @@ class ModelInstance:
     def invoke_llm(
             self,
             prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-            raw_request: Request,
             callbacks: Optional[list[Callback]] = None,
     ) -> Union[ChatCompletionResponse, Generator]:
         """
         Invoke large language model
 
         :param prompt_messages: prompt messages
-        :param raw_request: raw request
         :param callbacks: callbacks
         :return: full response or stream response chunk generator result
         """
@@ -59,7 +57,6 @@ class ModelInstance:
             self._invoke(
                 function=self.model_type_instance.invoke,
                 prompt_messages= prompt_messages,
-                raw_request=raw_request,
                 callbacks=callbacks,
             ),
         )
@@ -85,6 +82,25 @@ class ModelInstance:
                 function=self.model_type_instance.invoke,
                 texts=texts,
                 input_type=input_type,
+            ),
+        )
+
+    def get_text_embedding_num_tokens(self, texts: list[str]) -> int:
+        """
+        Get text embedding num tokens
+
+        :param texts: text to embed
+        :return: num tokens
+        """
+        if not isinstance(self.model_instance, TextEmbeddingModel):
+            raise Exception("Model type instance is not TextEmbeddingModel")
+
+        self.model_type_instance = cast(TextEmbeddingModel, self.model_instance)
+        return cast(
+            int,
+            self._invoke(
+                function=self.model_type_instance.get_num_tokens,
+                texts=texts,
             ),
         )
 
@@ -202,6 +218,17 @@ class ModelManager:
             model: Model = ModelService.get_model_by_provider(model_name,provider_name)
         else:
             model: Model = ModelService.get_model(model_name)
+        provider: Provider = ProviderService.get_provider(model.provider_name)
+        model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
+        provider_entity = self.provider.get_provider_entity(provider, model_list)
+        model_instance = self.provider.provider_factory.get_model_type_instance(provider_entity,json.loads(model.model_params), ModelType.value_of(model.type))
+        return ModelInstance(provider_entity,model_instance, model.name)
+
+    def get_default_model_instance(self, model_type):
+        from service import ModelService,ProviderService
+        model: Model = ModelService.get_default_model(model_type)
+        if not model:
+            return None
         provider: Provider = ProviderService.get_provider(model.provider_name)
         model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
         provider_entity = self.provider.get_provider_entity(provider, model_list)

@@ -142,3 +142,16 @@ class ModelService:
                            parameter_rules=[], pricing=PriceConfig(
                     input=model.input_price,
                     output=model.output_price,currency=model.currency), deprecated=False)
+
+    @classmethod
+    def get_default_model(cls, model_type):
+        """
+        Get default model by type.
+        :param model_type: model type
+        :return: model
+        """
+        with get_db() as session:
+            model = session.query(Model).filter_by(type=model_type,default=1).one_or_none()
+            if not model:
+                raise ModelNotFound("Model not found")
+        return model

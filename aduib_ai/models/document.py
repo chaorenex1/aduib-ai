@@ -17,10 +17,22 @@ class KnowledgeBase(Base):
     name = Column(String(255), nullable=False, comment="name")
     file_id = Column(String, index=True, nullable=False, comment="file id")
     rag_type = Column(String, index=True, nullable=False, comment="rag type")
+    knowledge_language = Column(String(50), nullable=False, comment="knowledge language")
     date_source_type = Column(String, index=True, nullable=False, comment="data source type")
     data_process_rule = Column(JSONB, nullable=True, comment="data process rule")
     embedding_model= Column(String(255), nullable=False, comment="embedding model name")
     embedding_model_provider= Column(String(255), nullable=False, comment="embedding provider name")
+    rag_status = Column(String(50), nullable=False, comment="rag status")
+    error_message = Column(String(255), nullable=False, comment="error message", server_default=text("''"))
+    stop_at = Column(DateTime, nullable=True, comment="stop at")
+    word_count = Column(Integer, nullable=True, server_default=text("0"), comment="word count")
+    extracted_at = Column(DateTime, nullable=True, comment="extracted at")
+    spited_at = Column(DateTime, nullable=True, comment="split at")
+    cleaned_at = Column(DateTime, nullable=True, comment="cleaned at")
+    indexed_at = Column(DateTime, nullable=True, comment="embedded at")
+    indexed_time = Column(Integer, nullable=True, server_default=text("0"), comment="indexed times")
+    token_count = Column(Integer, nullable=True, server_default=text("0"), comment="token count")
+
 
 
 
@@ -40,6 +52,7 @@ index = Index(
 class KnowledgeEmbeddings(Base):
     __tablename__ = "knowledge_embeddings"
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"), comment="id")
+    knowledge_id = Column(UUID(as_uuid=True), index=True, nullable=False, comment="knowledge_id")
     content = Column(TEXT, nullable=False, comment="content", server_default=text("''"))
     vector = Column(VECTOR(2560), nullable=False, comment="vector")
     metadata = Column(JSONB, nullable=False, comment="metadata", server_default=text("'{}'"))

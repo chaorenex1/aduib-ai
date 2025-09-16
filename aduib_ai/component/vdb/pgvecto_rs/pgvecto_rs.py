@@ -121,9 +121,9 @@ class PGVectoRS(BaseVector):
                 .limit(kwargs.get("top_k", 4))
                 .order_by("distance")
             )
-            document_ids_filter = kwargs.get("document_ids_filter")
-            if document_ids_filter:
-                stmt = stmt.where(self._table.metadata["document_id"].in_(document_ids_filter))
+            knowledge_ids_filter = kwargs.get("knowledge_ids_filter")
+            if knowledge_ids_filter:
+                stmt = stmt.where(self._table.metadata["knowledge_id"].in_(knowledge_ids_filter))
             res = session.execute(stmt)
             results = [(row[0], row[1]) for row in res]
 
@@ -158,7 +158,7 @@ class PGVectoRS(BaseVector):
 
 
 class PGVectoRSFactory(AbstractVectorFactory):
-    def init_vector(self, dataset: KnowledgeBase, attributes: list, embeddings: Embeddings) -> PGVectoRS:
+    def init_vector(self, knowledge: KnowledgeBase, attributes: list, embeddings: Embeddings) -> PGVectoRS:
         dim = len(embeddings.embed_query("pgvecto_rs"))
 
         return PGVectoRS(

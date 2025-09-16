@@ -31,7 +31,7 @@ class RerankModel(AiModel):
             transformation = get_llm_transformation(
                 self.credentials.get("sdk_type", "openai_like"))
 
-            credentials = transformation.setup_validate_credentials(self.credentials)
+            credentials = transformation.setup_environment(self.credentials,self.model_params)
             # if not query.score_threshold:
             #     query.score_threshold = 0.8
             result: RerankResponse = transformation.transform_rerank(

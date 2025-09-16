@@ -32,16 +32,12 @@ class LlMModel(AiModel):
     def invoke(
             self,
             prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-            raw_request: Request,
             callbacks: Optional[list[Callback]] = None,
     ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
         """
         Invoke large language model
 
         :param prompt_messages: prompt messages
-        :param raw_request: raw request
-        :param credentials: model credentials
-        :param model_params: model parameters
         :param callbacks: callbacks
         :return: full response or stream response chunk generator result
         """
@@ -54,7 +50,7 @@ class LlMModel(AiModel):
         transformation = get_llm_transformation(self.credentials.get("sdk_type", "openai_like"))
 
         prompt_messages = transformation.setup_model_parameters(self.model_params, prompt_messages)
-        credentials = transformation.setup_validate_credentials(self.credentials)
+        credentials = transformation.setup_environment(self.credentials,self.model_params)
 
         stream: bool = prompt_messages.stream
         model: str = prompt_messages.model
@@ -104,7 +100,6 @@ class LlMModel(AiModel):
                 model_params=self.model_params,
                 credentials=credentials,
                 prompt_messages=prompt_messages,
-                raw_request=raw_request,
                 stream=stream,
             )
 

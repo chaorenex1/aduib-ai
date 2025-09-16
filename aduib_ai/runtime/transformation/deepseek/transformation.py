@@ -16,7 +16,7 @@ class DeepseekTransformation(LLMTransformation):
     provider_type = "deepseek"
 
     @classmethod
-    def setup_validate_credentials(cls, credentials, params=None):
+    def setup_environment(cls, credentials, params=None):
         _credentials = credentials["credentials"]
         if "api_key" not in _credentials or not _credentials["api_key"]:
             raise ValueError("api_key is required in credentials")
@@ -35,7 +35,6 @@ class DeepseekTransformation(LLMTransformation):
     def _transform_message(cls, model_params: dict,
                            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
                            credentials: dict,
-                           raw_request: Request,
                            stream: bool = None) -> Union[
         ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
         llm_http_handler = LLMHttpHandler('/chat/completions', credentials, stream)

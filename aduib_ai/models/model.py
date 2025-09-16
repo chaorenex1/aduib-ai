@@ -22,6 +22,7 @@ class Model(Base):
     currency = Column(String, default="USD", comment="Model currency")
     feature=Column(Text, comment="Model Feature")
     model_params=Column(Text, comment="Model Params")
+    default=Column(Integer, server_default="0", comment="Is Default Model")
     description = Column(String, comment="Model Description")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")

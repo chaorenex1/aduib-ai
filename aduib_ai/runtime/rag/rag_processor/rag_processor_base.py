@@ -21,10 +21,10 @@ class BaseRAGProcessor(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def load(self, dataset: KnowledgeBase, documents: list[Document], with_keywords: bool = True, **kwargs):
+    def load(self, knowledge: KnowledgeBase, documents: list[Document], with_keywords: bool = True, **kwargs):
         raise NotImplementedError
 
-    def clean(self, dataset: KnowledgeBase, node_ids: Optional[list[str]], with_keywords: bool = True, **kwargs):
+    def clean(self, knowledge: KnowledgeBase, node_ids: Optional[list[str]], with_keywords: bool = True, **kwargs):
         raise NotImplementedError
 
     @abstractmethod
@@ -32,7 +32,7 @@ class BaseRAGProcessor(ABC):
             self,
             retrieval_method: str,
             query: str,
-            dataset: KnowledgeBase,
+            knowledge: KnowledgeBase,
             top_k: int,
             score_threshold: float,
             reranking_model: dict,

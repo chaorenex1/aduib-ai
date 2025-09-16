@@ -10,17 +10,17 @@ router = APIRouter(tags=['completion'])
 
 @router.post('/completions')
 @catch_exceptions
-def completion(req:CompletionRequest,raw_request: Request) -> Any:
+def completion(req:CompletionRequest) -> Any:
     """
     Completion endpoint
     """
-    return CompletionService.create_completion(req, raw_request)
+    return CompletionService.create_completion(req)
 
 
 @router.post('/chat/completions')
 @catch_exceptions
-def completion(req:ChatCompletionRequest,raw_request: Request) -> Any:
+def completion(req:ChatCompletionRequest) -> Any:
     """
     Completion endpoint
     """
-    return CompletionService.create_completion(req, raw_request)
+    return CompletionService.create_completion(req)

@@ -62,34 +62,34 @@ class ParagraphRAGProcessor(BaseRAGProcessor):
             all_documents.extend(split_documents)
         return all_documents
 
-    def load(self, dataset: KnowledgeBase, documents: list[Document], with_keywords: bool = True, **kwargs):
-        vector = Vector(dataset)
+    def load(self, knowledge: KnowledgeBase, documents: list[Document], with_keywords: bool = True, **kwargs):
+        vector = Vector(knowledge)
         vector.create(documents)
         keywords_list = kwargs.get("keywords_list")
-        keyword = Keyword(dataset)
+        keyword = Keyword(knowledge)
         if keywords_list and len(keywords_list) > 0:
             keyword.add_texts(documents, keywords_list=keywords_list)
         else:
             keyword.add_texts(documents)
 
-    def clean(self, dataset: KnowledgeBase, node_ids: Optional[list[str]], with_keywords: bool = True, **kwargs):
-        vector = Vector(dataset)
+    def clean(self, knowledge: KnowledgeBase, node_ids: Optional[list[str]], with_keywords: bool = True, **kwargs):
+        vector = Vector(knowledge)
         if node_ids and len(node_ids) > 0:
             vector.delete_by_ids(node_ids)
         else:
             vector.delete_all()
         if with_keywords:
-            keyword = Keyword(dataset)
+            keyword = Keyword(knowledge)
             if node_ids and len(node_ids) > 0:
                 keyword.delete_by_ids(node_ids)
             else:
                 keyword.delete()
 
-    def retrieve(self, retrieval_method: str, query: str, dataset: KnowledgeBase, top_k: int, score_threshold: float,
+    def retrieve(self, retrieval_method: str, query: str, knowledge: KnowledgeBase, top_k: int, score_threshold: float,
                  reranking_model: dict) -> list[Document]:
         # Set search parameters.
         results = RetrievalService.retrieve(
-            dataset_id=dataset.id,
+            knowledge_id=knowledge.id,
             query=query,
             top_k=top_k,
             score_threshold=score_threshold,

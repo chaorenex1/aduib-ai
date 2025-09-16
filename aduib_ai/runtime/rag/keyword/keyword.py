@@ -8,12 +8,12 @@ from runtime.rag.keyword.jieba import JiebaKeyword
 
 
 class Keyword:
-    def __init__(self, dataset: KnowledgeBase):
-        self._dataset = dataset
+    def __init__(self, knowledge: KnowledgeBase):
+        self._knowledge = knowledge
         self._keyword_processor = JiebaKeyword()
 
     def create(self, texts: list[Document], **kwargs):
-        lock_name = f"keyword_indexing_lock_{self._dataset.id}"
+        lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             for text in texts:
                 keywords = self._keyword_processor.extract_keywords(text=text.content, **kwargs)
@@ -31,7 +31,7 @@ class Keyword:
 
 
     def add_texts(self, texts: list[Document], **kwargs):
-        lock_name = f"keyword_indexing_lock_{self._dataset.id}"
+        lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             for text in texts:
 
@@ -52,28 +52,28 @@ class Keyword:
                         session.commit()
 
     def text_exists(self, id: str) -> bool:
-        lock_name = f"keyword_indexing_lock_{self._dataset.id}"
+        lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             with get_db() as session:
                 count = session.query(KnowledgeKeywords).filter(KnowledgeKeywords.doc_id == id).count()
                 return count > 0
 
     def delete_by_ids(self, ids: list[str]):
-        lock_name = f"keyword_indexing_lock_{self._dataset.id}"
+        lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             with get_db() as session:
                 session.query(KnowledgeKeywords).filter(KnowledgeKeywords.doc_id.in_(ids)).delete()
                 session.commit()
 
     def delete(self):
-        lock_name = f"keyword_indexing_lock_{self._dataset.id}"
+        lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             with get_db() as session:
                 session.query(KnowledgeKeywords).delete()
                 session.commit()
 
     def search(self, query: str, **kwargs: Any) -> list[Document]:
-        lock_name = f"keyword_indexing_lock_{self._dataset.id}"
+        lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             keywords = self._keyword_processor.extract_keywords(text=query, **kwargs)
             if len(keywords) == 0:

@@ -161,8 +161,8 @@ class MilvusVector(BaseVector):
 
 class MilvusVectorFactory(AbstractVectorFactory):
 
-    def init_vector(self, dataset: KnowledgeBase, attributes: list, embeddings: Embeddings) -> BaseVector:
-        collection_name="kb_" + str(dataset.id)+"_vector"
+    def init_vector(self, knowledge: KnowledgeBase, attributes: list, embeddings: Embeddings) -> BaseVector:
+        collection_name="kb_" + str(knowledge.id)+"_vector"
         milvus_config = MilvusConfig(
             uri=config.MILVUS_URI or "",
             token=config.MILVUS_TOKEN or "",

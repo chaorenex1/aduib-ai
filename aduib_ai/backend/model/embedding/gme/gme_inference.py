@@ -157,7 +157,7 @@ class GmeQwen2VL:
         if isinstance(images, DataLoader):
             image_loader = images
             batch_size = image_loader.batch_size
-            image_loader.dataset.transform = None
+            image_loader.knowledge.transform = None
         else:
             batch_size = kwargs.pop('batch_size', 32)
             if images is None:

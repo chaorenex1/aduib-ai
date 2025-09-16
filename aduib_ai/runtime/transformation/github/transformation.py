@@ -24,7 +24,7 @@ class GithubCopilotTransformation(LLMTransformation):
     GITHUB_COPILOT_API_BASE = "https://api.githubcopilot.com"
 
     @classmethod
-    def setup_validate_credentials(cls, credentials, params=None):
+    def setup_environment(cls, credentials, params=None):
         _credentials = credentials["credentials"]
         authenticator = Authenticator()
         dynamic_api_base = (
@@ -41,7 +41,6 @@ class GithubCopilotTransformation(LLMTransformation):
     def _transform_message(cls, model_params: dict,
                            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
                            credentials: dict,
-                           raw_request: Request,
                            stream: bool = None) -> Union[
         ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
         # credentials["headers"]["X-User-Initiator"] = cls._determine_initiator(prompt_messages.messages)

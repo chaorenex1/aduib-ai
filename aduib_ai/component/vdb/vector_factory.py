@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class AbstractVectorFactory(ABC):
     @abstractmethod
-    def init_vector(self, dataset: KnowledgeBase, attributes: list, embeddings: Embeddings) -> BaseVector:
+    def init_vector(self, knowledge: KnowledgeBase, attributes: list, embeddings: Embeddings) -> BaseVector:
         raise NotImplementedError
 
     @staticmethod
@@ -31,10 +31,10 @@ class AbstractVectorFactory(ABC):
 
 
 class Vector:
-    def __init__(self, dataset: KnowledgeBase, attributes: Optional[list] = None):
+    def __init__(self, knowledge: KnowledgeBase, attributes: Optional[list] = None):
         if attributes is None:
-            attributes = ["doc_id", "dataset_id", "document_id", "doc_hash"]
-        self._dataset = dataset
+            attributes = ["knowledge_id","doc_id", "doc_hash"]
+        self._knowledge = knowledge
         self._embeddings = self._get_embeddings()
         self._attributes = attributes
         self._vector_processor = self._init_vector()
@@ -42,7 +42,7 @@ class Vector:
     def _init_vector(self) -> BaseVector:
         vector_type = config.VECTOR_STORE
         vector_factory_cls = self.get_vector_factory(vector_type)
-        return vector_factory_cls().init_vector(self._dataset, self._attributes, self._embeddings)
+        return vector_factory_cls().init_vector(self._knowledge, self._attributes, self._embeddings)
 
     @staticmethod
     def get_vector_factory(vector_type: str) -> type[AbstractVectorFactory]:
@@ -107,8 +107,8 @@ class Vector:
         model_manager = ModelManager()
 
         embedding_model = model_manager.get_model_instance(
-            model_name=self._dataset.embedding_model,
-            provider_name=self._dataset.embedding_model_provider,
+            model_name=self._knowledge.embedding_model,
+            provider_name=self._knowledge.embedding_model_provider,
         )
         return CacheEmbeddings(embedding_model)
 

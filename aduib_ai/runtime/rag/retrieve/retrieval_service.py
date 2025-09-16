@@ -21,19 +21,19 @@ class RetrievalService:
     @classmethod
     def retrieve(
         cls,
-        dataset_id: str,
+        knowledge_id: str,
         query: str,
         top_k: int,
         score_threshold: Optional[float] = 0.0,
         reranking_model: Optional[dict] = None,
         reranking_mode: str = "reranking_model",
         weights: Optional[dict] = None,
-        document_ids_filter: Optional[list[str]] = None,
+        knowledge_ids_filter: Optional[list[str]] = None,
     ):
         if not query:
             return []
-        dataset = cls._get_dataset(dataset_id)
-        if not dataset:
+        knowledge = cls._get_knowledge(knowledge_id)
+        if not knowledge:
             return []
 
         all_documents: list[Document] = []
@@ -43,32 +43,32 @@ class RetrievalService:
         with ThreadPoolExecutor(max_workers=dify_config.RETRIEVAL_SERVICE_EXECUTORS) as executor:  # type: ignore
             futures = [executor.submit(
                 cls.keyword_search,
-                dataset_id=dataset_id,
+                knowledge_id=knowledge_id,
                 query=query,
                 top_k=top_k,
                 all_documents=all_documents,
                 exceptions=exceptions,
-                document_ids_filter=document_ids_filter,
+                knowledge_ids_filter=knowledge_ids_filter,
             ), executor.submit(
                 cls.embedding_search,
-                dataset_id=dataset_id,
+                knowledge_id=knowledge_id,
                 query=query,
                 top_k=top_k,
                 score_threshold=score_threshold,
                 reranking_model=reranking_model,
                 all_documents=all_documents,
                 exceptions=exceptions,
-                document_ids_filter=document_ids_filter,
+                knowledge_ids_filter=knowledge_ids_filter,
             ), executor.submit(
                 cls.full_text_index_search,
-                dataset_id=dataset_id,
+                knowledge_id=knowledge_id,
                 query=query,
                 top_k=top_k,
                 score_threshold=score_threshold,
                 reranking_model=reranking_model,
                 all_documents=all_documents,
                 exceptions=exceptions,
-                document_ids_filter=document_ids_filter,
+                knowledge_ids_filter=knowledge_ids_filter,
             )]
             concurrent.futures.wait(futures, timeout=30, return_when=concurrent.futures.ALL_COMPLETED)
 
@@ -86,29 +86,29 @@ class RetrievalService:
         return all_documents
 
     @classmethod
-    def _get_dataset(cls, dataset_id: str) -> Optional[KnowledgeBase]:
+    def _get_knowledge(cls, knowledge_id: str) -> Optional[KnowledgeBase]:
         with get_db() as session:
-            return session.query(KnowledgeBase).where(KnowledgeBase.id == dataset_id).first()
+            return session.query(KnowledgeBase).where(KnowledgeBase.id == knowledge_id).first()
 
     @classmethod
     def keyword_search(
         cls,
-        dataset_id: str,
+        knowledge_id: str,
         query: str,
         top_k: int,
         all_documents: list,
         exceptions: list,
-        document_ids_filter: Optional[list[str]] = None,
+        knowledge_ids_filter: Optional[list[str]] = None,
     ):
         try:
-            dataset = cls._get_dataset(dataset_id)
-            if not dataset:
-                raise ValueError("dataset not found")
+            knowledge = cls._get_knowledge(knowledge_id)
+            if not knowledge:
+                raise ValueError("knowledge not found")
 
-            keyword = Keyword(dataset=dataset)
+            keyword = Keyword(knowledge=knowledge)
 
             documents = keyword.search(
-                cls.escape_query_for_search(query), top_k=top_k, document_ids_filter=document_ids_filter
+                cls.escape_query_for_search(query), top_k=top_k, knowledge_ids_filter=knowledge_ids_filter
             )
             all_documents.extend(documents)
         except Exception as e:
@@ -117,28 +117,28 @@ class RetrievalService:
     @classmethod
     def embedding_search(
         cls,
-        dataset_id: str,
+        knowledge_id: str,
         query: str,
         top_k: int,
         score_threshold: Optional[float],
         reranking_model: Optional[dict],
         all_documents: list,
         exceptions: list,
-        document_ids_filter: Optional[list[str]] = None,
+        knowledge_ids_filter: Optional[list[str]] = None,
     ):
         try:
-            dataset = cls._get_dataset(dataset_id)
-            if not dataset:
-                raise ValueError("dataset not found")
+            knowledge = cls._get_knowledge(knowledge_id)
+            if not knowledge:
+                raise ValueError("knowledge not found")
 
-            vector = Vector(dataset=dataset)
+            vector = Vector(knowledge=knowledge)
             documents = vector.search_by_vector(
                 query,
                 search_type="similarity_score_threshold",
                 top_k=top_k,
                 score_threshold=score_threshold,
-                filter={"group_id": [dataset.id]},
-                document_ids_filter=document_ids_filter,
+                filter={"group_id": [knowledge.id]},
+                knowledge_ids_filter=knowledge_ids_filter,
             )
 
             if documents:
@@ -149,24 +149,24 @@ class RetrievalService:
     @classmethod
     def full_text_index_search(
         cls,
-        dataset_id: str,
+        knowledge_id: str,
         query: str,
         top_k: int,
         score_threshold: Optional[float],
         reranking_model: Optional[dict],
         all_documents: list,
         exceptions: list,
-        document_ids_filter: Optional[list[str]] = None,
+        knowledge_ids_filter: Optional[list[str]] = None,
     ):
         try:
-            dataset = cls._get_dataset(dataset_id)
-            if not dataset:
-                raise ValueError("dataset not found")
+            knowledge_base = cls._get_knowledge(knowledge_id)
+            if not knowledge_base:
+                raise ValueError("knowledge_base not found")
 
-            vector_processor = Vector(dataset=dataset)
+            vector_processor = Vector(knowledge=knowledge_base)
 
             documents = vector_processor.search_by_full_text(
-                cls.escape_query_for_search(query), top_k=top_k, document_ids_filter=document_ids_filter
+                cls.escape_query_for_search(query), top_k=top_k, knowledge_ids_filter=knowledge_ids_filter
             )
             if documents:
                 all_documents.extend(documents)

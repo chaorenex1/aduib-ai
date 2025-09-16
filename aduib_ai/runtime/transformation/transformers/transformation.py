@@ -19,7 +19,7 @@ class TransformersTransformation(OpenAILikeTransformation):
     _initialized_models = set()
 
     @classmethod
-    def setup_validate_credentials(cls, credentials, params=None):
+    def setup_environment(cls, credentials, params=None):
         _credentials = credentials["credentials"]
         return {
             "models_path": _credentials.get("models_path", ""),
