@@ -1,4 +1,4 @@
-exclude = ["alemibic/*"]
+exclude = ["alembic/*"]
 line-length = 120
 
 [format]
