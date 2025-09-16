@@ -1,6 +1,6 @@
 import datetime
 
-from pgvecto_rs.sqlalchemy import VECTOR
+from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import Column, DateTime, Integer, String, text, UUID, Index, func, TEXT
 from sqlalchemy.dialects.postgresql import JSONB
 
