@@ -1,1 +1,0 @@
-from ..util.factory import auto_register
