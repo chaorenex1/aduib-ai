@@ -11,7 +11,7 @@ class FileResource(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"), comment="id")
     access_url = Column(String, comment="access_url", index=True, server_default=text("''"))
     file_name = Column(String, comment="file name", index=True, server_default=text("''"))
-    file_abs_path = Column(String, comment="file absolute path", index=True, server_default=text("''"))
+    file_path = Column(String, comment="file  path", index=True, server_default=text("''"))
     file_type = Column(String, comment="file type", server_default=text("''"))
     file_size = Column(Integer, comment="file size", default=0)
     file_metadata = Column(JSONB, comment="file metadata", server_default=text("'{}'"))

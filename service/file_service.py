@@ -22,14 +22,14 @@ class FileService:
                 return existing_file
             else:
                 file_type = os.path.splitext(file_name)[1]
-                file_path = os.path.join(config.SERVICE_URL, file_hash, file_type)
-                access_url = os.path.basename(file_path)
-                storage_manager.save(access_url, content)
+                file_path = file_name
+                access_url = os.path.join(config.SERVICE_URL, file_name)
+                storage_manager.save(file_name, content)
                 file_size = len(content)
                 file_record = FileResource(
                     file_name=file_name,
                     file_type=file_type,
-                    file_abs_path=file_path,
+                    file_path=file_path,
                     access_url=access_url,
                     file_hash=file_hash,
                     file_size=file_size,
