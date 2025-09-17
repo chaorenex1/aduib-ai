@@ -53,7 +53,7 @@ class StorageManager:
                 from .opendal_storage import OpenDALStorage
 
                 storage_path = (
-                    config.STORAGE_LOCAL_PATH if config.STORAGE_LOCAL_PATH else app.app_home + "/" + config.STORAGE_LOCAL_PATH
+                    config.STORAGE_LOCAL_PATH if config.STORAGE_LOCAL_PATH else app.app_home + "/" + storage_type
                 )
                 return lambda: OpenDALStorage(scheme="fs", root=storage_path)
             case "s3":
