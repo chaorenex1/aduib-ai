@@ -12,14 +12,14 @@ def test_add_model():
     response = client.post(
         "v1/models/add",
         json={
-            "model_name": "Qwen/Qwen3-Embedding-0.6B",
-            "provider_name": "transformer",
-            "model_type": "embedding",
+            "model_name": "deepseek-chat",
+            "provider_name": "deepseek",
+            "model_type": "llm",
             "max_tokens": 8192,
-            "model_configs": {},
-            "model_feature": [],
-            "input_price": 0.00,
-            "output_price": 0.00,
+            "model_configs": {"temperature": 0.6, "top_k": 20, "top_p": 0.8, "presence_penalty": 1.5},
+            "model_feature": ["thinking", "streaming", "structured_outputs"],
+            "input_price": 4/1000000,
+            "output_price": 12/1000000,
         },
     )
     assert response.status_code == 200
@@ -46,10 +46,10 @@ def test_add_provider():
     response = client.post(
         "v1/providers/add",
         json={
-            "provider_name": "transformer",
+            "provider_name": "deepseek",
             "supported_model_types": ["llm", "tts", "asr", "embedding", "reranker"],
-            "provider_type": "transformer",
-            "provider_config": {"models_path": "/models"},
+            "provider_type": "deepseek",
+            "provider_config": {"api_key": "testkey", "api_base": "https://api.deepseek.com"},
         },
     )
     assert response.status_code == 200

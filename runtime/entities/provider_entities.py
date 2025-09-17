@@ -8,6 +8,7 @@ from .model_entities import ModelType, AIModelEntity
 
 class ProviderSDKType(Enum):
     OPENAI = "openai"
+    DEEPSEEK = "deepseek"
     OPENAI_LIKE = "openai_like"
     TRANSFORMER = "transformer"
     HUGGINGFACE = "huggingface"
@@ -29,6 +30,10 @@ class ProviderSDKType(Enum):
     def to_model_type(self) -> str:
         if self == self.OPENAI:
             return "openai"
+        if self == self.ANTHROPIC:
+            return "anthropic"
+        elif self == self.DEEPSEEK:
+            return "deepseek"
         elif self == self.OPENAI_LIKE:
             return "openai_like"
         elif self == self.HUGGINGFACE:

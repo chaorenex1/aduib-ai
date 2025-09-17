@@ -154,7 +154,11 @@ class MessageRecordCallback(Callback):
         if isinstance(prompt_messages, list) and prompt_messages:
             role = prompt_messages[-1].role.value
             if prompt_messages[-1].content:
-                content = prompt_messages[-1].content
+                for c in prompt_messages[-1].content:
+                    if isinstance(c, str):
+                        content += c
+                    else:
+                        content += c.data or c.text
             system_prompt = prompt_messages[0].content if prompt_messages[0].role.value == "system" else ""
         elif isinstance(prompt_messages, str):
             role = "user"

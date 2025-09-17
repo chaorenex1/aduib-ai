@@ -1,6 +1,6 @@
 import datetime
 
-from pgvector.sqlalchemy import VECTOR
+from pgvecto_rs.sqlalchemy import VECTOR
 from sqlalchemy import Column, DateTime, Integer, String, text, UUID, Index, func, TEXT
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -52,7 +52,7 @@ class KnowledgeEmbeddings(Base):
     knowledge_id = Column(UUID(as_uuid=True), index=True, nullable=False, comment="knowledge_id")
     content = Column(TEXT, nullable=False, comment="content", server_default=text("''"))
     vector = Column(VECTOR(2560), nullable=False, comment="vector")
-    metadata = Column(JSONB, nullable=False, comment="metadata", server_default=text("'{}'"))
+    meta = Column(JSONB, nullable=False, comment="metadata", server_default=text("'{}'"))
     hash = Column(String(64), nullable=False, comment="content hash")
     model_name = Column(String(255), nullable=False, comment="embedding model name")
     provider_name = Column(String(255), nullable=False, comment="embedding provider name")
@@ -62,17 +62,17 @@ class KnowledgeEmbeddings(Base):
         ),
         Index(
             "idx_knowledge_embeddings_vector",
-            vector,
+        vector,
             postgresql_using="vectors",
             postgresql_with={
-                "options": """"$$optimizing.optimizing_threads = 30
+                "options": """$$optimizing.optimizing_threads = 30
                                 segment.max_growing_segment_size = 2000
                                 segment.max_sealed_segment_size = 30000000
                                 [indexing.hnsw]
                                 m=30
                                 ef_construction=500$$"""
             },
-            postgresql_ops={"embedding": "vector_l2_ops"},
+            postgresql_ops={"vector": "vector_l2_ops"},
         ),
     )
 

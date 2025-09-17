@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional
 
 import torch
 import zmq
-from envs.llm.Lib.multiprocessing.pool import worker
 from pydantic import BaseModel
 from transformers import AutoTokenizer, AutoModelForCausalLM
 

@@ -70,7 +70,8 @@ class ApiKeyContextMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         api_key_context.clear()
-        api_key_value = request.headers.get(API_KEY_HEADER) or request.headers.get(AUTHORIZATION_HEADER).replace(
+        auth_key = request.headers.get(AUTHORIZATION_HEADER) or ""
+        api_key_value = request.headers.get(API_KEY_HEADER) or auth_key.replace(
             "Bearer ", ""
         )
         if api_key_value:

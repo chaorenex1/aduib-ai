@@ -1,6 +1,7 @@
 import decimal
 import logging
 import time
+import traceback
 from typing import Optional, Union, Generator, Sequence, cast
 
 from pydantic import ConfigDict
@@ -64,7 +65,7 @@ class LlMModel(AiModel):
         include_reasoning: bool = False
         message_id: Optional[str] = self.get_message_id()
         if isinstance(prompt_messages, ChatCompletionRequest):
-            include_reasoning = prompt_messages.include_reasoning
+            include_reasoning = prompt_messages.include_reasoning or prompt_messages.enable_thinking or prompt_messages.thinking is not None
             tools = prompt_messages.tools
             if tools:
                 stream = False  # disable stream for tool calling
@@ -117,6 +118,8 @@ class LlMModel(AiModel):
                         if chunkContent.message and chunkContent.message.content:
                             if isinstance(chunkContent.message.content, str):
                                 message_content += chunkContent.message.content
+                            elif isinstance(chunkContent.message.content, list):
+                                message_content += "".join([content.data for content in chunkContent.message.content])
                         if chunkContent.text:
                             if isinstance(chunkContent.text, str):
                                 message_content += chunkContent.text
@@ -179,7 +182,6 @@ class LlMModel(AiModel):
         tools: Optional[list[PromptMessageFunction]] = None,
         stop: Optional[Sequence[str]] = None,
         stream: bool = True,
-        user: Optional[str] = None,
         callbacks: Optional[list[Callback]] = None,
     ) -> Generator[ChatCompletionResponseChunk, None, None]:
         """
@@ -193,19 +195,6 @@ class LlMModel(AiModel):
         usage = None
         system_fingerprint = None
         real_model = model
-
-        def _update_message_content(content: str | None):
-            if not content:
-                return
-
-            if isinstance(content, Generator):
-                for c in content:
-                    if isinstance(c, str):
-                        message_content.append(TextPromptMessageContent(data=c))
-                    elif isinstance(c, list):
-                        message_content.extend(c)
-                return
-
         try:
             for chunk in result:
                 chunk.prompt_messages = self.get_messages(prompt_messages)
@@ -376,6 +365,7 @@ class LlMModel(AiModel):
                         include_reasoning=include_reasoning,
                     )
                 except Exception as e:
+                    traceback.print_exc()
                     if callback.raise_error:
                         raise e
                     else:

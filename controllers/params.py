@@ -1,5 +1,6 @@
 import time
 import uuid
+from decimal import Decimal
 from typing import Optional, Any
 
 from pydantic import BaseModel, Field
@@ -12,8 +13,8 @@ class CreateModelRequest(BaseModel):
     provider_name: str
     model_type: str
     max_tokens: int
-    input_price: float | None = 0.0
-    output_price: float | None = 0.0
+    input_price: Decimal | None = 0.0
+    output_price: Decimal | None = 0.0
     model_configs: dict[str, Any] | None = {}
     model_feature: list[str] | None = []
 

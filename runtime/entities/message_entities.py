@@ -1,6 +1,6 @@
 from abc import ABC
 from enum import StrEnum, Enum
-from typing import Optional, Sequence, Annotated, Union, Literal, Any
+from typing import Optional, Sequence, Annotated, Union, Literal, Any, Mapping
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -124,9 +124,9 @@ class TextPromptMessageContent(PromptMessageContent):
     Model class for text prompt message content.
     """
 
-    type: PromptMessageContentType = PromptMessageContentType.TEXT
-    data: str
-
+    type: Literal[PromptMessageContentType.TEXT] = PromptMessageContentType.TEXT
+    data: str=Field(default="", description="the text content of prompt message")
+    text: str=Field(default="", description="the text content of prompt message")
 
 class MultiModalPromptMessageContent(PromptMessageContent):
     """
@@ -145,11 +145,11 @@ class MultiModalPromptMessageContent(PromptMessageContent):
 
 
 class VideoPromptMessageContent(MultiModalPromptMessageContent):
-    type: PromptMessageContentType = PromptMessageContentType.VIDEO
+    type: Literal[PromptMessageContentType.VIDEO] = PromptMessageContentType.VIDEO
 
 
 class AudioPromptMessageContent(MultiModalPromptMessageContent):
-    type: PromptMessageContentType = PromptMessageContentType.AUDIO
+    type: Literal[PromptMessageContentType.AUDIO] = PromptMessageContentType.AUDIO
 
 
 class ImagePromptMessageContent(MultiModalPromptMessageContent):
@@ -161,12 +161,12 @@ class ImagePromptMessageContent(MultiModalPromptMessageContent):
         LOW = "low"
         HIGH = "high"
 
-    type: PromptMessageContentType = PromptMessageContentType.IMAGE
+    type: Literal[PromptMessageContentType.IMAGE] = PromptMessageContentType.IMAGE
     detail: DETAIL = DETAIL.LOW
 
 
 class DocumentPromptMessageContent(MultiModalPromptMessageContent):
-    type: PromptMessageContentType = PromptMessageContentType.DOCUMENT
+    type: Literal[PromptMessageContentType.DOCUMENT] = PromptMessageContentType.DOCUMENT
 
 
 PromptMessageContentUnionTypes = Annotated[
@@ -180,6 +180,14 @@ PromptMessageContentUnionTypes = Annotated[
     Field(discriminator="type"),
 ]
 
+CONTENT_TYPE_MAPPING: Mapping[PromptMessageContentType, type[PromptMessageContent]] = {
+    PromptMessageContentType.TEXT: TextPromptMessageContent,
+    PromptMessageContentType.IMAGE: ImagePromptMessageContent,
+    PromptMessageContentType.AUDIO: AudioPromptMessageContent,
+    PromptMessageContentType.VIDEO: VideoPromptMessageContent,
+    PromptMessageContentType.DOCUMENT: DocumentPromptMessageContent,
+}
+
 
 class PromptMessage(ABC, BaseModel):
     """
@@ -187,7 +195,7 @@ class PromptMessage(ABC, BaseModel):
     """
 
     role: PromptMessageRole
-    content: Optional[str | Sequence[PromptMessageContent]] = None
+    content: Optional[str | Sequence[PromptMessageContentUnionTypes]] = None
     name: Optional[str] = None
 
     def is_empty(self) -> bool:

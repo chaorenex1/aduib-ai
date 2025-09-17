@@ -25,15 +25,15 @@ class LLMTransformation:
     ):
         """Validate model parameters."""
         if not prompt_messages.temperature:
-            prompt_messages.temperature = model_params.get("temperature", None)
+            prompt_messages.temperature = model_params.get("temperature")
         if not prompt_messages.top_p:
-            prompt_messages.top_p = model_params.get("top_p", None)
+            prompt_messages.top_p = model_params.get("top_p")
         if not prompt_messages.top_k:
-            prompt_messages.top_k = model_params.get("top_k", None)
+            prompt_messages.top_k = model_params.get("top_k")
         if not prompt_messages.presence_penalty:
-            prompt_messages.presence_penalty = model_params.get("presence_penalty", None)
+            prompt_messages.presence_penalty = model_params.get("presence_penalty")
         if not prompt_messages.frequency_penalty:
-            prompt_messages.frequency_penalty = model_params.get("frequency_penalty", None)
+            prompt_messages.frequency_penalty = model_params.get("frequency_penalty")
         # if not prompt_messages.miniP:
         #     prompt_messages.miniP = model_params.get("miniP", 0.0)
 

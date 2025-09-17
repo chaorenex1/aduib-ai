@@ -1,5 +1,6 @@
 from runtime.entities.provider_entities import ProviderSDKType
 from runtime.transformation.base import LLMTransformation
+from runtime.transformation.deepseek.transformation import DeepseekTransformation
 from runtime.transformation.github.transformation import GithubCopilotTransformation
 from runtime.transformation.openai_like.transformation import OpenAILikeTransformation
 from runtime.transformation.transformers.transformation import TransformersTransformation
@@ -8,6 +9,7 @@ LLMTransformations: dict[ProviderSDKType, type[LLMTransformation]] = {
     ProviderSDKType.OPENAI_LIKE: OpenAILikeTransformation,
     ProviderSDKType.TRANSFORMER: TransformersTransformation,
     ProviderSDKType.GITHUB_COPILOT: GithubCopilotTransformation,
+    ProviderSDKType.DEEPSEEK: DeepseekTransformation,
 }
 
 
