@@ -53,7 +53,7 @@ class TextEmbeddingModel(AiModel):
 
         :return: max tokens
         """
-        return self.model_params.get("MAX_EMBEDDING_TOKENS", 2560)
+        return self.model_params.get("MAX_EMBEDDING_TOKENS", 4096)
 
     def get_num_tokens(self, texts: list[str]) -> int:
         """

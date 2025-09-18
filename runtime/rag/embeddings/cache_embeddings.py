@@ -51,9 +51,9 @@ class CacheEmbeddings(Embeddings):
                         input_type=EmbeddingInputType.DOCUMENT,
                     )
 
-                for vector in embedding_result.embeddings:
+                for vector in embedding_result.data:
                     try:
-                        normalized_embedding = (vector / np.linalg.norm(vector)).tolist()  # type: ignore
+                        normalized_embedding = (vector.embedding / np.linalg.norm(vector.embedding)).tolist()  # type: ignore
                         # stackoverflow best way: https://stackoverflow.com/questions/20319813/how-to-check-list-containing-nan
                         if np.isnan(normalized_embedding).any():
                             # for issue #11827  float values are not json compliant

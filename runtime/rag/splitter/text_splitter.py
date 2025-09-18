@@ -13,7 +13,7 @@ class RecursiveTextSplitter(BaseTextSplitter):
     def __init__(self, fixed_separator: str = "\n\n", separators: Optional[List[str]] = None, **kwargs: Any):
         super().__init__(**kwargs)
         if "TIKTOKEN_CACHE_DIR" not in os.environ:
-            os.environ["TIKTOKEN_CACHE_DIR"] = "/home/zzh/.cache/tiktoken"
+            os.environ["TIKTOKEN_CACHE_DIR"] = os.path.expanduser("~/.cache/tiktoken")
         self.text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             encoding_name="cl100k_base",
             separators=separators or ["\n\n", "。", ". ", " ", ""] if not separators else [fixed_separator],

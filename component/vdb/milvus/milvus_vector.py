@@ -38,7 +38,7 @@ class MilvusVector(BaseVector):
         )
         self.enable_hybrid = config.enable_hybrid
         self.fields = []
-        self.consisency_level = "session"
+        self.consisency_level = "Session"
 
     def get_type(self) -> str:
         return VectorType.MILVUS
@@ -131,7 +131,7 @@ class MilvusVector(BaseVector):
 
             schema.add_field(field_name=Field.VECTOR.value, datatype=infer_dtype_bydata(embeddings[0]), dim=dimension)
             if self.enable_hybrid:
-                schema.add_field(field_name=Field.SPARSE_VECTOR, datatype=DataType.SPARSE_FLOAT_VECTOR)
+                schema.add_field(field_name=Field.SPARSE_VECTOR.value, datatype=DataType.SPARSE_FLOAT_VECTOR)
                 schema.add_function(
                     Function(
                         name="text_bm25",
@@ -142,9 +142,9 @@ class MilvusVector(BaseVector):
                 )
             # Create index
             index_params_obj = self.client.prepare_index_params()
-            index_params_obj.add_index(Field.VECTOR, **index_params)
+            index_params_obj.add_index(Field.VECTOR.value, **index_params)
             if self.enable_hybrid:
-                index_params_obj.add_index(field_name=Field.SPARSE_VECTOR, index_type="AUTOINDEX", metric_type="BM25")
+                index_params_obj.add_index(field_name=Field.SPARSE_VECTOR.value, index_type="AUTOINDEX", metric_type="BM25")
             return self.client.create_collection(
                 collection_name=self.collection_name,
                 schema=schema,
@@ -155,12 +155,13 @@ class MilvusVector(BaseVector):
     def add_texts(self, texts: list[Document], embeddings: list[list[float]]):
         insert_data_list = []
         for i, text in enumerate(texts):
-            insert_data = {
-                Field.CONTENT_KEY.value: text.content,
-                Field.METADATA_KEY.value: text.metadata,
-                Field.VECTOR.value: embeddings[i],
-            }
-            insert_data_list.append(insert_data)
+            if not self.exists(text.metadata.get("doc_id", "")):  # check exists
+                insert_data = {
+                    Field.CONTENT_KEY.value: text.content,
+                    Field.METADATA_KEY.value: text.metadata,
+                    Field.VECTOR.value: embeddings[i],
+                }
+                insert_data_list.append(insert_data)
 
         return self.client.insert(collection_name=self.collection_name, data=insert_data_list)
 

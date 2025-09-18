@@ -21,14 +21,14 @@ class Keyword:
             for text in texts:
                 keywords = self._keyword_processor.extract_keywords(text=text.content, **kwargs)
                 if len(keywords) > 0:
-                    doc_id = text.metadata.get("doc_id")
+                    knowledge_id = text.metadata.get("knowledge_id")
                     keyword_list = []
                     with get_db() as session:
                         for kw in keywords:
                             kw__count = (
                                 session.query(KnowledgeKeywords)
                                 .filter(
-                                    KnowledgeKeywords.document_id == doc_id,
+                                    KnowledgeKeywords.document_id == knowledge_id,
                                     KnowledgeKeywords.keyword == kw,
                                 )
                                 .count()
@@ -37,7 +37,7 @@ class Keyword:
                                 keyword_list.append(
                                     KnowledgeKeywords(
                                         knowledge_id=self._knowledge.id,
-                                        document_id=doc_id,
+                                        document_id=knowledge_id,
                                         keyword=kw,
                                     )
                                 )
