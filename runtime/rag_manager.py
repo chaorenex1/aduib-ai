@@ -42,7 +42,7 @@ class RagManager:
                     # transform
                     documents = self._transform(rag_processor, knowledge_doc, kb, docs)
                     # save segment
-                    self._load_segments(kb, documents)
+                    self._load_segments(knowledge_doc,kb, documents)
 
                     # load
                     self._load(
@@ -118,15 +118,15 @@ class RagManager:
 
         return documents
 
-    def _load_segments(self, knowledge_base: KnowledgeBase, documents: list[Document]):
+    def _load_segments(self,knowledge_doc: KnowledgeDocument, knowledge_base: KnowledgeBase, documents: list[Document]):
         # save node to document segment
         with get_db() as session:
             docs = []
             for document in documents:
                 hash_ = document.metadata["doc_hash"]
-                # count_ = session.query(Document).filter(KnowledgeEmbeddings.hash == hash_).count()
-                # if count_:
-                #     continue
+                count_ = session.query(KnowledgeEmbeddings).filter(KnowledgeEmbeddings.hash == hash_).count()
+                if count_>0:
+                    continue
                 doc = KnowledgeEmbeddings(
                     id=document.metadata["doc_id"],
                     document_id=document.metadata["knowledge_id"],
@@ -138,15 +138,16 @@ class RagManager:
                     provider_name=knowledge_base.embedding_model_provider,
                 )
                 docs.append(doc)
-            session.bulk_save_objects(docs)
-            session.commit()
+            if len(docs)>0:
+                session.bulk_save_objects(docs)
+                session.commit()
 
         with get_db() as session:
-            _knowledge_base = session.query(KnowledgeBase).filter_by(id=knowledge_base.id).one_or_none()
-            if _knowledge_base:
-                _knowledge_base.rag_status = "segmenting"
-                _knowledge_base.spited_at = datetime.datetime.now()
-                _knowledge_base.cleaned_at = datetime.datetime.now()
+            _knowledge_doc = session.query(KnowledgeDocument).filter_by(id=knowledge_doc.id).one_or_none()
+            if _knowledge_doc:
+                _knowledge_doc.rag_status = "segmenting"
+                _knowledge_doc.spited_at = datetime.datetime.now()
+                _knowledge_doc.cleaned_at = datetime.datetime.now()
                 session.commit()
 
     def _load(self, rag_processor: BaseRAGProcessor, knowledge_base: KnowledgeBase, documents: list[Document]):
@@ -224,7 +225,7 @@ class RagManager:
         tokens = 0
         if embedding_model_instance:
             page_content_list = [document.content for document in chunk_documents]
-            tokens += sum(embedding_model_instance.get_text_embedding_num_tokens(page_content_list))
+            tokens += embedding_model_instance.get_text_embedding_num_tokens(page_content_list)
 
         # load index
         rag_processor.load(dataset, chunk_documents, with_keywords=True)

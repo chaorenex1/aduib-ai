@@ -62,16 +62,14 @@ class Vector:
         if texts:
             start = time.time()
             logger.info("start embedding %s texts %s", len(texts), start)
-            batch_size = 1000
+            batch_size = 10
             total_batches = len(texts) + batch_size - 1
             for i in range(0, len(texts), batch_size):
                 batch = texts[i : i + batch_size]
                 batch_start = time.time()
                 logger.info("Processing batch %s/%s (%s texts)", i // batch_size + 1, total_batches, len(batch))
-                batch_embeddings = self._embeddings.embed_documents([document.page_content for document in batch])
-                logger.info(
-                    "Embedding batch %s/%s took %s s", i // batch_size + 1, total_batches, time.time() - batch_start
-                )
+                batch_embeddings = self._embeddings.embed_documents([document.content for document in batch])
+                logger.info("Embedding batch %s/%s took %s s", i // batch_size + 1, total_batches, time.time() - batch_start)
                 self._vector_processor.save(texts=batch, embeddings=batch_embeddings, **kwargs)
             logger.info("Embedding %s texts took %s s", len(texts), time.time() - start)
 

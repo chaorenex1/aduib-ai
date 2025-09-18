@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from models import Base
 
 
-class KnowledgeBase(Base):
+class  KnowledgeBase(Base):
     __tablename__ = "knowledge_base"
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"), comment="id")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")

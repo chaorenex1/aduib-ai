@@ -170,8 +170,8 @@ class EmbeddingTransformersLoader(TransformersLoader):
             batch_embeddings = self._process_batch(batch_texts, normalize, target_dimension)
             all_embeddings.extend(batch_embeddings)
 
-            # 强制清理内存
-            self._cleanup_memory()
+        # 强制清理内存
+        self._cleanup_memory()
 
         return all_embeddings
 
@@ -559,11 +559,7 @@ class ZMQBroker:
 
             self.frontend.bind("tcp://*:5555")
 
-            if sys.platform == "win32":
-                self.backend.bind("tcp://*:5556")
-            else:
-                os.makedirs(os.path.dirname(TransformersConfig.BACKEND_IPC_PATH), exist_ok=True)
-                self.backend.bind(TransformersConfig.BACKEND_IPC_PATH)
+            self.backend.bind("tcp://*:5556")
 
             self._setup_signal_handlers()
             self._running = True
@@ -799,10 +795,7 @@ class ZMQWorker:
 
     def _get_backend_address(self):
         """Get backend address based on platform"""
-        if sys.platform == "win32":
-            return TransformersConfig.BACKEND_TCP_ADDRESS
-        else:
-            return TransformersConfig.BACKEND_IPC_PATH
+        return TransformersConfig.BACKEND_TCP_ADDRESS
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
@@ -856,6 +849,7 @@ class ZMQClient:
             _, data = self.socket.recv_multipart()
             resp = TaskResp.model_validate(json.loads(data.decode("utf-8")))
             if resp.worker_id == message.worker_id:
+                logger.debug(f"Received valid response from worker {resp.worker_id}")
                 return resp
             else:
                 logger.debug(
@@ -959,7 +953,7 @@ class TransformersManager:
 
                     if response.success and response.data.get("status") == "ready":
                         self._worker_ready_status[model] = True
-                        logger.debug(f"Health check passed for worker {model}")
+                        logger.warning(f"Health check passed for worker {model}")
                         return True
 
             except Exception as e:
@@ -1011,8 +1005,12 @@ class TransformersManager:
             self.stop_all()
             sys.exit(0)
 
-        for sig in [signal.SIGINT, signal.SIGTERM]:
-            signal.signal(sig, stop_handler)
+        if (multiprocessing.current_process().name == "MainProcess" and
+                threading.current_thread() is threading.main_thread()):
+            for sig in [signal.SIGINT, signal.SIGTERM]:
+                signal.signal(sig, stop_handler)
+        else:
+            logger.warning("Signal handlers not set up: not in main thread/process")
 
     def stop_worker(self, model: str):
         """Stop specific worker process"""

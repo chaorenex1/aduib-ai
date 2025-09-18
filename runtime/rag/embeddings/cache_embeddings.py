@@ -33,12 +33,12 @@ class CacheEmbeddings(Embeddings):
                 embedding = (
                     session.query(KnowledgeEmbeddings)
                     .filter_by(
-                        model_name=self._model_instance.model, hash=hash, provider_name=self._model_instance.provider
+                        model_name=self._model_instance.model, hash=hash, provider_name=self._model_instance.provider.provider
                     )
-                    .first()
+                    .one_or_none()
                 )
-                if embedding:
-                    text_embeddings[i] = embedding.get_embedding()
+                if embedding and embedding.vector:
+                    text_embeddings[i] = embedding.vector
                 else:
                     embedding_queue_indices.append(i)
             if embedding_queue_indices:
@@ -51,19 +51,19 @@ class CacheEmbeddings(Embeddings):
                         input_type=EmbeddingInputType.DOCUMENT,
                     )
 
-                    for vector in embedding_result.embeddings:
-                        try:
-                            normalized_embedding = (vector / np.linalg.norm(vector)).tolist()  # type: ignore
-                            # stackoverflow best way: https://stackoverflow.com/questions/20319813/how-to-check-list-containing-nan
-                            if np.isnan(normalized_embedding).any():
-                                # for issue #11827  float values are not json compliant
-                                logger.warning("Normalized embedding is nan: %s", normalized_embedding)
-                                continue
-                            embedding_queue_embeddings.append(normalized_embedding)
-                        except IntegrityError:
-                            session.rollback()
-                        except Exception:
-                            logger.exception("Failed transform embedding")
+                for vector in embedding_result.embeddings:
+                    try:
+                        normalized_embedding = (vector / np.linalg.norm(vector)).tolist()  # type: ignore
+                        # stackoverflow best way: https://stackoverflow.com/questions/20319813/how-to-check-list-containing-nan
+                        if np.isnan(normalized_embedding).any():
+                            # for issue #11827  float values are not json compliant
+                            logger.warning("Normalized embedding is nan: %s", normalized_embedding)
+                            continue
+                        embedding_queue_embeddings.append(normalized_embedding)
+                    except IntegrityError:
+                        session.rollback()
+                    except Exception:
+                        logger.exception("Failed transform embedding")
                 for i, n_embedding in zip(embedding_queue_indices, embedding_queue_embeddings):
                     text_embeddings[i] = n_embedding
         return text_embeddings

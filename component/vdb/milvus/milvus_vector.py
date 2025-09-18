@@ -181,13 +181,13 @@ class MilvusVector(BaseVector):
 
 class MilvusVectorFactory(AbstractVectorFactory):
     def init_vector(self, knowledge: KnowledgeBase, attributes: list, embeddings: Embeddings) -> BaseVector:
-        collection_name = "kb_" + str(knowledge.id) + "_vector"
+        collection_name = "kb_" + str(knowledge.rag_type) + "_vector"
         milvus_config = MilvusConfig(
             uri=config.MILVUS_URI or "",
             token=config.MILVUS_TOKEN or "",
             user=config.MILVUS_USER or "",
             password=config.MILVUS_PASSWORD or "",
             database=config.MILVUS_DATABASE or "",
-            enable_hybrid=config.MILVUS_ENABLE_HYBRID or False,
+            enable_hybrid=config.MILVUS_ENABLE_HYBRID_SEARCH or False,
         )
         return MilvusVector(collection_name=collection_name, config=milvus_config)

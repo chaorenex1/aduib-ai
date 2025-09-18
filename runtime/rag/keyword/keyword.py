@@ -13,24 +13,7 @@ class Keyword:
         self._keyword_processor = JiebaKeyword()
 
     def create(self, texts: list[Document], **kwargs):
-        lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
-        with redis_client.lock(lock_name, timeout=600):
-            for text in texts:
-                keywords = self._keyword_processor.extract_keywords(text=text.content, **kwargs)
-                if len(keywords) > 0:
-                    doc_id = text.metadata.get("doc_id")
-                    keyword_list = []
-                    for kw in keywords:
-                        keyword_list.append(
-                            KnowledgeKeywords(
-                                knowledge_id=self._knowledge.id,
-                                document_id=doc_id,
-                                keyword=kw,
-                            )
-                        )
-                    with get_db() as session:
-                        session.bulk_save_objects(keyword_list)
-                        session.commit()
+        self.add_texts(texts, **kwargs)
 
     def add_texts(self, texts: list[Document], **kwargs):
         lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
@@ -45,7 +28,7 @@ class Keyword:
                             kw__count = (
                                 session.query(KnowledgeKeywords)
                                 .filter(
-                                    KnowledgeKeywords.knowledge_id == doc_id,
+                                    KnowledgeKeywords.document_id == doc_id,
                                     KnowledgeKeywords.keyword == kw,
                                 )
                                 .count()
@@ -65,14 +48,14 @@ class Keyword:
         lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             with get_db() as session:
-                count = session.query(KnowledgeKeywords).filter(KnowledgeKeywords.knowledge_id == id).count()
+                count = session.query(KnowledgeKeywords).filter(KnowledgeKeywords.document_id == id).count()
                 return count > 0
 
     def delete_by_ids(self, ids: list[str]):
         lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             with get_db() as session:
-                session.query(KnowledgeKeywords).filter(KnowledgeKeywords.knowledge_id.in_(ids)).delete()
+                session.query(KnowledgeKeywords).filter(KnowledgeKeywords.document_id.in_(ids)).delete()
                 session.commit()
 
     def delete(self):
@@ -91,7 +74,7 @@ class Keyword:
 
             with get_db() as session:
                 results = (
-                    session.query(KnowledgeKeywords.knowledge_id, KnowledgeKeywords.keyword)
+                    session.query(KnowledgeKeywords.document_id, KnowledgeKeywords.keyword)
                     .filter(KnowledgeKeywords.keyword.in_(keywords))
                     .all()
                 )
@@ -103,7 +86,8 @@ class Keyword:
             documents = []
             for doc_id in doc_ids:
                 with get_db() as session:
-                    for document in session.query(KnowledgeEmbeddings).filter(KnowledgeEmbeddings.document_id == doc_id).all():
+                    for document in session.query(KnowledgeEmbeddings).filter(
+                            KnowledgeEmbeddings.document_id == doc_id).all():
                         doc = Document(content=document.content, metadata=document.metadata)
                         documents.append(doc)
 
