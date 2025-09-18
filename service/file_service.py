@@ -36,6 +36,7 @@ class FileService:
                 )
                 session.add(file_record)
                 session.commit()
+                session.refresh(file_record)
                 return file_record
 
     @classmethod

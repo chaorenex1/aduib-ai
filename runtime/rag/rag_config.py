@@ -11,6 +11,11 @@ AUTOMATIC_RULES: dict[str, Any] = {
     ],
     "segmentation": {"delimiter": "\n", "max_tokens": 500, "chunk_overlap": 50},
 }
+default_retrieval_model = {
+    "reranking_model": {"reranking_provider_name": "Qwen/Qwen3-Reranker-4B", "reranking_model_name": "transformer"},
+    "top_k": 5,
+    "score_threshold": 0.8
+}
 
 
 class PreProcessingRule(BaseModel):
@@ -27,6 +32,11 @@ class Segmentation(BaseModel):
 class SplitterRule(BaseModel):
     pre_processing_rules: list[PreProcessingRule] = []
     segmentation: Segmentation
+
+
+class RerankingRule(BaseModel):
+    score_threshold: float = 0.8
+    top_k: int = 5
 
 
 class RagProcessingRule(BaseModel):

@@ -70,6 +70,9 @@ class WebMemoService:
                 crawl_media = item.get("crawl_media", {})
                 screenshot_png = "/his_screenshot/" + random_uuid() + ".png"
                 FileService.upload_base64(screenshot_png, item.get("screenshot", ""))
+                if crawl_type!='default' and crawl_text and len(crawl_text)>0:
+                    from service import KnowledgeBaseService
+                    await KnowledgeBaseService.paragraph_rag_from_web_memo(crawl_text,crawl_type)
                 metadata = item.get("metadata", {})
 
                 history = BrowserHistory(url=url, ua=ua)

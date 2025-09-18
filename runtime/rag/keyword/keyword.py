@@ -23,7 +23,8 @@ class Keyword:
                     for kw in keywords:
                         keyword_list.append(
                             KnowledgeKeywords(
-                                doc_id=doc_id,
+                                knowledge_id=self._knowledge.id,
+                                document_id=doc_id,
                                 keyword=kw,
                             )
                         )
@@ -44,7 +45,7 @@ class Keyword:
                             kw__count = (
                                 session.query(KnowledgeKeywords)
                                 .filter(
-                                    KnowledgeKeywords.doc_id == doc_id,
+                                    KnowledgeKeywords.knowledge_id == doc_id,
                                     KnowledgeKeywords.keyword == kw,
                                 )
                                 .count()
@@ -52,7 +53,8 @@ class Keyword:
                             if kw__count == 0:
                                 keyword_list.append(
                                     KnowledgeKeywords(
-                                        doc_id=doc_id,
+                                        knowledge_id=self._knowledge.id,
+                                        document_id=doc_id,
                                         keyword=kw,
                                     )
                                 )
@@ -63,14 +65,14 @@ class Keyword:
         lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             with get_db() as session:
-                count = session.query(KnowledgeKeywords).filter(KnowledgeKeywords.doc_id == id).count()
+                count = session.query(KnowledgeKeywords).filter(KnowledgeKeywords.knowledge_id == id).count()
                 return count > 0
 
     def delete_by_ids(self, ids: list[str]):
         lock_name = f"keyword_indexing_lock_{self._knowledge.id}"
         with redis_client.lock(lock_name, timeout=600):
             with get_db() as session:
-                session.query(KnowledgeKeywords).filter(KnowledgeKeywords.doc_id.in_(ids)).delete()
+                session.query(KnowledgeKeywords).filter(KnowledgeKeywords.knowledge_id.in_(ids)).delete()
                 session.commit()
 
     def delete(self):
@@ -89,7 +91,7 @@ class Keyword:
 
             with get_db() as session:
                 results = (
-                    session.query(KnowledgeKeywords.doc_id, KnowledgeKeywords.keyword)
+                    session.query(KnowledgeKeywords.knowledge_id, KnowledgeKeywords.keyword)
                     .filter(KnowledgeKeywords.keyword.in_(keywords))
                     .all()
                 )
@@ -101,7 +103,7 @@ class Keyword:
             documents = []
             for doc_id in doc_ids:
                 with get_db() as session:
-                    for document in session.query(KnowledgeEmbeddings).filter(KnowledgeEmbeddings.id == doc_id).all():
+                    for document in session.query(KnowledgeEmbeddings).filter(KnowledgeEmbeddings.document_id == doc_id).all():
                         doc = Document(content=document.content, metadata=document.metadata)
                         documents.append(doc)
 

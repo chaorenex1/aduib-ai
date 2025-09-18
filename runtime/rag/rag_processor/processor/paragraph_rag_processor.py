@@ -94,7 +94,7 @@ class ParagraphRAGProcessor(BaseRAGProcessor):
     ) -> list[Document]:
         # Set search parameters.
         results = RetrievalService.retrieve(
-            knowledge_id=knowledge.id,
+            knowledge_id=knowledge.id if knowledge else None,
             query=query,
             top_k=top_k,
             score_threshold=score_threshold,

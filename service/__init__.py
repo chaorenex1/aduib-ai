@@ -4,6 +4,7 @@ from .conversation_message_service import ConversationMessageService
 from .model_service import ModelService
 from .provider_service import ProviderService
 from .file_service import FileService
+from .knowledge_base_service import KnowledgeBaseService
 
 __all__ = [
     "ApiKeyService",
@@ -12,4 +13,5 @@ __all__ = [
     "CompletionService",
     "ConversationMessageService",
     "FileService",
+    "KnowledgeBaseService",
 ]

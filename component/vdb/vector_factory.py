@@ -108,10 +108,15 @@ class Vector:
     def _get_embeddings(self) -> Embeddings:
         model_manager = ModelManager()
 
-        embedding_model = model_manager.get_model_instance(
-            model_name=self._knowledge.embedding_model,
-            provider_name=self._knowledge.embedding_model_provider,
-        )
+        if self._knowledge:
+            embedding_model = model_manager.get_model_instance(
+                model_name=self._knowledge.embedding_model,
+                provider_name=self._knowledge.embedding_model_provider,
+            )
+        else:
+            embedding_model = model_manager.get_default_model_instance(
+                model_type=ModelType.EMBEDDING
+            )
         return CacheEmbeddings(embedding_model)
 
     def _filter_duplicate_texts(self, texts: list[Document]) -> list[Document]:

@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from component.storage.base_storage import storage_manager
 from models import KnowledgeBase, get_db, FileResource, KnowledgeEmbeddings
+from models.document import KnowledgeDocument
 from runtime.entities.document_entities import Document
 from runtime.model_manager import ModelManager
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
@@ -24,45 +25,49 @@ class RagManager:
         self.storage = storage_manager
         self.model_manager = ModelManager()
 
-    def run(self, knowledge_bases: list[KnowledgeBase]):
+    def run(self, knowledge_docs: list[KnowledgeDocument]):
         """Run the RAG process."""
         with get_db() as session:
-            for knowledge_base in knowledge_bases:
+            for knowledge_doc in knowledge_docs:
                 try:
-                    processing_rule = knowledge_base.data_process_rule
+                    kb = session.query(KnowledgeBase).filter_by(id=knowledge_doc.knowledge_base_id).one_or_none()
+                    processing_rule = kb.data_process_rule
                     if not processing_rule:
                         raise ValueError("no process rule found")
-                    rag_type = knowledge_base.rag_type
+                    rag_type = knowledge_doc.rag_type
                     rag_processor = RAGProcessorFactory.get_rag_processor(rag_type)
                     # extract
-                    docs = self._extract(rag_processor, knowledge_base, processing_rule)
+                    docs = self._extract(rag_processor, knowledge_doc, kb)
 
                     # transform
-                    documents = self._transform(rag_processor, knowledge_base, docs, processing_rule)
+                    documents = self._transform(rag_processor, knowledge_doc, kb, docs)
                     # save segment
-                    self._load_segments(knowledge_base, documents)
+                    self._load_segments(kb, documents)
 
                     # load
                     self._load(
                         rag_processor=rag_processor,
-                        knowledge_base=knowledge_base,
+                        knowledge_base=knowledge_doc,
                         documents=documents,
                     )
                 except Exception as e:
                     logger.exception("consume document failed")
-                    knowledge_base.rag_status = "error"
-                    knowledge_base.error_message = str(e)
-                    knowledge_base.stopped_at = datetime.datetime.now()
+                    knowledge_doc.rag_status = "error"
+                    knowledge_doc.error_message = str(e)
+                    knowledge_doc.stopped_at = datetime.datetime.now()
                     session.commit()
 
     def _extract(
-        self, rag_processor: BaseRAGProcessor, knowledge_base: KnowledgeBase, processing_rule: dict
+            self, rag_processor: BaseRAGProcessor,
+            knowledge_doc: KnowledgeDocument,
+            knowledge_base: KnowledgeBase
     ) -> list[Document]:
         # load file
+        processing_rule = knowledge_base.data_process_rule
         text_docs = []
         with get_db() as session:
-            if knowledge_base.date_source_type == "file":
-                stmt = select(FileResource).where(FileResource.id == knowledge_base.file_id)
+            if knowledge_doc.data_source_type == "file":
+                stmt = select(FileResource).where(FileResource.id == knowledge_doc.file_id)
                 file_detail = session.scalars(stmt).one_or_none()
 
                 if file_detail:
@@ -71,27 +76,35 @@ class RagManager:
                         extraction_file=file_detail.extraction_file,
                     )
                     text_docs = rag_processor.extract(extract_setting, process_rule_mode=processing_rule["mode"])
+            elif knowledge_doc.data_source_type == "db_table":
+                extract_setting = ExtractionSetting(
+                    extraction_source=ExtractionSourceType.DB_TABLE,
+                    extraction_db='conversation_message'
+                )
+                text_docs = rag_processor.extract(extract_setting, process_rule_mode=processing_rule["mode"])
             # update document status to splitting and word count
-            _knowledge_base = session.query(KnowledgeBase).filter_by(id=knowledge_base.id).one_or_none()
-            if _knowledge_base:
-                _knowledge_base.rag_status = "extracting"
-                _knowledge_base.word_count = sum(len(doc.content) for doc in text_docs)
-                _knowledge_base.extracted_at = datetime.datetime.now()
+            _knowledge_doc = session.query(KnowledgeDocument).filter_by(id=knowledge_doc.id).one_or_none()
+            if _knowledge_doc:
+                _knowledge_doc.rag_status = "extracting"
+                _knowledge_doc.word_count = sum(len(doc.content) for doc in text_docs)
+                _knowledge_doc.extracted_at = datetime.datetime.now()
+                session.commit()
+                knowledge_base.word_count += _knowledge_doc.word_count
                 session.commit()
 
             # replace doc id to document model id
             for text_doc in text_docs:
                 if text_doc.metadata is not None:
-                    text_doc.metadata["knowledge_id"] = knowledge_base.id
+                    text_doc.metadata["knowledge_id"] = _knowledge_doc.id
 
         return text_docs
 
     def _transform(
-        self,
-        rag_processor: BaseRAGProcessor,
-        knowledge_base: KnowledgeBase,
-        docs: list[Document],
-        processing_rule: dict,
+            self,
+            rag_processor: BaseRAGProcessor,
+            knowledge_doc: KnowledgeDocument,
+            knowledge_base: KnowledgeBase,
+            docs: list[Document],
     ) -> list[Document]:
         embedding_model_instance = self.model_manager.get_model_instance(
             model_name=knowledge_base.embedding_model, provider_name=knowledge_base.embedding_model_provider
@@ -99,8 +112,8 @@ class RagManager:
         documents = rag_processor.transform(
             documents=docs,
             embedding_model_instance=embedding_model_instance,
-            split_rule=processing_rule,
-            doc_language=knowledge_base.knowledge_language,
+            split_rule=knowledge_base.data_process_rule,
+            doc_language=knowledge_doc.doc_language,
         )
 
         return documents
@@ -116,9 +129,10 @@ class RagManager:
                 #     continue
                 doc = KnowledgeEmbeddings(
                     id=document.metadata["doc_id"],
-                    knowledge_id=knowledge_base.id,
+                    document_id=document.metadata["knowledge_id"],
+                    knowledge_base_id=knowledge_base.id,
                     content=document.content,
-                    metadata=document.metadata if document.metadata else {},
+                    meta=document.metadata if document.metadata else {},
                     hash=hash_,
                     model_name=knowledge_base.embedding_model,
                     provider_name=knowledge_base.embedding_model_provider,
@@ -186,12 +200,14 @@ class RagManager:
         indexing_end_at = time.perf_counter()
 
         with get_db() as session:
-            _knowledge_base = session.query(KnowledgeBase).filter_by(id=knowledge_base.id).one_or_none()
-            if _knowledge_base:
-                _knowledge_base.rag_status = "completed"
-                _knowledge_base.indexed_at = datetime.datetime.now()
-                _knowledge_base.indexed_time = indexing_end_at - indexing_start_at
-                _knowledge_base.token_count = tokens
+            _knowledge_doc = session.query(KnowledgeDocument).filter_by(id=knowledge_base.id).one_or_none()
+            if _knowledge_doc:
+                _knowledge_doc.rag_status = "completed"
+                _knowledge_doc.indexed_at = datetime.datetime.now()
+                _knowledge_doc.indexed_time = indexing_end_at - indexing_start_at
+                _knowledge_doc.token_count = tokens
+                session.commit()
+                knowledge_base.token_count+= tokens
                 session.commit()
 
     @staticmethod

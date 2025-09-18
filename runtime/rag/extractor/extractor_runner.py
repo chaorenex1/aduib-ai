@@ -42,5 +42,14 @@ class ExtractorRunner:
             else:
                 extractor = TextExtractor(file_path)
             return extractor.extract()
+        elif extraction_setting.extraction_source == ExtractionSourceType.DB_TABLE:
+            extractor: Optional[BaseExtractor] = None
+            if extraction_setting.extraction_db == "conversation_message":
+                from runtime.rag.extractor.conversation_message_extractor import (
+                    ConversationMessageExtractor,
+                )
+                extractor = ConversationMessageExtractor()
+
+            return extractor.extract()
         else:
             raise ValueError(f"Unsupported extraction source: {extraction_setting.extraction_source}")

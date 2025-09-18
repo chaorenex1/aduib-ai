@@ -1,5 +1,3 @@
-from models import Model, Provider
-from runtime.entities.model_entities import AIModelEntity
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 
@@ -38,7 +36,6 @@ class DocumentService:
         """Rerank documents based on the request."""
 
         from runtime.model_manager import ModelManager
-
         model_manager = ModelManager()
         model_instance = model_manager.get_model_instance(model_name=query.model)
         return model_instance.invoke_rerank(query=query)

@@ -121,7 +121,6 @@ class QARAGProcessor(BaseRAGProcessor):
     ) -> list[Document]:
         # Set search parameters.
         results = RetrievalService.retrieve(
-            knowledge_id=knowledge.id,
             query=query,
             top_k=top_k,
             score_threshold=score_threshold,
@@ -143,7 +142,7 @@ class QARAGProcessor(BaseRAGProcessor):
             return
         try:
             # qa model document
-            response = LLMGenerator.generate_qa_document(document_language)
+            response = LLMGenerator.generate_qa_document(document_node.content,document_language)
             document_qa_list = self._format_split_text(response)
             qa_documents = []
             for result in document_qa_list:

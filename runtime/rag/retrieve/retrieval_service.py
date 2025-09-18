@@ -8,13 +8,6 @@ from runtime.entities.document_entities import Document
 from runtime.rag.keyword.keyword import Keyword
 from runtime.rag.retrieve.rerank_model import RankerModelRunner
 
-default_retrieval_model = {
-    "reranking_enable": False,
-    "reranking_model": {"reranking_provider_name": "", "reranking_model_name": ""},
-    "top_k": 10,
-    "score_threshold_enabled": False,
-}
-
 
 class RetrievalService:
     # Cache precompiled regular expressions to avoid repeated compilation
@@ -32,9 +25,11 @@ class RetrievalService:
     ):
         if not query:
             return []
-        knowledge = cls._get_knowledge(knowledge_id)
-        if not knowledge:
-            return []
+
+        if knowledge_id:
+            knowledge = cls._get_knowledge(knowledge_id)
+            if not knowledge:
+                return []
 
         all_documents: list[Document] = []
         exceptions: list[str] = []
@@ -105,9 +100,10 @@ class RetrievalService:
         knowledge_ids_filter: Optional[list[str]] = None,
     ):
         try:
-            knowledge = cls._get_knowledge(knowledge_id)
-            if not knowledge:
-                raise ValueError("knowledge not found")
+            if knowledge_id:
+                knowledge = cls._get_knowledge(knowledge_id)
+                if not knowledge:
+                    raise ValueError("knowledge not found")
 
             keyword = Keyword(knowledge=knowledge)
 
@@ -131,9 +127,10 @@ class RetrievalService:
         knowledge_ids_filter: Optional[list[str]] = None,
     ):
         try:
-            knowledge = cls._get_knowledge(knowledge_id)
-            if not knowledge:
-                raise ValueError("knowledge not found")
+            if knowledge_id:
+                knowledge = cls._get_knowledge(knowledge_id)
+                if not knowledge:
+                    raise ValueError("knowledge not found")
 
             vector = Vector(knowledge=knowledge)
             documents = vector.search_by_vector(
@@ -163,11 +160,12 @@ class RetrievalService:
         knowledge_ids_filter: Optional[list[str]] = None,
     ):
         try:
-            knowledge_base = cls._get_knowledge(knowledge_id)
-            if not knowledge_base:
-                raise ValueError("knowledge_base not found")
+            if knowledge_id:
+                knowledge = cls._get_knowledge(knowledge_id)
+                if not knowledge:
+                    raise ValueError("knowledge not found")
 
-            vector_processor = Vector(knowledge=knowledge_base)
+            vector_processor = Vector(knowledge=knowledge)
 
             documents = vector_processor.search_by_full_text(
                 cls.escape_query_for_search(query), top_k=top_k, knowledge_ids_filter=knowledge_ids_filter
