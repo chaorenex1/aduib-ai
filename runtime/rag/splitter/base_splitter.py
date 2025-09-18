@@ -13,7 +13,7 @@ class BaseTextSplitter(BaseDocumentTransformer, ABC):
     def __init__(self, chunk_size: int = 500, chunk_overlap: int = 50):
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
-        self._length_function = Callable[[list[str]], list[int]] = (lambda x: [len(x) for x in x],)
+        self._length_function: Callable[[list[str]], list[int]] = (lambda x: [len(x) for x in x])
 
     @abstractmethod
     def split_text(self, text: str) -> list[str]:

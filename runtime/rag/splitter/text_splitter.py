@@ -1,6 +1,7 @@
+import os
 from typing import Optional, List, Any, Sequence
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter, TokenTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from runtime.entities.document_entities import Document
 from runtime.rag.splitter.base_splitter import BaseTextSplitter
@@ -11,9 +12,10 @@ class RecursiveTextSplitter(BaseTextSplitter):
 
     def __init__(self, fixed_separator: str = "\n\n", separators: Optional[List[str]] = None, **kwargs: Any):
         super().__init__(**kwargs)
+        if "TIKTOKEN_CACHE_DIR" not in os.environ:
+            os.environ["TIKTOKEN_CACHE_DIR"] = "/home/zzh/.cache/tiktoken"
         self.text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-            model_name="gpt-4",
-            encoding_name="o200k_base",
+            encoding_name="cl100k_base",
             separators=separators or ["\n\n", "。", ". ", " ", ""] if not separators else [fixed_separator],
             **kwargs,
         )
@@ -26,7 +28,8 @@ class RecursiveTextSplitter(BaseTextSplitter):
 
     def transform_document(self, documents: Sequence[Document], **kwargs) -> Sequence[Document]:
         all_docs = []
-        split_documents = self.text_splitter.split_documents(documents)
+        from langchain_core.documents import Document as LCDocument
+        split_documents = self.text_splitter.split_documents([LCDocument(page_content=doc.content, metadata=doc.metadata) for doc in documents])
         if not split_documents:
             return []
         for _document in split_documents:
@@ -36,4 +39,4 @@ class RecursiveTextSplitter(BaseTextSplitter):
                     metadata=_document.metadata,
                 )
             )
-        raise all_docs
+        return all_docs

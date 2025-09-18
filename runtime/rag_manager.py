@@ -73,7 +73,7 @@ class RagManager:
                 if file_detail:
                     extract_setting = ExtractionSetting(
                         extraction_source=ExtractionSourceType.FILE,
-                        extraction_file=file_detail.extraction_file,
+                        extraction_file=file_detail,
                     )
                     text_docs = rag_processor.extract(extract_setting, process_rule_mode=processing_rule["mode"])
             elif knowledge_doc.data_source_type == "db_table":
@@ -95,7 +95,7 @@ class RagManager:
             # replace doc id to document model id
             for text_doc in text_docs:
                 if text_doc.metadata is not None:
-                    text_doc.metadata["knowledge_id"] = _knowledge_doc.id
+                    text_doc.metadata["knowledge_id"] = str(_knowledge_doc.id)
 
         return text_docs
 
@@ -165,7 +165,7 @@ class RagManager:
         create_keyword_thread = None
         create_keyword_thread = threading.Thread(
             target=self._process_keyword_index,
-            args=(knowledge.id, documents),  # type: ignore
+            args=(knowledge_base.id, documents),  # type: ignore
         )
         create_keyword_thread.start()
 

@@ -32,8 +32,8 @@ class ParagraphRAGProcessor(BaseRAGProcessor):
         if not rule.segmentation:
             raise ValueError("No segmentation rule found in splitter rule.")
         splitter = self.get_splitter(
-            processing_rule_mode=splitter_rule_dict.get("mode"),
-            max_tokens=rule.segmentation.max_tokens,
+            process_rule_mode=splitter_rule_dict.get("mode"),
+            chunk_size=rule.segmentation.max_tokens,
             chunk_overlap=rule.segmentation.chunk_overlap,
             separator=rule.segmentation.separator,
         )

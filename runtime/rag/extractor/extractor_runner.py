@@ -1,3 +1,4 @@
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -17,12 +18,14 @@ class ExtractorRunner:
     @classmethod
     def extract(cls, extraction_setting: ExtractionSetting) -> list[Document]:
         if extraction_setting.extraction_source == ExtractionSourceType.FILE:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                file: FileResource = extraction_setting.extraction_file
-                suffix = Path(file.access_url).suffix
-                file_path = f"{tmpdir}/{next(tempfile._get_candidate_names())}{suffix}"  # type: ignore
-                storage_manager.download(file.access_url, file_path)
-            input_file = Path(file_path)
+            file: FileResource = extraction_setting.extraction_file
+            # with tempfile.TemporaryDirectory() as tmpdir:
+            #     suffix = Path(file.file_name).suffix
+            #     file_path = f"{tmpdir}/{next(tempfile._get_candidate_names())}"  # type: ignore
+            #     Path.mkdir(Path(file_path), parents=True, exist_ok=True)
+            file_path = file.file_name
+            storage_manager.download(file.file_name, file.file_name)
+            input_file = Path(file.file_name)
             file_type = input_file.suffix.lower()
             extractor: Optional[BaseExtractor] = None
             if file_type == ".pdf":
@@ -41,7 +44,9 @@ class ExtractorRunner:
                 extractor = HtmlExtractor(file_path)
             else:
                 extractor = TextExtractor(file_path)
-            return extractor.extract()
+            result = extractor.extract()
+            shutil.rmtree(file_path, ignore_errors=True)
+            return result
         elif extraction_setting.extraction_source == ExtractionSourceType.DB_TABLE:
             extractor: Optional[BaseExtractor] = None
             if extraction_setting.extraction_db == "conversation_message":
@@ -50,6 +55,7 @@ class ExtractorRunner:
                 )
                 extractor = ConversationMessageExtractor()
 
-            return extractor.extract()
+            result = extractor.extract()
+            return result
         else:
             raise ValueError(f"Unsupported extraction source: {extraction_setting.extraction_source}")

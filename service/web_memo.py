@@ -37,7 +37,6 @@ class WebMemoService:
             notify_url = f"http://{host}:{config.APP_PORT}/v1/web_memo/notify?api_key={api_key.hash_key}"
             crawl_service = CrawlService()
             resp = await crawl_service.crawl([url], notify_url)
-            logger.debug(f"Web memo crawl response: {resp}")
             if resp:
                 await cls.handle_web_memo_notify(resp, api_key.hash_key, ua)
         except Exception as e:
@@ -87,5 +86,10 @@ class WebMemoService:
                     session.add(history)
                     session.commit()
                     if crawl_type!='default' and crawl_text and len(crawl_text)>0:
-                        from service import KnowledgeBaseService
-                        await KnowledgeBaseService.paragraph_rag_from_web_memo(crawl_text,crawl_type)
+                        # from service import KnowledgeBaseService
+                        # await KnowledgeBaseService.paragraph_rag_from_web_memo(crawl_text,crawl_type)
+                        from runtime.rag_manager import RagManager
+
+                        from event.event_manager import event_manager_context
+                        event_manager = event_manager_context.get()
+                        await event_manager.emit(event="paragraph_rag_from_web_memo", crawl_text=crawl_text, crawl_type=crawl_type)

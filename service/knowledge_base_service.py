@@ -8,7 +8,7 @@ from runtime.rag.rag_type import RagType
 class KnowledgeBaseService:
 
     @classmethod
-    async def create_knowledge_base(cls,name: str, rag_type: RagType,default:int) -> KnowledgeBase:
+    def create_knowledge_base(cls,name: str, rag_type: RagType,default:int) -> KnowledgeBase:
         with get_db() as session:
             kb = KnowledgeBase(
                 name=name,
@@ -43,7 +43,7 @@ class KnowledgeBaseService:
         from .file_service import FileService
 
         file_hash = hashlib.sha256(crawl_text.encode('utf-8')).hexdigest()
-        file_name = f"web_memo_{file_hash}.{crawl_type}"
+        file_name = f"/web_memo/{file_hash}.{crawl_type}"
         file_record = FileService.upload_bytes(file_name, crawl_text.encode('utf-8'))
 
         from runtime.generator.generator import LLMGenerator
@@ -52,7 +52,7 @@ class KnowledgeBaseService:
         with get_db() as session:
             existing_kb = session.query(KnowledgeBase).filter_by(default_base=1,rag_type=RagType.PARAGRAPH).one_or_none()
             if not existing_kb:
-                existing_kb= await cls.create_knowledge_base("Default Paragraph KB", RagType.PARAGRAPH,1)
+                existing_kb= cls.create_knowledge_base("Default Paragraph KB", RagType.PARAGRAPH,1)
             doc = KnowledgeDocument(
                 knowledge_base_id=existing_kb.id,
                 title=name,

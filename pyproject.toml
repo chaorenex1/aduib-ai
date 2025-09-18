@@ -31,7 +31,7 @@ dependencies = [
     "pymilvus[model]>=2.5.4",
     "sentry-sdk>=2.34.1",
     "sqlalchemy==2.0.39",
-    "tiktoken>=0.7.0",
+    "tiktoken~=0.9.0",
     "torch>=2.6.0",
     "torchaudio>=2.6.0",
     "torchvision>=0.21.0",

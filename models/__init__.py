@@ -9,7 +9,7 @@ from .provider import Provider
 from .tool import ToolCallResult, ToolInfo
 from .user import McpUser
 from .resource import FileResource
-from .document import KnowledgeBase, KnowledgeEmbeddings
+from .document import KnowledgeBase, KnowledgeEmbeddings, KnowledgeDocument
 
 __all__ = [
     "get_db",
@@ -28,4 +28,5 @@ __all__ = [
     "FileResource",
     "KnowledgeBase",
     "KnowledgeEmbeddings",
+    "KnowledgeDocument",
 ]
