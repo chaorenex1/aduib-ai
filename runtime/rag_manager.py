@@ -47,7 +47,7 @@ class RagManager:
                     # load
                     self._load(
                         rag_processor=rag_processor,
-                        knowledge_base=knowledge_doc,
+                        knowledge_base=kb,
                         documents=documents,
                     )
                 except Exception as e:

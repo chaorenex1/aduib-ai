@@ -66,22 +66,26 @@ class WebMemoService:
             for item in result:
                 url = item.get("url", "")
                 crawl_text = item.get("crawl_text", "")
-                crawl_type = item.get("crawl_type", "")
-                crawl_media = item.get("crawl_media", {})
-                screenshot_png = "/his_screenshot/" + random_uuid() + ".png"
-                FileService.upload_base64(screenshot_png, item.get("screenshot", ""))
-                if crawl_type!='default' and crawl_text and len(crawl_text)>0:
-                    from service import KnowledgeBaseService
-                    await KnowledgeBaseService.paragraph_rag_from_web_memo(crawl_text,crawl_type)
-                metadata = item.get("metadata", {})
+                if crawl_text!='\n' and crawl_text!='[]':
+                    crawl_text = crawl_text.strip()
+                    crawl_type = item.get("crawl_type", "")
+                    crawl_media = item.get("crawl_media", {})
+                    screenshot_png=""
+                    if item.get("screenshot", "") != "":
+                        screenshot_png = "/his_screenshot/" + random_uuid() + ".png"
+                        FileService.upload_base64(screenshot_png, item.get("screenshot", ""))
+                    metadata = item.get("metadata", {})
 
-                history = BrowserHistory(url=url, ua=ua)
-                history.crawl_status = True
-                history.crawl_time = datetime.datetime.now()
-                history.crawl_screenshot = screenshot_png
-                history.crawl_content = crawl_text
-                history.crawl_type = crawl_type
-                history.crawl_media = json.dumps(crawl_media).encode("utf-8").decode("unicode-escape")
-                history.crawl_metadata = json.dumps(metadata).encode("utf-8").decode("unicode-escape")
-                session.add(history)
-                session.commit()
+                    history = BrowserHistory(url=url, ua=ua)
+                    history.crawl_status = True
+                    history.crawl_time = datetime.datetime.now()
+                    history.crawl_screenshot = screenshot_png
+                    history.crawl_content = crawl_text
+                    history.crawl_type = crawl_type
+                    history.crawl_media = json.dumps(crawl_media).encode("utf-8").decode("unicode-escape")
+                    history.crawl_metadata = json.dumps(metadata).encode("utf-8").decode("unicode-escape")
+                    session.add(history)
+                    session.commit()
+                    if crawl_type!='default' and crawl_text and len(crawl_text)>0:
+                        from service import KnowledgeBaseService
+                        await KnowledgeBaseService.paragraph_rag_from_web_memo(crawl_text,crawl_type)

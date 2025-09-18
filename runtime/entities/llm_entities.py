@@ -69,16 +69,20 @@ class ChatCompletionRequest(BaseModel):
             raise ValueError("prompt_messages must be a list")
 
         for i in range(len(v)):
-            if v[i]["role"] == PromptMessageRole.USER.value:
-                v[i] = UserPromptMessage(**v[i])
-            elif v[i]["role"] == PromptMessageRole.ASSISTANT.value:
-                v[i] = AssistantPromptMessage(**v[i])
-            elif v[i]["role"] == PromptMessageRole.SYSTEM.value:
-                v[i] = SystemPromptMessage(**v[i])
-            elif v[i]["role"] == PromptMessageRole.TOOL.value:
-                v[i] = ToolPromptMessage(**v[i])
+            i_ = v[i]
+            if isinstance(i_, dict):
+                if i_["role"] == PromptMessageRole.USER.value:
+                    v[i] = UserPromptMessage(**i_)
+                elif i_["role"] == PromptMessageRole.ASSISTANT.value:
+                    v[i] = AssistantPromptMessage(**i_)
+                elif i_["role"] == PromptMessageRole.SYSTEM.value:
+                    v[i] = SystemPromptMessage(**i_)
+                elif i_["role"] == PromptMessageRole.TOOL.value:
+                    v[i] = ToolPromptMessage(**i_)
+                else:
+                    v[i] = PromptMessage(**i_)
             else:
-                v[i] = PromptMessage(**v[i])
+                v[i] = i_
 
         return v
 

@@ -8,12 +8,37 @@ from runtime.rag.rag_type import RagType
 class KnowledgeBaseService:
 
     @classmethod
+    async def create_knowledge_base(cls,name: str, rag_type: RagType,default:int) -> KnowledgeBase:
+        with get_db() as session:
+            kb = KnowledgeBase(
+                name=name,
+                default_base=default,
+                rag_type=rag_type,
+                data_process_rule={
+                    "mode": "custom",
+                    "rules": {
+                        "pre_processing_rules": [
+                            {"id": "remove_extra_spaces", "enabled": True},
+                            {"id": "remove_urls_emails", "enabled": False},
+                        ],
+                        "segmentation": {"delimiter": "\n", "max_tokens": 500, "chunk_overlap": 50},
+                    }
+                },
+                embedding_model="Qwen/Qwen3-Embedding-4B",
+                embedding_model_provider="transformer",
+                rerank_model="Qwen/Qwen3-Reranker-4B",
+                rerank_model_provider="transformer",
+                reranking_rule={"score_threshold": 0.8, "top_k": 5},
+            )
+            session.add(kb)
+            session.commit()
+            session.refresh(kb)
+            return kb
+
+    @classmethod
     async def paragraph_rag_from_web_memo(cls, crawl_text: str, crawl_type: str) -> None:
         """
-        Create a RAG (Retrieval-Augmented Generation) knowledge base from a web memo URL.
-        :param url: The URL of the web memo.
-        :param ua: Optional user agent string.
-        :return: None
+        Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.
         """
         from .file_service import FileService
 
@@ -22,35 +47,25 @@ class KnowledgeBaseService:
         file_record = FileService.upload_bytes(file_name, crawl_text.encode('utf-8'))
 
         from runtime.generator.generator import LLMGenerator
-        name = LLMGenerator.generate_conversation_name(crawl_text)
-        language = LLMGenerator.generate_language(crawl_text)
+        # name,language = LLMGenerator.generate_conversation_name(crawl_text)
+        name, language= "", "chinese"
         with get_db() as session:
-            existing_kb = session.query(KnowledgeBase).filter_by(default_base==1,rag_type=RagType.PARAGRAPH).one_or_none()
-            if existing_kb:
-                doc = KnowledgeDocument(
-                    knowledge_base_id=existing_kb.id,
-                    title=name,
-                    file_id=file_record.id,
-                    doc_language=language,
-                    doc_from="web_memo",
-                    rag_type=RagType.PARAGRAPH,
-                    data_source_type='file',
-                    # data_process_rule={
-                    #     "mode": "custom",
-                    #     "rules": {
-                    #         "pre_processing_rules": [
-                    #             {"id": "remove_extra_spaces", "enabled": True},
-                    #             {"id": "remove_urls_emails", "enabled": False},
-                    #         ],
-                    #         "segmentation": {"delimiter": "\n", "max_tokens": 500, "chunk_overlap": 50},
-                    #     }
-                    # },
-                    # embedding_model="Qwen/Qwen3-Embedding-4B",
-                    # embedding_model_provider="transformer"
-                )
-                session.add(doc)
-                session.commit()
-                session.refresh(doc)
+            existing_kb = session.query(KnowledgeBase).filter_by(default_base=1,rag_type=RagType.PARAGRAPH).one_or_none()
+            if not existing_kb:
+                existing_kb= await cls.create_knowledge_base("Default Paragraph KB", RagType.PARAGRAPH,1)
+            doc = KnowledgeDocument(
+                knowledge_base_id=existing_kb.id,
+                title=name,
+                file_id=file_record.id,
+                doc_language=language,
+                doc_from="web_memo",
+                rag_type=RagType.PARAGRAPH,
+                data_source_type='file',
+                rag_status="pending",
+            )
+            session.add(doc)
+            session.commit()
+            session.refresh(doc)
 
 
     @classmethod

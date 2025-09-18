@@ -18,9 +18,11 @@ class LLMGenerator:
         cleaned_answer, query = cls._generate_conversation_name(query)
         if cleaned_answer is None:
             return ""
+        language='chinese'
         try:
             result_dict = json.loads(cleaned_answer)
             answer = result_dict["Your Output"]
+            language = result_dict["Language Type"]
         except json.JSONDecodeError:
             logger.exception("Failed to generate name after answer, use query instead")
             answer = query
@@ -29,7 +31,7 @@ class LLMGenerator:
         if len(name) > 75:
             name = name[:75] + "..."
 
-        return name
+        return name,language
 
     @classmethod
     def _generate_conversation_name(cls, query):
@@ -40,7 +42,7 @@ class LLMGenerator:
         prompt += query + "\n"
         model_manager = ModelManager()
         model_instance = model_manager.get_default_model_instance(
-            model_type=ModelType.LLM,
+            model_type=ModelType.LLM.to_model_type(),
         )
         prompts = [UserPromptMessage(content=prompt)]
         request = ChatCompletionRequest(

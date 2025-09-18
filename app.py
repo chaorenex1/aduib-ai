@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from multiprocessing.spawn import freeze_support
 
 from app_factory import create_app
@@ -7,8 +6,6 @@ from app_factory import create_app
 app = None
 if not app:
     app = create_app()
-logger = logging.getLogger(__name__)
-
 
 async def run_app(**kwargs):
     import uvicorn
