@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 from uuid import uuid4
@@ -34,13 +35,14 @@ class PGVectoRS(BaseVector):
 
     def create_collection(self, dimension: int):
         # lock_name = f"vector_lock_{self._collection_name}"
+        # from component.cache.redis_cache import redis_client
         # with redis_client.lock(lock_name, timeout=20):
         #     collection_exist_cache_key = f"vector_{self._collection_name}"
         #     if redis_client.get(collection_exist_cache_key):
         #         return
         #     with get_db() as session:
         #         alter_statement = sql_text(f"""
-        #             ALTER TABLE IF NOT EXISTS {self._collection_name} MODIFY COLUMN vector VECTOR({dimension});
+        #             ALTER TABLE {self._collection_name} ALTER COLUMN vector TYPE VECTOR({dimension}) USING vector::vector({dimension});
         #         """)
         #         session.execute(alter_statement)
         #         session.commit()
@@ -51,15 +53,9 @@ class PGVectoRS(BaseVector):
         pks = []
         with get_db() as session:
             for document, embedding in zip(documents, embeddings):
-                pk = uuid4()
-                session.execute(
-                    insert(self._table).values(
-                        id=pk,
-                        content=document.content,
-                        metadata=document.metadata,
-                        vector=embedding,
-                    ),
-                )
+                pk = document.metadata["doc_id"]
+                update_stmt=sql_text(f"""UPDATE {self._collection_name} SET content = :content, meta = :metadata, vector = :vector WHERE id = :id;""")
+                session.execute(update_stmt, {"id": pk, "content": document.content, "metadata": json.dumps(document.metadata), "vector": f"[{','.join(map(str, embedding))}]"})
                 pks.append(pk)
             session.commit()
 
@@ -69,7 +65,7 @@ class PGVectoRS(BaseVector):
         result = None
         with get_db() as session:
             select_statement = sql_text(
-                f"SELECT id FROM {self._collection_name} WHERE metadata->>'{key}' = '{value}'; "
+                f"SELECT id FROM {self._collection_name} WHERE meta->>'{key}' = '{value}'; "
             )
             result = session.execute(select_statement).fetchall()
         if result:
@@ -88,7 +84,7 @@ class PGVectoRS(BaseVector):
     def delete_by_ids(self, ids: list[str]):
         with get_db() as session:
             select_statement = sql_text(
-                f"SELECT id FROM {self._collection_name} WHERE metadata->>'doc_id' = ANY (:doc_ids); "
+                f"SELECT id FROM {self._collection_name} WHERE meta->>'doc_id' = ANY (:doc_ids); "
             )
             result = session.execute(select_statement, {"doc_ids": ids}).fetchall()
         if result:
@@ -107,7 +103,7 @@ class PGVectoRS(BaseVector):
     def exists(self, id: str) -> bool:
         with get_db() as session:
             select_statement = sql_text(
-                f"SELECT id FROM {self._collection_name} WHERE metadata->>'doc_id' = '{id}' limit 1; "
+                f"SELECT id FROM {self._collection_name} WHERE meta->>'doc_id' = '{id}' limit 1; "
             )
             result = session.execute(select_statement).fetchall()
         return len(result) > 0

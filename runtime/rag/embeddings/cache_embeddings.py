@@ -32,9 +32,7 @@ class CacheEmbeddings(Embeddings):
                 hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
                 embedding = (
                     session.query(KnowledgeEmbeddings)
-                    .filter_by(
-                        model_name=self._model_instance.model, hash=hash, provider_name=self._model_instance.provider.provider
-                    )
+                    .filter_by(hash=hash)
                     .one_or_none()
                 )
                 if embedding and embedding.vector:
@@ -84,7 +82,7 @@ class CacheEmbeddings(Embeddings):
                 input_type=EmbeddingInputType.QUERY,
             )
 
-            embedding_results = embedding_result.embeddings[0]
+            embedding_results = embedding_result.data[0].embedding
             # FIXME: type ignore for numpy here
             embedding_results = (embedding_results / np.linalg.norm(embedding_results)).tolist()  # type: ignore
             if np.isnan(embedding_results).any():

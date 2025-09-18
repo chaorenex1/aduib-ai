@@ -78,11 +78,9 @@ class KnowledgeEmbeddings(Base):
     knowledge_base_id = Column(UUID(as_uuid=True), index=True, nullable=False, comment="knowledge_base_id")
     document_id = Column(UUID(as_uuid=True), index=True, nullable=False, comment="document_id")
     content = Column(TEXT, nullable=False, comment="content", server_default=text("''"))
-    vector = Column(VECTOR(2560), nullable=True, comment="vector")
+    vector = Column(VECTOR(4096), nullable=True, comment="embedding vector")
     meta = Column(JSONB, nullable=False, comment="metadata", server_default=text("'{}'"))
     hash = Column(String(64), nullable=False, comment="content hash")
-    model_name = Column(String(255), nullable=False, comment="embedding model name")
-    provider_name = Column(String(255), nullable=False, comment="embedding provider name")
     __table_args__ = (
         Index(
             "idx_knowledge_embeddings_content", func.to_tsvector(text("'jieba_cfg'"), content), postgresql_using="gin"

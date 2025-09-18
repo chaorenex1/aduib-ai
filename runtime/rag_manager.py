@@ -47,6 +47,7 @@ class RagManager:
                     # load
                     self._load(
                         rag_processor=rag_processor,
+                        knowledge_doc=knowledge_doc,
                         knowledge_base=kb,
                         documents=documents,
                     )
@@ -124,8 +125,10 @@ class RagManager:
             docs = []
             for document in documents:
                 hash_ = document.metadata["doc_hash"]
-                count_ = session.query(KnowledgeEmbeddings).filter(KnowledgeEmbeddings.hash == hash_).count()
-                if count_>0:
+                count_ = session.query(KnowledgeEmbeddings).filter(KnowledgeEmbeddings.hash == hash_).one_or_none()
+                if count_:
+                    document.metadata['doc_id'] = str(count_.id)
+                    document.metadata['doc_hash'] = count_.hash
                     continue
                 doc = KnowledgeEmbeddings(
                     id=document.metadata["doc_id"],
@@ -133,9 +136,7 @@ class RagManager:
                     knowledge_base_id=knowledge_base.id,
                     content=document.content,
                     meta=document.metadata if document.metadata else {},
-                    hash=hash_,
-                    model_name=knowledge_base.embedding_model,
-                    provider_name=knowledge_base.embedding_model_provider,
+                    hash=hash_
                 )
                 docs.append(doc)
             if len(docs)>0:
@@ -150,7 +151,7 @@ class RagManager:
                 _knowledge_doc.cleaned_at = datetime.datetime.now()
                 session.commit()
 
-    def _load(self, rag_processor: BaseRAGProcessor, knowledge_base: KnowledgeBase, documents: list[Document]):
+    def _load(self, rag_processor: BaseRAGProcessor,knowledge_doc: KnowledgeDocument, knowledge_base: KnowledgeBase, documents: list[Document]):
         """
         insert index and update document/segment status to completed
         """
@@ -201,7 +202,7 @@ class RagManager:
         indexing_end_at = time.perf_counter()
 
         with get_db() as session:
-            _knowledge_doc = session.query(KnowledgeDocument).filter_by(id=knowledge_base.id).one_or_none()
+            _knowledge_doc = session.query(KnowledgeDocument).filter_by(id=knowledge_doc.id).one_or_none()
             if _knowledge_doc:
                 _knowledge_doc.rag_status = "completed"
                 _knowledge_doc.indexed_at = datetime.datetime.now()

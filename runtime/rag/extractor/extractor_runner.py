@@ -1,3 +1,4 @@
+import os.path
 import shutil
 import tempfile
 from pathlib import Path
@@ -20,12 +21,16 @@ class ExtractorRunner:
         if extraction_setting.extraction_source == ExtractionSourceType.FILE:
             file: FileResource = extraction_setting.extraction_file
             # with tempfile.TemporaryDirectory() as tmpdir:
-            #     suffix = Path(file.file_name).suffix
             #     file_path = f"{tmpdir}/{next(tempfile._get_candidate_names())}"  # type: ignore
             #     Path.mkdir(Path(file_path), parents=True, exist_ok=True)
-            file_path = file.file_name
-            storage_manager.download(file.file_name, file.file_name)
-            input_file = Path(file.file_name)
+            suffix = Path(file.file_name).suffix
+            file_path = os.path.join(os.path.expanduser("~"), "tmp")
+            if not os.path.exists(file_path):
+                Path.mkdir(Path(file_path), parents=True, exist_ok=True)
+            # download file
+            target_file=os.path.join(file_path, file.file_hash+suffix)
+            storage_manager.download(file.file_name, target_file)
+            input_file = Path(target_file)
             file_type = input_file.suffix.lower()
             extractor: Optional[BaseExtractor] = None
             if file_type == ".pdf":
@@ -39,13 +44,13 @@ class ExtractorRunner:
             elif file_type in [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif"]:
                 ...
             elif file_type in [".md", ".markdown", ".mdx"]:
-                extractor = MarkdownExtractor(file_path, encoding="utf-8")
+                extractor = MarkdownExtractor(target_file, encoding="utf-8")
             elif file_type in [".html", ".htm", ".xml"]:
-                extractor = HtmlExtractor(file_path)
+                extractor = HtmlExtractor(target_file)
             else:
-                extractor = TextExtractor(file_path)
+                extractor = TextExtractor(target_file)
             result = extractor.extract()
-            shutil.rmtree(file_path, ignore_errors=True)
+            shutil.rmtree(target_file, ignore_errors=True)
             return result
         elif extraction_setting.extraction_source == ExtractionSourceType.DB_TABLE:
             extractor: Optional[BaseExtractor] = None
