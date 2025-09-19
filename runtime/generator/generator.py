@@ -6,7 +6,7 @@ from typing import cast
 from runtime.entities import UserPromptMessage, ChatCompletionResponse, SystemPromptMessage, PromptMessage
 from runtime.entities.llm_entities import ChatCompletionRequest
 from runtime.entities.model_entities import ModelType
-from runtime.generator.prompts import CONVERSATION_TITLE_PROMPT, GENERATOR_QA_PROMPT
+from runtime.generator.prompts import CONVERSATION_TITLE_PROMPT, GENERATOR_QA_PROMPT, SYSTEM_STRUCTURED_OUTPUT_GENERATE
 from runtime.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
@@ -95,3 +95,52 @@ class LLMGenerator:
             name = name[:75] + "..."
 
         return name
+
+    @classmethod
+    def generate_structured_output(cls, instruction: str):
+        model_manager = ModelManager()
+        model_instance = model_manager.get_default_model_instance(
+            model_type=ModelType.LLM,
+        )
+
+        prompt_messages = [
+            SystemPromptMessage(content=SYSTEM_STRUCTURED_OUTPUT_GENERATE),
+            UserPromptMessage(content=instruction),
+        ]
+
+        try:
+            request = ChatCompletionRequest(
+                model=model_instance.model,
+                messages=prompt_messages,
+                temperature=0.01,
+                stream=False,
+            )
+            response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
+
+            raw_content = response.message.content
+
+            if not isinstance(raw_content, str):
+                raise ValueError(f"LLM response content must be a string, got: {type(raw_content)}")
+
+            try:
+                parsed_content = json.loads(raw_content)
+            except json.JSONDecodeError:
+                # Attempt to extract JSON from the response using regex
+                json_match = re.search(r"(\{.*\}|\[.*\])", raw_content, re.DOTALL)
+                if json_match:
+                    try:
+                        parsed_content = json.loads(json_match.group(1))
+                    except json.JSONDecodeError:
+                        raise ValueError(f"Failed to parse JSON from LLM response: {raw_content}")
+                else:
+                    raise ValueError(f"No JSON object found in LLM response: {raw_content}")
+
+            if not isinstance(parsed_content, dict | list):
+                raise ValueError(f"Failed to parse structured output from llm: {raw_content}")
+
+            generated_json_schema = json.dumps(parsed_content, indent=2, ensure_ascii=False)
+            return {"output": generated_json_schema, "error": ""}
+
+        except Exception as e:
+            error = str(e)
+            return {"output": "", "error": f"Failed to generate JSON Schema. Error: {error}"}
