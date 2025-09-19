@@ -83,3 +83,10 @@ class MCPServerUpdate(BaseModel):
 
 class MCPServerOut(MCPServerBase):
     id: uuid.UUID
+
+
+
+class KnowledgeBasePayload(BaseModel):
+    name: str
+    default_base: int = 0
+    rag_type: str

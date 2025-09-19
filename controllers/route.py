@@ -29,3 +29,7 @@ api_router.include_router(web_memo.router)
 from .document import document
 
 api_router.include_router(document.router)
+
+# knowledge
+from .knowledge import knowledge
+api_router.include_router(knowledge.router)

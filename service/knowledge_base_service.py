@@ -8,7 +8,7 @@ from runtime.rag.rag_type import RagType
 class KnowledgeBaseService:
 
     @classmethod
-    def create_knowledge_base(cls,name: str, rag_type: RagType,default:int) -> KnowledgeBase:
+    def create_knowledge_base(cls,name: str, rag_type: str,default:int) -> KnowledgeBase:
         with get_db() as session:
             kb = KnowledgeBase(
                 name=name,
@@ -24,8 +24,8 @@ class KnowledgeBaseService:
                         "segmentation": {"delimiter": "\n", "max_tokens": 500, "chunk_overlap": 50},
                     }
                 },
-                embedding_model="Qwen/Qwen3-Embedding-4B",
-                embedding_model_provider="transformer",
+                embedding_model="modelscope.cn/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0",
+                embedding_model_provider="ollama",
                 rerank_model="Qwen/Qwen3-Reranker-4B",
                 rerank_model_provider="transformer",
                 reranking_rule={"score_threshold": 0.8, "top_k": 5},
