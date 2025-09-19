@@ -74,15 +74,14 @@ class ApiKeyContextMiddleware(BaseHTTPMiddleware):
         api_key_value = request.headers.get(API_KEY_HEADER) or auth_key.replace(
             "Bearer ", ""
         )
-        if api_key_value:
-            try:
-                ApiKeyService.validate_api_key(api_key_value)
-                api_key = ApiKeyService.get_by_hash_key(api_key_value)
-                logger.info(f"Using API Key: {api_key}")
-                api_key_context.set(api_key)
-            except Exception as e:
-                logger.error(f"Invalid API Key: {api_key_value}")
-                raise e
+        try:
+            ApiKeyService.validate_api_key(api_key_value)
+            api_key = ApiKeyService.get_by_hash_key(api_key_value)
+            logger.info(f"Using API Key: {api_key}")
+            api_key_context.set(api_key)
+        except Exception as e:
+            logger.error(f"Invalid API Key: {api_key_value}")
+            raise e
 
         response: Response = await call_next(request)
         api_key_context.clear()
