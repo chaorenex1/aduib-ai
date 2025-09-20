@@ -53,7 +53,6 @@ class AsyncUtils:
                 # else:
                 #     raise TypeError("func_or_coro must be an async function or coroutine object")
                 async def async_call():
-                    resp = None
                     if isinstance(func_or_coro, CoroutineType):
                         resp = await func_or_coro
                     elif isinstance(func_or_coro, FunctionType):

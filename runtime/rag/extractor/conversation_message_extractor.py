@@ -24,13 +24,11 @@ class ConversationMessageExtractor(BaseExtractor):
                     # Pair consecutive user-assistant messages
                     for i in range(len(items) - 1):
                         if items[i][0] == "user" and items[i + 1][0] == "assistant":
-                            documents.append(Document(content=json.dumps({
-                                "message_id": message_id,
-                                "question": items[i][1],
-                                "answer": items[i + 1][1]
-                            })))
+                            documents.append(Document(metadata={
+                                "message_id": message_id
+                            }, content="question:" + items[i][1] + "\n\n" + "answer:" + items[i + 1][1] + "\n\n"
+                            ))
             except Exception as e:
                 session.rollback()
                 raise e
         return documents
-

@@ -221,7 +221,7 @@ class ModelManager:
         )
         return ModelInstance(provider_entity, model_instance, model.name)
 
-    def get_default_model_instance(self, model_type):
+    def get_default_model_instance(self, model_type:str):
         from service import ModelService, ProviderService
 
         model: Model = ModelService.get_default_model(model_type)

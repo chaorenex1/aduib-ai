@@ -3,10 +3,11 @@ import logging
 import re
 from typing import cast
 
-from runtime.entities import UserPromptMessage, ChatCompletionResponse, SystemPromptMessage, PromptMessage
+from runtime.entities import UserPromptMessage, ChatCompletionResponse, SystemPromptMessage, PromptMessage, \
+    PromptMessageRole
 from runtime.entities.llm_entities import ChatCompletionRequest
 from runtime.entities.model_entities import ModelType
-from runtime.generator.prompts import CONVERSATION_TITLE_PROMPT, GENERATOR_QA_PROMPT, SYSTEM_STRUCTURED_OUTPUT_GENERATE
+from runtime.generator.prompts import CONVERSATION_TITLE_PROMPT, GENERATOR_QA_PROMPT, SYSTEM_STRUCTURED_OUTPUT_GENERATE, SUMMARY_PROMPT
 from runtime.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class LLMGenerator:
         model_instance = model_manager.get_default_model_instance(
             model_type=ModelType.LLM.to_model_type(),
         )
-        prompts = [UserPromptMessage(content=prompt)]
+        prompts = [UserPromptMessage(role=PromptMessageRole.USER,content=prompt)]
         request = ChatCompletionRequest(
             model=model_instance.model,
             messages=prompts,
@@ -57,15 +58,37 @@ class LLMGenerator:
         return cleaned_answer, query
 
     @classmethod
+    def generate_summary(cls, query):
+        prompt = SUMMARY_PROMPT
+        if len(query) > 2000:
+            query = query[:300] + "...[TRUNCATED]..." + query[-300:]
+        query = query.replace("\n", " ")
+        # prompt += query + "\n"
+        model_manager = ModelManager()
+        model_instance = model_manager.get_default_model_instance(
+            model_type=ModelType.LLM.to_model_type(),
+        )
+        prompts = [SystemPromptMessage(role=PromptMessageRole.SYSTEM,content=prompt),UserPromptMessage(role=PromptMessageRole.USER,content=query)]
+        request = ChatCompletionRequest(
+            model=model_instance.model,
+            messages=prompts,
+            temperature=0.01,
+            stream=False,
+        )
+        response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
+        answer = cast(str, response.message.content)
+        return answer
+
+    @classmethod
     def generate_qa_document(cls, query:str, document_language: str):
         prompt = GENERATOR_QA_PROMPT.format(language=document_language)
 
         model_manager = ModelManager()
         model_instance = model_manager.get_default_model_instance(
-            model_type=ModelType.LLM,
+            model_type=ModelType.LLM.to_model_type(),
         )
 
-        prompt_messages: list[PromptMessage] = [SystemPromptMessage(content=prompt), UserPromptMessage(content=query)]
+        prompt_messages: list[PromptMessage] = [SystemPromptMessage(role=PromptMessageRole.SYSTEM,content=prompt), UserPromptMessage(role=PromptMessageRole.USER,content=query)]
 
         # Explicitly use the non-streaming overload
         request = ChatCompletionRequest(
@@ -100,12 +123,12 @@ class LLMGenerator:
     def generate_structured_output(cls, instruction: str):
         model_manager = ModelManager()
         model_instance = model_manager.get_default_model_instance(
-            model_type=ModelType.LLM,
+            model_type=ModelType.LLM.to_model_type(),
         )
 
         prompt_messages = [
-            SystemPromptMessage(content=SYSTEM_STRUCTURED_OUTPUT_GENERATE),
-            UserPromptMessage(content=instruction),
+            SystemPromptMessage(role=PromptMessageRole.SYSTEM,content=SYSTEM_STRUCTURED_OUTPUT_GENERATE),
+            UserPromptMessage(role=PromptMessageRole.USER,content=instruction),
         ]
 
         try:

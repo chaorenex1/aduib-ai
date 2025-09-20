@@ -156,6 +156,8 @@ class LlMModel(AiModel):
                 callbacks=callbacks,
             )
         elif isinstance(result, ChatCompletionResponse):
+            result.usage = self.calc_response_usage(model, result.usage.prompt_tokens, result.usage.completion_tokens)
+            result.prompt_messages = prompt_messages
             self._trigger_after_invoke_callbacks(
                 model=model,
                 result=result,
@@ -167,8 +169,6 @@ class LlMModel(AiModel):
                 stream=stream,
                 callbacks=callbacks,
             )
-            result.usage = self.calc_response_usage(model, result.usage.prompt_tokens, result.usage.completion_tokens)
-            result.prompt_messages = prompt_messages
             return result
         raise NotImplementedError("unsupported invoke result type", type(result))
 

@@ -160,7 +160,7 @@ class ModelService:
             )
 
     @classmethod
-    def get_default_model(cls, model_type):
+    def get_default_model(cls, model_type: str) -> Model:
         """
         Get default model by type.
         :param model_type: model type

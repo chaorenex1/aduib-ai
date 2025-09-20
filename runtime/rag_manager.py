@@ -10,6 +10,7 @@ from component.storage.base_storage import storage_manager
 from models import KnowledgeBase, get_db, FileResource, KnowledgeEmbeddings
 from models.document import KnowledgeDocument
 from runtime.entities.document_entities import Document
+from runtime.generator.generator import LLMGenerator
 from runtime.model_manager import ModelManager
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 from runtime.rag.extractor.entity.extraction_source_type import ExtractionSourceType
@@ -85,14 +86,15 @@ class RagManager:
                 text_docs = rag_processor.extract(extract_setting, process_rule_mode=processing_rule["mode"])
             # update document status to splitting and word count
             _knowledge_doc = session.query(KnowledgeDocument).filter_by(id=knowledge_doc.id).one_or_none()
+            doc_content= "".join(doc.content for doc in text_docs)
             if _knowledge_doc:
                 from runtime.generator.generator import LLMGenerator
-                # name, language = LLMGenerator.generate_conversation_name(text_docs[0].content[:75] if len(text_docs)>0 else "")
-                # knowledge_doc.doc_language = language
+                name, language = LLMGenerator.generate_conversation_name(doc_content)
+                knowledge_doc.doc_language = language
+                _knowledge_doc.content= LLMGenerator.generate_summary(doc_content)
                 _knowledge_doc.rag_status = "extracting"
                 _knowledge_doc.word_count = sum(len(doc.content) for doc in text_docs)
                 _knowledge_doc.extracted_at = datetime.datetime.now()
-                # _knowledge_doc.content= "".join(doc.content for doc in text_docs)
                 # _knowledge_doc.title = name
                 # _knowledge_doc.doc_language = language
                 session.commit()
