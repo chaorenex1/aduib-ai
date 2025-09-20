@@ -20,3 +20,12 @@ def test_create_knowledge_base():
     assert response.status_code == 200
     data = response.json()
     print(data)
+
+
+def test_create_qa_rag():
+    response = client.get("/v1/knowledge/rag/qa", headers={
+        "Authorization": "Bearer $2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"
+    })
+    assert response.status_code == 200
+    data = response.json()
+    print(data)

@@ -86,9 +86,15 @@ class RagManager:
             # update document status to splitting and word count
             _knowledge_doc = session.query(KnowledgeDocument).filter_by(id=knowledge_doc.id).one_or_none()
             if _knowledge_doc:
+                from runtime.generator.generator import LLMGenerator
+                # name, language = LLMGenerator.generate_conversation_name(text_docs[0].content[:75] if len(text_docs)>0 else "")
+                # knowledge_doc.doc_language = language
                 _knowledge_doc.rag_status = "extracting"
                 _knowledge_doc.word_count = sum(len(doc.content) for doc in text_docs)
                 _knowledge_doc.extracted_at = datetime.datetime.now()
+                # _knowledge_doc.content= "".join(doc.content for doc in text_docs)
+                # _knowledge_doc.title = name
+                # _knowledge_doc.doc_language = language
                 session.commit()
                 knowledge_base.word_count += _knowledge_doc.word_count
                 session.commit()

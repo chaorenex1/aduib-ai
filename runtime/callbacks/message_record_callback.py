@@ -67,6 +67,9 @@ class MessageRecordCallback(Callback):
         elif isinstance(result.message.content, list):
             message_content = "".join([content.data for content in result.message.content])
 
+        # remove <think> and </think> including the content between them
+        import re
+        message_content = re.sub(r"<think>.*?</think>", "", message_content, flags=re.DOTALL)
         ConversationMessageService.add_conversation_message(
             ConversationMessage(
                 message_id=message_id,

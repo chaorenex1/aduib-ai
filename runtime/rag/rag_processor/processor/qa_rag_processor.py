@@ -66,23 +66,23 @@ class QARAGProcessor(BaseRAGProcessor):
                         document_node.content = content
                         split_documents.append(document_node)
             all_documents.extend(split_documents)
-            all_qa_documents = []
-            for i in range(0, len(all_documents), 10):
-                threads = []
-                sub_documents = all_documents[i : i + 10]
-                for doc in sub_documents:
-                    document_format_thread = threading.Thread(
-                        target=self._format_qa_document,
-                        kwargs={
-                            "document_node": doc,
-                            "all_qa_documents": all_qa_documents,
-                            "document_language": kwargs.get("doc_language", "English"),
-                        },
-                    )
-                    threads.append(document_format_thread)
-                    document_format_thread.start()
-                for thread in threads:
-                    thread.join()
+        all_qa_documents = []
+        for i in range(0, len(all_documents), 10):
+            threads = []
+            sub_documents = all_documents[i : i + 10]
+            for doc in sub_documents:
+                document_format_thread = threading.Thread(
+                    target=self._format_qa_document,
+                    kwargs={
+                        "document_node": doc,
+                        "all_qa_documents": all_qa_documents,
+                        "document_language": kwargs.get("doc_language", "English"),
+                    },
+                )
+                threads.append(document_format_thread)
+                document_format_thread.start()
+            for thread in threads:
+                thread.join()
         return all_qa_documents
 
     def load(self, knowledge: KnowledgeBase, documents: list[Document], with_keywords: bool = True, **kwargs):

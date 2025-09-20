@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from typing import Callable, Dict, List, Any
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar
@@ -12,7 +13,7 @@ class EventManager:
         self._subscribers: Dict[str, List[Callable[..., Any]]] = {}
         self._queue: asyncio.Queue = asyncio.Queue()
         self._running = False
-        self._executor = ThreadPoolExecutor()
+        self._executor = ThreadPoolExecutor(thread_name_prefix="EventManagerWorker")
 
     def subscribe(self, event: str):
         """装饰器: 注册事件回调"""
@@ -33,10 +34,14 @@ class EventManager:
             event, args, kwargs = await self._queue.get()
             if event in self._subscribers:
                 for callback in self._subscribers[event]:
-                    # 在线程池中运行回调
-                    asyncio.get_running_loop().run_in_executor(
-                        self._executor,lambda: callback(*args, **kwargs)
-                    )
+                    if inspect.iscoroutinefunction(callback):
+                        # 异步函数 → asyncio 直接调度
+                        asyncio.create_task(callback(*args, **kwargs))
+                    else:
+                        # 同步函数 → 放到线程池执行
+                        asyncio.get_running_loop().run_in_executor(
+                            self._executor, lambda: callback(*args, **kwargs)
+                        )
             self._queue.task_done()
 
     def start(self):

@@ -4,7 +4,7 @@ from contextvars import ContextVar
 from typing import Callable
 
 from fastapi import Depends
-from fastapi.security import APIKeyHeader, OAuth2AuthorizationCodeBearer
+from fastapi.security import APIKeyHeader
 from requests import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -81,7 +81,7 @@ class ApiKeyContextMiddleware(BaseHTTPMiddleware):
             api_key_context.set(api_key)
         except Exception as e:
             logger.error(f"Invalid API Key: {api_key_value}")
-            raise e
+            raise ApiNotCurrentlyAvailableError()
 
         response: Response = await call_next(request)
         api_key_context.clear()

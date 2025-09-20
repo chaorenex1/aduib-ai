@@ -40,7 +40,8 @@ class KnowledgeBaseService:
         """
         Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.
         """
-        from .file_service import FileService
+        from service import FileService
+        from runtime.rag_manager import RagManager
 
         file_hash = hashlib.sha256(crawl_text.encode('utf-8')).hexdigest()
         file_name = f"/web_memo/{file_hash}.{crawl_type}"
@@ -48,24 +49,62 @@ class KnowledgeBaseService:
 
         from runtime.generator.generator import LLMGenerator
         # name,language = LLMGenerator.generate_conversation_name(crawl_text)
-        name, language= "", "chinese"
+        name, language = "", "chinese"
         with get_db() as session:
-            existing_kb = session.query(KnowledgeBase).filter_by(default_base=1,rag_type=RagType.PARAGRAPH).one_or_none()
+            existing_kb = session.query(KnowledgeBase).filter_by(default_base=1,
+                                                                 rag_type=RagType.PARAGRAPH).one_or_none()
             if not existing_kb:
-                existing_kb= cls.create_knowledge_base("Default Paragraph KB", RagType.PARAGRAPH,1)
+                existing_kb = cls.create_knowledge_base("Default Paragraph KB", RagType.PARAGRAPH, 1)
+
+            doc = session.query(KnowledgeDocument).filter_by(
+                knowledge_base_id=existing_kb.id,
+                file_id=str(file_record.id),
+            ).one_or_none()
+            if not doc:
+                doc = KnowledgeDocument(knowledge_base_id=existing_kb.id,
+                                        title=name,
+                                        file_id=file_record.id,
+                                        doc_language=language,
+                                        doc_from="web_memo",
+                                        rag_type=RagType.PARAGRAPH,
+                                        data_source_type='file',
+                                        rag_status="pending", )
+
+                session.add(doc)
+                session.commit()
+                session.refresh(doc)
+
+        RagManager().run([doc])
+
+    @classmethod
+    async def qa_rag_from_conversation_message(cls) -> None:
+        """
+        Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.
+        """
+        from runtime.rag_manager import RagManager
+        from runtime.generator.generator import LLMGenerator
+        # name,language = LLMGenerator.generate_conversation_name(crawl_text)
+        name, language = "", "chinese"
+        with get_db() as session:
+            existing_kb = session.query(KnowledgeBase).filter_by(default_base=1,
+                                                                 rag_type=RagType.QA).one_or_none()
+            if not existing_kb:
+                existing_kb = cls.create_knowledge_base("Default QA KB", RagType.QA, 1)
             doc = KnowledgeDocument(
                 knowledge_base_id=existing_kb.id,
                 title=name,
-                file_id=file_record.id,
+                file_id="",
                 doc_language=language,
-                doc_from="web_memo",
-                rag_type=RagType.PARAGRAPH,
-                data_source_type='file',
+                doc_from="conversation_message",
+                rag_type=RagType.QA,
+                data_source_type='db_table',
                 rag_status="pending",
             )
             session.add(doc)
             session.commit()
             session.refresh(doc)
+
+        RagManager().run([doc])
 
 
     @classmethod
