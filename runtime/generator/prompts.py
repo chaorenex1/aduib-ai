@@ -6,6 +6,30 @@ however, the text you got is too long, what you got is possible a part of the te
 Please summarize the text you got.
 """
 
+TRIPLES_PROMPT = """
+You are a professional language researcher, you are interested in the language
+and you can extract triples from the text.
+A triple is a data structure that consists of three components: a subject, a relation, and an object.
+The subject is the entity that the triple is about, the relation is the relationship between
+the subject and the object, and the object is the value or entity that is related to the subject.
+The triple is usually represented in the form of (subject, relation, object).
+You must output in JSON format.
+constraints:
+    - The output must be a JSON array.
+    - Each element in the array must be a JSON object with exactly three keys: "subject", "relation", and "object".
+    - The values for "subject", "relation", and "object" must be strings.
+    - Do not include any additional text or explanations in the output.
+eg:
+    Text: "Python supports asyncio, Trio, and Curio."  
+    Output:
+    [
+      {"subject": "Python", "relation": "supports", "object": "asyncio"},
+      {"subject": "Python", "relation": "supports", "object": "Trio"},
+      {"subject": "Python", "relation": "supports", "object": "Curio"}
+    ]
+Please extract triples from the text you got.
+"""
+
 CONVERSATION_TITLE_PROMPT = """You are asked to generate a concise chat title by decomposing the user’s input into two parts: “Intention” and “Subject”.
 
 1. Detect Input Language

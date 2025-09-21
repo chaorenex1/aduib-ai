@@ -10,6 +10,7 @@ from .tool import ToolCallResult, ToolInfo
 from .user import McpUser
 from .resource import FileResource
 from .document import KnowledgeBase, KnowledgeEmbeddings, KnowledgeDocument
+from .agent import Agent
 
 __all__ = [
     "get_db",
@@ -29,4 +30,5 @@ __all__ = [
     "KnowledgeBase",
     "KnowledgeEmbeddings",
     "KnowledgeDocument",
+    "Agent",
 ]

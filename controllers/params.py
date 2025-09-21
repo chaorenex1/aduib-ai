@@ -90,3 +90,12 @@ class KnowledgeBasePayload(BaseModel):
     name: str
     default_base: int = 0
     rag_type: str
+
+
+class AgentCreatePayload(BaseModel):
+    name: str
+    model_id: str
+    description: Optional[str] = ""
+    prompt_template: Optional[str] = ""
+    tools: Optional[list] = []
+    agent_parameters: Optional[dict] = {}

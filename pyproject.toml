@@ -38,7 +38,8 @@ dependencies = [
     "transformers>=4.51.0",
     "uvicorn>=0.34.2",
     "redis>=6.4.0",
-    "pyzmq"
+    "pyzmq",
+    "spacy"
 ]
 [project.optional-dependencies]
 depcated = [

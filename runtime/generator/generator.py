@@ -7,7 +7,8 @@ from runtime.entities import UserPromptMessage, ChatCompletionResponse, SystemPr
     PromptMessageRole
 from runtime.entities.llm_entities import ChatCompletionRequest
 from runtime.entities.model_entities import ModelType
-from runtime.generator.prompts import CONVERSATION_TITLE_PROMPT, GENERATOR_QA_PROMPT, SYSTEM_STRUCTURED_OUTPUT_GENERATE, SUMMARY_PROMPT
+from runtime.generator.prompts import CONVERSATION_TITLE_PROMPT, GENERATOR_QA_PROMPT, SYSTEM_STRUCTURED_OUTPUT_GENERATE, \
+    SUMMARY_PROMPT, TRIPLES_PROMPT
 from runtime.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
@@ -167,3 +168,27 @@ class LLMGenerator:
         except Exception as e:
             error = str(e)
             return {"output": "", "error": f"Failed to generate JSON Schema. Error: {error}"}
+
+
+    @classmethod
+    def generate_triples(cls, query: str):
+        model_manager = ModelManager()
+        model_instance = model_manager.get_default_model_instance(
+            model_type=ModelType.LLM.to_model_type(),
+        )
+
+        prompt_messages = [
+            SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=TRIPLES_PROMPT),
+            UserPromptMessage(role=PromptMessageRole.USER, content=query),
+        ]
+
+        # Explicitly use the non-streaming overload
+        request = ChatCompletionRequest(
+            model=model_instance.model,
+            messages=prompt_messages,
+            temperature=0.01,
+            stream=False,
+        )
+        response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
+        answer = cast(str, response.message.content)
+        return answer.strip()
