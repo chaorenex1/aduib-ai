@@ -6,7 +6,7 @@ from runtime.agent.memory.memory_base import MemoryBase
 
 
 class ShortTermRedisMemory(MemoryBase):
-    def __init__(self, session_id: str, max_turns: int = 20):
+    def __init__(self, session_id: str, max_turns: int = 10):
         self.max_turns = max_turns
         self.client = redis_client
         self.session_id = session_id

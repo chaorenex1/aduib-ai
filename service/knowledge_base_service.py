@@ -21,7 +21,7 @@ class KnowledgeBaseService:
                             {"id": "remove_extra_spaces", "enabled": True},
                             {"id": "remove_urls_emails", "enabled": False},
                         ],
-                        "segmentation": {"delimiter": "\n", "max_tokens": 500, "chunk_overlap": 50},
+                        "segmentation": {"delimiter": "\n,.,。", "max_tokens": 500, "chunk_overlap": 50},
                     }
                 },
                 embedding_model="modelscope.cn/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0",

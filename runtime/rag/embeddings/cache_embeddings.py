@@ -18,9 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 class CacheEmbeddings(Embeddings):
-    def __init__(self, model_instance: ModelInstance, user: Optional[str] = None):
+    def __init__(self, model_instance: ModelInstance):
         self._model_instance = model_instance
-        self._user = user
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Embed search docs in batches of 10."""

@@ -65,7 +65,15 @@ class LongTermGraphMemory(MemoryBase):
         }}) AS triples
     ORDER BY related.timestamp ASC
     """
-        results = self.graph_manager.query(cypher)
+        docs = self.graph_manager.query(cypher)
+        results = []
+        for record in docs:
+            message_dict = {
+                "message_id": record["message_id"],
+                "user_message": record["user_message"],
+                "assistant_message": "".join([f"{t['subject']}{t['relation']}{t['object']}\n" for t in record["triples"]]) if record["triples"] else ""
+            }
+            results.append(message_dict)
         return results
 
     def delete_memory(self) -> None:

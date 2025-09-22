@@ -6,7 +6,7 @@ from models.document import KnowledgeBase
 from runtime.entities.document_entities import Document
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 from runtime.rag.splitter.base_splitter import BaseTextSplitter
-from runtime.rag.splitter.text_splitter import RecursiveTextSplitter
+from runtime.rag.splitter.text_splitter import RecursiveTextSplitter, FixedRecursiveTextSplitter
 
 
 class BaseRAGProcessor(ABC):
@@ -50,7 +50,7 @@ class BaseRAGProcessor(ABC):
 
         if process_rule_mode in ["custom", "hierarchical"]:
             # The user-defined segmentation rule
-            text_splitter = RecursiveTextSplitter(
+            text_splitter = FixedRecursiveTextSplitter(
                 chunk_size=chunk_size, chunk_overlap=chunk_overlap, fixed_separator=separator, **kwargs
             )
         else:

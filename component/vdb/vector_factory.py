@@ -113,7 +113,7 @@ class Vector:
             )
         else:
             embedding_model = model_manager.get_default_model_instance(
-                model_type=ModelType.EMBEDDING
+                model_type=ModelType.EMBEDDING.to_model_type()
             )
         return CacheEmbeddings(embedding_model)
 
