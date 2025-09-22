@@ -900,7 +900,7 @@ class TransformersManager:
             except Exception as e:
                 logger.error(f"Failed to start broker process: {e}")
 
-    def start_worker(self, loader: TransformersLoader, timeout: int = 120):
+    def start_worker(self, loader: TransformersLoader, timeout: int = 300):
         """Start worker process and wait for it to be ready"""
         with self._lock:
             if loader.model in self._worker_processes:
