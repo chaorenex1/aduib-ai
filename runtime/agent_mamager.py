@@ -111,7 +111,7 @@ class AgentManager:
             from runtime.model_manager import ModelManager
             model_manager = ModelManager()
             model_instance = model_manager.get_model_instance(model_name=req.model)
-            return model_instance.invoke_llm(prompt_messages=req, callbacks=[AgentMessageRecordCallback(agent_id=agent.id, session_id=session_id, agent_manager=self)])
+            return model_instance.invoke_llm(prompt_messages=req, callbacks=[AgentMessageRecordCallback(agent=agent, session_id=session_id, agent_manager=self)])
 
         except Exception as e:
             logger.error(f"Error generating response: {e}")
@@ -203,7 +203,7 @@ class AgentMessageRecordCallback(Callback):
 
         conversation_message = ConversationMessage(message_id=model_parameters.get("message_id"), model_name=model,
                                                    provider_name=llm_instance.provider_name, role=role, content=content,
-                                                   system_prompt=system_prompt,agent_id=self.agent_id, agent_session_id=int(self.session_id))
+                                                   system_prompt=system_prompt,agent_id=self.agent.id, agent_session_id=int(self.session_id))
         # ConversationMessageService.add_conversation_message(
         #     conversation_message
         # )
@@ -242,7 +242,7 @@ class AgentMessageRecordCallback(Callback):
         message_content = re.sub(r"<think>.*?</think>", "", message_content, flags=re.DOTALL)
         message = ConversationMessage(message_id=message_id, model_name=model, provider_name=llm_instance.provider_name,
                                       role=result.message.role.value, content=message_content, system_prompt="",
-                                      usage=result.usage.model_dump_json(exclude_none=True), state="success",agent_id=self.agent_id, agent_session_id=int(self.session_id))
+                                      usage=result.usage.model_dump_json(exclude_none=True), state="success",agent_id=self.agent.id, agent_session_id=int(self.session_id))
         # ConversationMessageService.add_conversation_message(
         #     message
         # )
@@ -270,8 +270,8 @@ class AgentMessageRecordCallback(Callback):
                         stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None) -> None:
         pass
 
-    def __init__(self, agent_id: int, session_id: str, agent_manager: AgentManager):
+    def __init__(self, agent: Agent, session_id: str, agent_manager: AgentManager):
         self.user_message = ""
-        self.agent_id = agent_id
+        self.agent = agent
         self.session_id = session_id
         self.agent_manager = agent_manager

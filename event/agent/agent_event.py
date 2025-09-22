@@ -23,11 +23,11 @@ async def agent_from_conversation_message(message: ConversationMessage,callback:
         # 更新消息并添加到内存
         message_id = message.message_id
         message_content = message.content
-        callback.agent_manager.get_or_create_memory(callback.agent_id, callback.session_id).add_interaction(Message(
+        callback.agent_manager.get_or_create_memory(callback.agent, callback.session_id).add_interaction(Message(
             id=message_id,
             user_message=callback.user_message if hasattr(callback, 'user_message') else "",
             assistant_message=message_content,
-            prev_message_id=ConversationMessageService.get_prev_message_id(agent_id=callback.agent_id,
+            prev_message_id=ConversationMessageService.get_prev_message_id(agent_id=callback.agent.id,
                                                                            session_id=callback.session_id,
                                                                            message_id=message_id),
             meta={"timestamp": time.time()}
