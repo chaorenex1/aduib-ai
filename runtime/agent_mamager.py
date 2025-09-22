@@ -148,10 +148,10 @@ class AgentManager:
         if context.get('long_term') and len(context['long_term']) > 0:
             relevant_memories = context['long_term']
             if relevant_memories:
-                context_content = "历史对话:\n" + "\n".join([
-                    f"User: {mem.get('user_message', '')}\nAssistant: {mem.get('assistant_message', '')}"
+                context_content = "<historical_conversations>\n" + "\n".join([
+                    f"<conversation>\n<user>{mem.get('user_message', '')}</user>\n<assistant>{mem.get('assistant_message', '')}</assistant>\n</conversation>"
                     for mem in relevant_memories
-                ])
+                ]) + "\n</historical_conversations>"
                 if messages and messages[0].role == PromptMessageRole.SYSTEM:
                     messages[0].content = messages[0].content + "\n\n" + context_content
                 else:
