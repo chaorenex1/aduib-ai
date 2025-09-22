@@ -22,10 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 class LongTermEmbeddingsMemory(MemoryBase):
-    def __init__(self, agent_id: Optional[str] = None):
+    def __init__(self, agent_id: Optional[str] = None,chunk_size: int = 500, chunk_overlap: int = 50,top_k: int = 30, score_threshold: float = 0.5):
         self.agent_id = agent_id
-        self.chunk_size = 500
-        self.chunk_overlap = 50
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.top_k = top_k
+        self.score_threshold = score_threshold
         self.text_splitter = RecursiveTextSplitter(
             chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap
         )
@@ -66,27 +68,29 @@ class LongTermEmbeddingsMemory(MemoryBase):
                         all_documents.append(split_doc)
             else:
                 all_documents.append(document)
-
         self.create(texts=all_documents)
 
     def get_memory(self, query: str) -> list[dict]:
-        embed_query = self.embeddings.embed_query(query)
-        documents = self.vector.search_by_vector(embed_query, search_type="similarity_score_threshold", top_k=20,
-                                                 score_threshold=0.8)
         results = []
-        # group by user_message
-        user_message_dict = {}
-        for doc in documents:
-            user_message = doc.metadata.get("user_message", "default")
-            if user_message not in user_message_dict:
-                user_message_dict[user_message] = []
-            user_message_dict[user_message].append(doc)
-        for user_message, docs in user_message_dict.items():
-            combined_content = "\n".join([doc.content for doc in docs])
-            combined_timestamp = max(doc.metadata.get("timestamp", 0) for doc in docs)
-            results.append({"user_message": user_message, "assistant_message": combined_content,
-                            "timestamp": combined_timestamp})
-        results = sorted(results, key=lambda x: x["timestamp"], reverse=True)
+        try:
+            embed_query = self.embeddings.embed_query(query)
+            documents = self.vector.search_by_vector(embed_query, search_type="similarity_score_threshold", top_k=self.top_k,
+                                                     score_threshold=self.score_threshold)
+            # group by user_message
+            user_message_dict = {}
+            for doc in documents:
+                user_message = doc.metadata.get("user_message", "default")
+                if user_message not in user_message_dict:
+                    user_message_dict[user_message] = []
+                user_message_dict[user_message].append(doc)
+            for user_message, docs in user_message_dict.items():
+                combined_content = "\n".join([doc.content for doc in docs])
+                combined_timestamp = max(doc.metadata.get("timestamp", 0) for doc in docs)
+                results.append({"user_message": user_message, "assistant_message": combined_content,
+                                "timestamp": combined_timestamp})
+            results = sorted(results, key=lambda x: x["timestamp"], reverse=True)
+        except Exception as e:
+            logger.error(f"Error retrieving memory: {e}")
         return results
 
     def _get_embeddings(self) -> Embeddings:

@@ -155,13 +155,12 @@ class MilvusVector(BaseVector):
     def add_texts(self, texts: list[Document], embeddings: list[list[float]]):
         insert_data_list = []
         for i, text in enumerate(texts):
-            if not self.exists(text.metadata.get("doc_id", "")):  # check exists
-                insert_data = {
-                    Field.CONTENT_KEY.value: text.content,
-                    Field.METADATA_KEY.value: text.metadata,
-                    Field.VECTOR.value: embeddings[i],
-                }
-                insert_data_list.append(insert_data)
+            insert_data = {
+                Field.CONTENT_KEY.value: text.content,
+                Field.METADATA_KEY.value: text.metadata,
+                Field.VECTOR.value: embeddings[i],
+            }
+            insert_data_list.append(insert_data)
 
         return self.client.insert(collection_name=self.collection_name, data=insert_data_list)
 

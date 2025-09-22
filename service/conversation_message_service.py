@@ -22,6 +22,8 @@ class ConversationMessageService:
                 with get_db() as session2:
                     llm_usage = LLMUsage.model_validate(obj=json.loads(message.usage))
                     usage = MessageTokenUsage(
+                        agent_id=message.agent_id,
+                        agent_session_id=message.agent_session_id,
                         message_id=message.message_id,
                         model_name=message.model_name,
                         provider_name=message.provider_name,
@@ -58,3 +60,26 @@ class ConversationMessageService:
             message.state = state
             session.commit()
             session.refresh(message)
+
+    @classmethod
+    def get_context_length(cls, agent_id, session_id):
+        with get_db() as session:
+            messages = session.query(MessageTokenUsage).filter(
+                MessageTokenUsage.agent_id == agent_id,
+                MessageTokenUsage.agent_session_id == session_id
+            ).all()
+            total_tokens = sum(message.prompt_tokens for message in messages)
+            return total_tokens
+
+    @classmethod
+    def get_prev_message_id(cls, agent_id, session_id, message_id):
+        with get_db() as session:
+            # 取出不等于当前message_id的最后一条消息
+            message = session.query(ConversationMessage).filter(
+                ConversationMessage.agent_id == agent_id,
+                ConversationMessage.agent_session_id == session_id,
+                ConversationMessage.message_id != message_id
+            ).order_by(ConversationMessage.created_at.desc()).first()
+            if message:
+                return message.message_id
+            return None

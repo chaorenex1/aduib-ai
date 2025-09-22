@@ -16,15 +16,15 @@ async def create_agent(payload:AgentCreatePayload):
     return BaseResponse.ok(agent)
 
 
-@router.get("/agents/{agent_id}/models")
+@router.get("/agents/{agent_id}/v1/models")
 @catch_exceptions
 async def get_agent_models(agent_id: int):
     models = AgentService.get_agent_models(agent_id)
-    return BaseResponse.ok(models)
+    return models
 
 
 
-@router.post("/agents/{agent_id}/chat/completions")
+@router.post("/agents/{agent_id}/v1/chat/completions")
 @catch_exceptions
 async def completion(agent_id: int,req: ChatCompletionRequest) -> Any:
     """

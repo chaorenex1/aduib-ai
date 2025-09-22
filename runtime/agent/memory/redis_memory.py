@@ -1,8 +1,11 @@
 import json
+import logging
 
 from component.cache.redis_cache import redis_client
 from runtime.agent.agent_type import Message
 from runtime.agent.memory.memory_base import MemoryBase
+
+logger = logging.getLogger(__name__)
 
 
 class ShortTermRedisMemory(MemoryBase):
@@ -12,11 +15,12 @@ class ShortTermRedisMemory(MemoryBase):
         self.session_id = session_id
 
     def add_memory(self, message:Message) -> None | dict:
-        entry = json.dumps(message)
-        self.client.rpush(self.session_id, entry)
-        if self.client.llen(self.session_id) > self.max_turns:
-            return json.loads(self.client.lpop(self.session_id))
+        entry = json.dumps(message.__dict__)
+        logger.debug(f"Adding message to Redis memory: {message}")
+        if (self.client.llen(self.session_id)+1) > self.max_turns:
+            return message.__dict__
         else:
+            self.client.rpush(self.session_id, entry)
             return None
 
     def get_memory(self, query:str) -> list[dict]:

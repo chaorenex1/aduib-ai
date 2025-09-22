@@ -13,6 +13,8 @@ class ConversationMessage(Base):
     __tablename__ = "conversation_message"
     # uuid primary key
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    agent_id = Column(Integer, nullable=True, comment="agent id", index=True)
+    agent_session_id = Column(Integer, nullable=True, comment="agent session id", index=True)
     message_id = Column(String, nullable=False, comment="conversation id")
     model_name = Column(String, nullable=False, comment="model name used for this message", index=True)
     provider_name = Column(String, nullable=False, comment="provider name used for this message", index=True)
@@ -41,6 +43,8 @@ class MessageTokenUsage(Base):
 
     __tablename__ = "message_token_usage"
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"), comment="id")
+    agent_id = Column(Integer, nullable=True, comment="agent id", index=True)
+    agent_session_id = Column(Integer, nullable=True, comment="agent session id", index=True)
     message_id = Column(String, nullable=False, comment="message id", index=True)
     model_name = Column(String, nullable=False, comment="model name", index=True)
     provider_name = Column(String, nullable=False, comment="provider name", index=True)

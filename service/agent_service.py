@@ -1,4 +1,4 @@
-from controllers.params import AgentCreatePayload, ModelCard
+from controllers.params import AgentCreatePayload, ModelCard, ModelList
 from models import get_db
 from runtime.agent_mamager import AgentManager
 from runtime.entities.llm_entities import ChatCompletionRequest
@@ -31,7 +31,7 @@ class AgentService:
             if not agent:
                 return None
             model = session.query(Model).filter(Model.id == agent.model_id).first()
-            return [
+            return ModelList(data=[
                 ModelCard(
                     id=model.name,
                     root=model.provider_name + "/" + model.name,
@@ -40,7 +40,7 @@ class AgentService:
                     owned_by=model.provider_name,
                     max_model_len=model.max_tokens,
                 )
-            ]
+            ])
 
     @classmethod
     async def create_completion(cls, agent_id: int, req:ChatCompletionRequest):
@@ -50,4 +50,5 @@ class AgentService:
             if not agent:
                 return None
             runtime = AgentManager()
-            return runtime.handle_agent_request(agent, req)
+            from service import CompletionService
+            return CompletionService.convert_to_stream(await runtime.handle_agent_request(agent, req), req)

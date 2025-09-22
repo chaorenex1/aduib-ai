@@ -36,6 +36,19 @@ class ModelService:
         return model
 
     @staticmethod
+    def get_model_by_id(model_id: int) -> Optional[Model]:
+        """
+        Get model by id.
+        :param model_id: model id
+        :return: model
+        """
+        with get_db() as session:
+            model = session.query(Model).filter_by(id=model_id).first()
+            if not model:
+                raise ModelNotFound("Model not found")
+        return model
+
+    @staticmethod
     def get_model_by_provider(model_name: str, provider_name: str) -> Optional[Model]:
         """
         Get model by name and provider.

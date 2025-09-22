@@ -25,7 +25,7 @@ class AgentSession(Base):
     __tablename__ = "agent_session"
     id = Column(Integer, primary_key=True, index=True, comment="id")
     agent_id = Column(Integer, index=True, comment="Agent ID")
-    name = Column(String(255), nullable=False, index=True, comment="Session name")
+    name = Column(String(255), nullable=True, index=True, comment="Session name")
     description = Column(String(255), nullable=True, comment="Session description", server_default=text("''"))
     status = Column(String(64), nullable=False, index=True, comment="Session status", default="active")
     context = Column(TEXT, nullable=True, comment="Session context", server_default=text("''"))
