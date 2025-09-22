@@ -106,7 +106,6 @@ class AgentManager:
             # 构建增强的提示词，包含上下文信息
             enhanced_messages = self._build_enhanced_messages(req, context, agent)
             req.messages = enhanced_messages
-            logger.debug(f"Enhanced messages: {enhanced_messages}")
 
             from runtime.model_manager import ModelManager
             model_manager = ModelManager()
