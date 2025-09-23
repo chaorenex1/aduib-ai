@@ -90,7 +90,7 @@ class KnowledgeBaseService:
         RagManager().run([doc])
 
     @classmethod
-    async def qa_rag_from_conversation_message(cls) -> None:
+    async def qa_rag_from_conversation_message(cls,message_id: str) -> None:
         """
         Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.
         """
@@ -107,6 +107,7 @@ class KnowledgeBaseService:
                 knowledge_base_id=existing_kb.id,
                 title=name,
                 file_id="",
+                message_id=message_id,
                 doc_language=language,
                 doc_from="conversation_message",
                 rag_type=RagType.QA,

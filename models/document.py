@@ -37,6 +37,7 @@ class KnowledgeDocument(Base):
     deleted = Column(Integer, default=0, comment="delete flag")
     title = Column(String(255), nullable=False, comment="name")
     file_id = Column(String, index=True, nullable=False, comment="file id")
+    message_id = Column(String, index=True, nullable=False, comment="message id")
     content = Column(TEXT, nullable=False, comment="content", server_default=text("''"))
     doc_language = Column(String(50), nullable=False, comment="knowledge language")
     doc_from = Column(String(255), nullable=True, comment="document from", server_default=text("''"))

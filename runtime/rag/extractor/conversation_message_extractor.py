@@ -7,12 +7,15 @@ from runtime.rag.extractor.extractor_base import BaseExtractor
 
 
 class ConversationMessageExtractor(BaseExtractor):
+
+    def __init__(self,message_id: str):
+        self.message_id = message_id
     def extract(self) -> list[Document]:
         with get_db() as session:
             try:
                 messages = (
-                    session.query(ConversationMessage)
-                    .order_by(ConversationMessage.message_id, ConversationMessage.created_at)
+                    session.query(ConversationMessage).filter_by(message_id=self.message_id, extracted_state=0) if self.message_id else session.query(ConversationMessage).filter_by(extracted_state=0)
+                    .order_by(ConversationMessage.created_at.desc())
                     .all()
                 )
                 grouped = defaultdict(list)

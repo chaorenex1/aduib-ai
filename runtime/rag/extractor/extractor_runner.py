@@ -59,7 +59,7 @@ class ExtractorRunner:
                     ConversationMessageExtractor,
                 )
 
-                extractor = ConversationMessageExtractor()
+                extractor = ConversationMessageExtractor(extraction_setting.extraction_db)
 
             result = extractor.extract()
             return result

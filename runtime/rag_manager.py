@@ -78,7 +78,7 @@ class RagManager:
                     text_docs = rag_processor.extract(extract_setting, process_rule_mode=processing_rule["mode"])
             elif knowledge_doc.data_source_type == "db_table":
                 extract_setting = ExtractionSetting(
-                    extraction_source=ExtractionSourceType.DB_TABLE, extraction_db="conversation_message"
+                    extraction_source=ExtractionSourceType.DB_TABLE, extraction_db=knowledge_doc.message_id
                 )
                 text_docs = rag_processor.extract(extract_setting, process_rule_mode=processing_rule["mode"])
             # update document status to splitting and word count

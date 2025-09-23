@@ -54,7 +54,7 @@ class ConversationMessageService:
         :return: None
         """
         with get_db() as session:
-            message = session.query(ConversationMessage).filter(ConversationMessage.id == message_id).first()
+            message = session.query(ConversationMessage).filter(ConversationMessage.message_id == message_id).first()
             if not message:
                 raise ValueError(f"Message with id {message_id} not found.")
             message.state = state

@@ -22,4 +22,4 @@ async def qa_rag_from_conversation_message(message: ConversationMessage) -> None
 
     ConversationMessageService.add_conversation_message(message)
     if message.role == "assistant" and message.state == "success" and len(message.content.strip()) > 0:
-        await KnowledgeBaseService.qa_rag_from_conversation_message()
+        await KnowledgeBaseService.qa_rag_from_conversation_message(message.message_id)
