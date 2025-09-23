@@ -1,10 +1,9 @@
 import json
 import logging
 from typing import Any
-from uuid import uuid4
 
 from pgvecto_rs.sqlalchemy import VECTOR  # type: ignore
-from sqlalchemy import Float, insert, select
+from sqlalchemy import Float, select, func, bindparam, desc
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
@@ -54,8 +53,11 @@ class PGVectoRS(BaseVector):
         with get_db() as session:
             for document, embedding in zip(documents, embeddings):
                 pk = document.metadata["doc_id"]
-                update_stmt=sql_text(f"""UPDATE {self._collection_name} SET content = :content, meta = :metadata, vector = :vector WHERE id = :id;""")
-                session.execute(update_stmt, {"id": pk, "content": document.content, "metadata": json.dumps(document.metadata), "vector": f"[{','.join(map(str, embedding))}]"})
+                update_stmt = sql_text(
+                    f"""UPDATE {self._collection_name} SET content = :content, meta = :metadata, vector = :vector WHERE id = :id;""")
+                session.execute(update_stmt,
+                                {"id": pk, "content": document.content, "metadata": json.dumps(document.metadata),
+                                 "vector": f"[{','.join(map(str, embedding))}]"})
                 pks.append(pk)
             session.commit()
 
@@ -122,19 +124,19 @@ class PGVectoRS(BaseVector):
             )
             knowledge_ids_filter = kwargs.get("knowledge_ids_filter")
             if knowledge_ids_filter:
-                stmt = stmt.where(self._table.metadata["knowledge_id"].in_(knowledge_ids_filter))
+                stmt = stmt.where(self._table.meta["knowledge_id"].in_(knowledge_ids_filter))
             res = session.execute(stmt)
             results = [(row[0], row[1]) for row in res]
 
         # Organize results.
         docs = []
         for record, dis in results:
-            metadata = record.metadata
+            meta = record.meta
             score = 1 - dis
-            metadata["score"] = score
+            meta["score"] = score
             score_threshold = float(kwargs.get("score_threshold") or 0.0)
             if score >= score_threshold:
-                doc = Document(content=record.content, metadata=metadata)
+                doc = Document(content=record.content, metadata=meta)
                 docs.append(doc)
         return docs
 
@@ -143,16 +145,38 @@ class PGVectoRS(BaseVector):
             stmt = (
                 select(
                     self._table,
-                    self._table.content.op("@@")(sql_text(f"to_jieba_tsquery('{query}')")).label("rank"),
+                    func.ts_rank(
+                        func.to_jieba_tsvector(self._table.content),
+                        func.to_jieba_tsquery(bindparam("query"))
+                    ).label("rank"),
                 )
-                .where(self._table.content.op("@@")(sql_text(f"to_jieba_tsquery('{query}')")))
+                .where(func.ts_rank(
+                    func.to_jieba_tsvector(self._table.content),
+                    func.to_jieba_tsquery(bindparam("query"))
+                ) > 0)
                 .limit(kwargs.get("top_k", 4))
-                .order_by(sql_text("rank DESC"))
+                .order_by(desc("rank"))
             )
-            res = session.execute(stmt)
+
+            knowledge_ids_filter = kwargs.get("knowledge_ids_filter")
+            if knowledge_ids_filter:
+                stmt = stmt.where(self._table.meta["knowledge_id"].astext.in_(knowledge_ids_filter))
+            # stmt = (
+            #     select(
+            #         self._table,
+            #         self._table.content.op("@@")(sql_text(f"to_jieba_tsquery('{query}')")).label("rank"),
+            #     )
+            #     .where(self._table.content.op("@@")(sql_text(f"to_jieba_tsquery('{query}')")))
+            #     .limit(kwargs.get("top_k", 4))
+            #     .order_by(sql_text("rank DESC"))
+            # )
+            # knowledge_ids_filter = kwargs.get("knowledge_ids_filter")
+            # if knowledge_ids_filter:
+            #     stmt = stmt.where(self._table.meta["knowledge_id"].in_(knowledge_ids_filter))
+            res = session.execute(stmt, {"query": query})
             results = [row[0] for row in res]
 
-        docs = [Document(content=record.content, metadata=record.metadata) for record in results]
+        docs = [Document(content=record.content, metadata=record.meta) for record in results]
         return docs
 
 

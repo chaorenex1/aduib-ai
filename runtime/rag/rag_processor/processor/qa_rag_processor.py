@@ -69,7 +69,7 @@ class QARAGProcessor(BaseRAGProcessor):
         all_qa_documents = []
         for i in range(0, len(all_documents), 10):
             threads = []
-            sub_documents = all_documents[i : i + 10]
+            sub_documents = all_documents[i: i + 10]
             for doc in sub_documents:
                 document_format_thread = threading.Thread(
                     target=self._format_qa_document,
@@ -111,16 +111,17 @@ class QARAGProcessor(BaseRAGProcessor):
                 keyword.delete()
 
     def retrieve(
-        self,
-        retrieval_method: str,
-        query: str,
-        knowledge: KnowledgeBase,
-        top_k: int,
-        score_threshold: float,
-        reranking_model: dict,
+            self,
+            retrieval_method: str,
+            query: str,
+            knowledge: KnowledgeBase,
+            top_k: int,
+            score_threshold: float,
+            reranking_model: dict,
     ) -> list[Document]:
         # Set search parameters.
         results = RetrievalService.retrieve(
+            knowledge_base_id=knowledge.id,
             query=query,
             top_k=top_k,
             score_threshold=score_threshold,
@@ -130,8 +131,8 @@ class QARAGProcessor(BaseRAGProcessor):
         docs = []
         for result in results:
             metadata = result.metadata
-            metadata["score"] = result.score
-            if result.score >= score_threshold:
+            score = metadata["score"]
+            if score >= score_threshold:
                 doc = Document(content=result.content, metadata=metadata)
                 docs.append(doc)
         return docs
@@ -142,7 +143,7 @@ class QARAGProcessor(BaseRAGProcessor):
             return
         try:
             # qa model document
-            response = LLMGenerator.generate_qa_document(document_node.content,document_language)
+            response = LLMGenerator.generate_qa_document(document_node.content, document_language)
             document_qa_list = self._format_split_text(response)
             qa_documents = []
             for result in document_qa_list:

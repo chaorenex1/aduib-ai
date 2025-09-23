@@ -94,7 +94,7 @@ class ParagraphRAGProcessor(BaseRAGProcessor):
     ) -> list[Document]:
         # Set search parameters.
         results = RetrievalService.retrieve(
-            knowledge_id=knowledge.id if knowledge else None,
+            knowledge_base_id=knowledge.id if knowledge else None,
             query=query,
             top_k=top_k,
             score_threshold=score_threshold,
@@ -104,8 +104,8 @@ class ParagraphRAGProcessor(BaseRAGProcessor):
         docs = []
         for result in results:
             metadata = result.metadata
-            metadata["score"] = result.score
-            if result.score >= score_threshold:
-                doc = Document(content=result.page_content, metadata=metadata)
+            score=result.metadata.get("score")
+            if score >= score_threshold:
+                doc = Document(content=result.content, metadata=metadata)
                 docs.append(doc)
         return docs

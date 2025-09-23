@@ -92,6 +92,11 @@ class KnowledgeBasePayload(BaseModel):
     rag_type: str
 
 
+class KnowledgeRetrievalPayload(BaseModel):
+    query: str
+    rag_type: str
+
+
 class AgentCreatePayload(BaseModel):
     name: str
     model_id: str

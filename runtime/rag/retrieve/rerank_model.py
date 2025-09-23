@@ -48,7 +48,7 @@ class RankerModelRunner(BaseRerankRunner):
         unique_documents = []
         for document in documents:
             if (
-                document.provider == "aduib-ai"
+                document.provider == "default"
                 and document.metadata is not None
                 and document.metadata["doc_id"] not in doc_ids
             ):

@@ -8,7 +8,7 @@ from runtime.rag.rag_type import RagType
 class KnowledgeBaseService:
 
     @classmethod
-    def create_knowledge_base(cls,name: str, rag_type: str,default:int) -> KnowledgeBase:
+    def create_knowledge_base(cls, name: str, rag_type: str, default: int) -> KnowledgeBase:
         with get_db() as session:
             kb = KnowledgeBase(
                 name=name,
@@ -106,9 +106,27 @@ class KnowledgeBaseService:
 
         RagManager().run([doc])
 
-
     @classmethod
-    async def retrieve_from_knowledge_base(cls, query: str, top_k: int = 5):
+    async def retrieve_from_knowledge_base(cls,
+                                           rag_type: str,
+                                           query: str) -> list[dict]:
+        """
+        Retrieve relevant documents from the knowledge base using RAG.
+        """
         from runtime.rag.rag_processor.rag_processor_factory import RAGProcessorFactory
-        rag_processor = RAGProcessorFactory.get_rag_processor("qa")
-        return rag_processor.retrieve("",query, top_k,None, 0.0, "")
+        rag_processor = RAGProcessorFactory.get_rag_processor(rag_type)
+        with get_db() as session:
+            existing_kb = session.query(KnowledgeBase).filter_by(default_base=1,
+                                                                 rag_type=rag_type).one_or_none()
+            if not existing_kb:
+                return []
+        return rag_processor.retrieve("score_similarity",
+                                      query,
+                                      existing_kb,
+                                      existing_kb.reranking_rule.get("top_k", 10),
+                                      existing_kb.reranking_rule.get("score_threshold", 0.8),
+                                      {
+                                          "reranking_model_name": existing_kb.rerank_model,
+                                          "reranking_provider_name": existing_kb.rerank_model_provider
+                                      } if existing_kb.rerank_model and existing_kb.rerank_model_provider else {}
+                                      )
