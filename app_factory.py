@@ -114,7 +114,7 @@ async def run_service_register(app: AduibAIApp):
     aduib_ai_service.service_name=config.APP_NAME+"-app"
     if config.DOCKER_ENV:
         aduib_ai_service.host=config.RPC_SERVICE_HOST
-        aduib_ai_service.port=config.APP_HOST
+        aduib_ai_service.port=config.APP_PORT
     else:
         aduib_ai_service.host=ip
         aduib_ai_service.port=config.APP_PORT
