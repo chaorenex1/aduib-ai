@@ -119,7 +119,7 @@ class LLMHttpHandler:
                 """
                 Handle the non-stream response and return the final response
                 """
-                yield response
+                return response
 
             return handle_no_stream_response()
 

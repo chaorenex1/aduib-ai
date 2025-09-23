@@ -1,7 +1,7 @@
 import logging
 from typing import Union, Generator, Any
 
-from runtime.entities import ToolPromptMessage
+from runtime.entities import ToolPromptMessage, AssistantPromptMessage
 from runtime.entities.llm_entities import (
     ChatCompletionRequest,
     CompletionRequest,
@@ -57,7 +57,7 @@ class LLMTransformation:
         """
         llm_result = cls._transform_message(model_params, prompt_messages, credentials, stream)
         if prompt_messages.tools:
-            return cls._call_tools(prompt_messages, credentials, llm_result)
+            return cls._call_tools(model_params,prompt_messages, credentials, llm_result,stream)
         return llm_result
 
     @classmethod
@@ -69,23 +69,35 @@ class LLMTransformation:
         llm_result: Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]],
         stream: bool = None,
     ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
-        if llm_result.message.tool_calls and len(llm_result.message.tool_calls) > 0:
+        if not isinstance(llm_result, ChatCompletionResponse):
+            return llm_result
+        tools_calls: list[AssistantPromptMessage.ToolCall] = []
+        for chunkContent in llm_result.choices:
+            if chunkContent.message and chunkContent.message.tool_calls:
+                for tool_call in chunkContent.message.tool_calls:
+                    tools_calls.append(tool_call)
+        if len(tools_calls) > 0:
             from runtime.tool.tool_manager import ToolManager
 
             tool_manager = ToolManager()
             tool_invoke_result: ToolInvokeResult = tool_manager.invoke_tools(
-                llm_result.message.tool_calls, llm_result.id
+                tools_calls, llm_result.id
             )
             if not tool_invoke_result:
                 logger.info(f"Tool calls for message {llm_result.id} already completed successfully.")
                 return llm_result
-            req.messages.append(llm_result.message)
-            req.messages.append(
-                ToolPromptMessage(content=tool_invoke_result.data, tool_call_id=llm_result.message.tool_calls[0].id)
-            )
-            llm_result = cls._transform_message(
-                model_params, prompt_messages=req, credentials=credentials, stream=stream
-            )
+            if tool_invoke_result.success:
+                for chunkContent in llm_result.choices:
+                    if chunkContent.message:
+                        req.messages.append(chunkContent.message)
+                    else:
+                        req.messages.append(chunkContent.delta)
+                req.messages.append(
+                    ToolPromptMessage(content=tool_invoke_result.data, tool_call_id=tools_calls[0].id)
+                )
+                llm_result = cls._transform_message(
+                    model_params, prompt_messages=req, credentials=credentials, stream=stream
+                )
         return llm_result
 
     @classmethod

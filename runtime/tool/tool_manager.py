@@ -73,7 +73,7 @@ class ToolManager:
             call_result = ToolCallResult(
                 message_id=message_id,
                 tool_call_id=tool_call.id,
-                tool_call=jsonable_encoder(obj=tool_call, exclude_none=True),
+                tool_call=json.dumps(jsonable_encoder(obj=tool_call, exclude_none=True)),
                 state="failed",
             )
 
@@ -83,7 +83,7 @@ class ToolManager:
                 if result and result.success:
                     tool_invoke_results.append(result)
                     call_result.state = "success"
-                    call_result.result = jsonable_encoder(result, exclude_none=True)
+                    call_result.result = json.dumps(jsonable_encoder(result, exclude_none=True))
                     tool_call_results.append(call_result)
 
                     logger.info(
@@ -98,7 +98,7 @@ class ToolManager:
                 logger.exception(f"Error invoking tool {tool_call.function.name}: {ex}")
 
                 tool_invoke_results.append(
-                    ToolInvokeResult(result=f"Error invoking tool {tool_call.function.name}: {ex}")
+                    ToolInvokeResult(error=f"Error invoking tool {tool_call.function.name}: {ex}")
                 )
                 call_result.state = "failed"
                 tool_call_results.append(call_result)

@@ -71,8 +71,8 @@ class LlMModel(AiModel):
                 or prompt_messages.thinking is not None
             )
             tools = prompt_messages.tools
-            if tools:
-                stream = False  # disable stream for tool calling
+            # if tools:
+            #     stream = False  # disable stream for tool calling
         stop: Optional[Sequence[str]] = prompt_messages.stop
 
         parameters = {
@@ -117,22 +117,21 @@ class LlMModel(AiModel):
             if not stream:
                 message_content = ""
                 tools_calls: list[AssistantPromptMessage.ToolCall] = []
-                for chunk in result:
-                    for chunkContent in chunk.choices:
-                        if chunkContent.message and chunkContent.message.content:
-                            if isinstance(chunkContent.message.content, str):
-                                message_content += chunkContent.message.content
-                            elif isinstance(chunkContent.message.content, list):
-                                message_content += "".join([content.data for content in chunkContent.message.content])
-                        if chunkContent.text:
-                            if isinstance(chunkContent.text, str):
-                                message_content += chunkContent.text
-                        if chunkContent.message and chunkContent.message.tool_calls:
-                            for tool_call in chunkContent.message.tool_calls:
-                                tools_calls.append(tool_call)
-                    chunk.message = AssistantPromptMessage(content=message_content, tool_calls=tools_calls)
-                    chunk.id = message_id
-                    result = cast(ChatCompletionResponse, chunk)
+                for chunkContent in result.choices:
+                    if chunkContent.message and chunkContent.message.content:
+                        if isinstance(chunkContent.message.content, str):
+                            message_content += chunkContent.message.content
+                        elif isinstance(chunkContent.message.content, list):
+                            message_content += "".join([content.data for content in chunkContent.message.content])
+                    if chunkContent.text:
+                        if isinstance(chunkContent.text, str):
+                            message_content += chunkContent.text
+                    if chunkContent.message and chunkContent.message.tool_calls:
+                        for tool_call in chunkContent.message.tool_calls:
+                            tools_calls.append(tool_call)
+                    result.message = AssistantPromptMessage(content=message_content, tool_calls=tools_calls)
+                    result.id = message_id
+                    result = cast(ChatCompletionResponse, result)
         except Exception as e:
             self._trigger_invoke_error_callbacks(
                 model=model,
