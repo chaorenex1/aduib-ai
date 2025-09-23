@@ -97,22 +97,29 @@ async def run_service_register(app: AduibAIApp):
     from aduib_rpc.server.rpc_execution.service_call import load_service_plugins
     ip, port = NetUtils.get_ip_and_free_port()
     service_registry = ServiceRegistryFactory.start_service_discovery(registry_config)
-    service_info = ServiceInstance(service_name=registry_config.get('APP_NAME', 'aduib-rpc'), host=ip, port=port,
+    rpc_service_info = ServiceInstance(service_name=registry_config.get('APP_NAME', 'aduib-rpc'), host=ip, port=port,
                                        protocol=AIProtocols.AduibRpc, weight=1,
                                        scheme=config.SERVICE_TRANSPORT_SCHEME or TransportSchemes.GRPC)
-    if service_info and config.RPC_SERVICE_PORT>0:
-        service_info.port=config.RPC_SERVICE_PORT
+    if rpc_service_info and config.RPC_SERVICE_PORT>0:
+        rpc_service_info.port=config.RPC_SERVICE_PORT
 
-    factory = AduibServiceFactory(service_instance=service_info)
+    factory = AduibServiceFactory(service_instance=rpc_service_info)
     load_service_plugins('rpc.service')
     load_service_plugins('rpc.client')
-    if service_info and config.DOCKER_ENV:
-        new_service_info = ServiceInstance(service_name=service_info.service_name, host=config.RPC_SERVICE_HOST, port=service_info.port,
-                                       protocol=service_info.protocol, weight=service_info.weight,
-                                       scheme=service_info.scheme)
-        await service_registry.register_service(new_service_info)
+    if rpc_service_info and config.DOCKER_ENV:
+        rpc_service_info = ServiceInstance(service_name=rpc_service_info.service_name, host=config.RPC_SERVICE_HOST, port=rpc_service_info.port,
+                                       protocol=rpc_service_info.protocol, weight=rpc_service_info.weight,
+                                       scheme=rpc_service_info.scheme)
+    aduib_ai_service = rpc_service_info.__deepcopy__()
+    aduib_ai_service.service_name=config.APP_NAME+"-app"
+    if config.DOCKER_ENV:
+        aduib_ai_service.host=config.RPC_SERVICE_HOST
+        aduib_ai_service.port=config.APP_HOST
     else:
-        await service_registry.register_service(service_info)
+        aduib_ai_service.host=ip
+        aduib_ai_service.port=config.APP_PORT
+    await service_registry.register_service(rpc_service_info)
+    await service_registry.register_service(aduib_ai_service)
     await factory.run_server()
 
 
