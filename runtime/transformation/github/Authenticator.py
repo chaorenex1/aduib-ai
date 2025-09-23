@@ -275,7 +275,7 @@ class Authenticator:
             sync_client = get_httpx_client()
             resp = sync_client.post(
                 GITHUB_DEVICE_CODE_URL,
-                headers=self._get_github_headers(),
+                headers=self.get_github_headers(),
                 json={"client_id": GITHUB_CLIENT_ID, "scope": "read:user"},
             )
             resp.raise_for_status()
@@ -329,7 +329,7 @@ class Authenticator:
             try:
                 resp = sync_client.post(
                     GITHUB_ACCESS_TOKEN_URL,
-                    headers=self._get_github_headers(),
+                    headers=self.get_github_headers(),
                     json={
                         "client_id": GITHUB_CLIENT_ID,
                         "device_code": device_code,

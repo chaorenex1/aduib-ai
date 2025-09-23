@@ -5,13 +5,13 @@ from pydantic_settings import BaseSettings
 
 
 class DBConfig(BaseSettings):
-    DB_DRIVER: str = Field(default="", description="Database driver")
-    DB_HOST: str = Field(default="", description="Database host")
-    DB_PORT: int = Field(default=-1, description="Database port")
-    DB_USERNAME: str = Field(default="", description="Database username")
-    DB_PASSWORD: str = Field(default="", description="Database password")
-    DB_DATABASE: str = Field(default="", description="Database name")
-    DB_CHARSET: str = Field(default="utf8mb4", description="Database charset")
+    DB_DRIVER: str = Field(default="postgresql", description="Database driver")
+    DB_HOST: str = Field(default="10.0.0.96", description="Database host")
+    DB_PORT: int = Field(default=5432, description="Database port")
+    DB_USERNAME: str = Field(default="postgres", description="Database username")
+    DB_PASSWORD: str = Field(default="postgres", description="Database password")
+    DB_DATABASE: str = Field(default="aduib_ai", description="Database name")
+    DB_CHARSET: str = Field(default="utf8", description="Database charset")
     DB_EXTRAS: str = Field(default="", description="Database extras")
     POOL_SIZE: int = Field(default=50, description="Database connection pool size")
 
