@@ -90,8 +90,8 @@ docker run -d \
   -p "${PORT}:${EXPOSED_PORT}" \
   -p "${RPC_PORT}:${RPC_EXPOSED_PORT}" \
   -v "${LOG_HOST_DIR}:/app/logs" \
-  -v "~/.aduib_ai:/root/.aduib_ai" \
-  -v "~/.cache:/root/.cache" \
+  -v "/home/zzh/.aduib_ai:/root/.aduib_ai" \
+  -v "/home/zzh/.cache:/root/.cache" \
   "${IMAGE_TAG}"
 
 # 等待并检查容器状态
