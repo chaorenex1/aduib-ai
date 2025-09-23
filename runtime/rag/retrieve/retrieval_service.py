@@ -1,6 +1,5 @@
 import concurrent.futures
 import logging
-import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
