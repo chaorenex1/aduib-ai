@@ -10,6 +10,9 @@ class DeploymentConfig(BaseSettings):
     APP_PORT: int = Field(default=5001, description="Application port")
     APP_MAX_REQUESTS: int = Field(default=1000, description="Maximum number of requests the app can handle")
     APP_MAX_WORKERS: int = Field(default=4, description="Number of worker processes for handling requests")
+    RPC_SERVICE_PORT: int = Field(default=0, description="RPC service port")
+    RPC_SERVICE_HOST: str = Field(default="", description="RPC service host")
+    DOCKER_ENV: bool = Field(default=False, description="Running inside a Docker container")
     DEPLOY_ENV: str = Field(
         description="Deployment environment (e.g., 'PRODUCTION', 'DEVELOPMENT'), default to PRODUCTION",
         default="PRODUCTION",

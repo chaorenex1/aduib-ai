@@ -6,6 +6,7 @@ import pathlib
 import time
 from typing import AsyncIterator
 
+from aduib_rpc.utils.net_utils import NetUtils
 from fastapi.routing import APIRoute
 
 from aduib_app import AduibAIApp
@@ -88,14 +89,30 @@ async def run_service_register(app: AduibAIApp):
         "SERVICE_TRANSPORT_SCHEME": app.config.SERVICE_TRANSPORT_SCHEME,
         "APP_NAME": app.config.APP_NAME,
     }
-    from aduib_rpc.server.rpc_execution.service_call import load_service_plugins
     from aduib_rpc.discover.registry.registry_factory import ServiceRegistryFactory
+    from aduib_rpc.discover.entities import ServiceInstance
+    from aduib_rpc.utils.constant import AIProtocols
+    from aduib_rpc.utils.constant import TransportSchemes
     from aduib_rpc.discover.service import AduibServiceFactory
+    from aduib_rpc.server.rpc_execution.service_call import load_service_plugins
+    ip, port = NetUtils.get_ip_and_free_port()
+    service_registry = ServiceRegistryFactory.start_service_discovery(registry_config)
+    service_info = ServiceInstance(service_name=registry_config.get('APP_NAME', 'aduib-rpc'), host=ip, port=port,
+                                       protocol=AIProtocols.AduibRpc, weight=1,
+                                       scheme=config.SERVICE_TRANSPORT_SCHEME or TransportSchemes.GRPC)
+    if service_info and config.RPC_SERVICE_PORT>0:
+        service_info.port=config.RPC_SERVICE_PORT
 
-    service = await ServiceRegistryFactory.start_service_registry(registry_config)
-    factory = AduibServiceFactory(service_instance=service)
-    load_service_plugins("rpc.client")
-    load_service_plugins("rpc.service")
+    factory = AduibServiceFactory(service_instance=service_info)
+    load_service_plugins('rpc.service')
+    load_service_plugins('rpc.client')
+    if service_info and config.DOCKER_ENV:
+        new_service_info = ServiceInstance(service_name=service_info.service_name, host=config.RPC_SERVICE_HOST, port=service_info.port,
+                                       protocol=service_info.protocol, weight=service_info.weight,
+                                       scheme=service_info.scheme)
+        await service_registry.register_service(new_service_info)
+    else:
+        await service_registry.register_service(service_info)
     await factory.run_server()
 
 

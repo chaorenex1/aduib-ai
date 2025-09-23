@@ -1,0 +1,33 @@
+# dockerfile
+FROM python:3.12-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN \
+  echo "INFO: Attempting to switch main Debian APT sources to mirrors.aliyun.com..." && \
+  if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+    echo "INFO: Modifying /etc/apt/sources.list.d/debian.sources" && \
+    sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources; \
+  elif [ -f /etc/apt/sources.list ]; then \
+    echo "INFO: Modifying /etc/apt/sources.list" && \
+    sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
+    sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list && \
+    sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list; \
+  else \
+    echo "WARNING: Standard Debian/Ubuntu APT source files not found in expected locations."; \
+  fi && \
+  echo "INFO: APT sources modification complete."
+# 安装系统依赖（用于编译扩展，如 psycopg2）
+#RUN apt-get update && apt-get install -y --no-install-recommends \
+#    build-essential \
+#    gcc \
+#    libpq-dev \
+#    && rm -rf /var/lib/apt/lists/*
+
+# 安装 uv 包管理器并使用 uv 安装依赖（只安装非 dev 依赖）
+RUN pip install --no-cache-dir uv \
+    && pip install playwright \
+    && playwright install chromium --with-deps
+
+CMD ["/bin/bash"]
