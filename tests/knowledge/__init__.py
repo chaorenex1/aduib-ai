@@ -58,3 +58,45 @@ def test_paragraph_knowledge_retrieval():
     assert response.status_code == 200
     data = response.json()
     print(data)
+
+
+def test_qa_knowledge_retrieval_answer():
+    response = client.post(
+        "/v1/knowledge/retrieval/answer",
+        headers={"Authorization": "Bearer $2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"},
+        json={
+            "query": "1加1",
+            "rag_type": "qa",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    print(data)
+
+
+def test_paragraph_knowledge_retrieval_answer():
+    response = client.post(
+        "/v1/knowledge/retrieval/answer",
+        headers={"Authorization": "Bearer $2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"},
+        json={
+            "query": "1+1=?",
+            "rag_type": "paragraph",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    print(data)
+
+def test_knowledge_retrieval_browser_history():
+    response = client.post(
+        "/v1/knowledge/retrieval/browser_history",
+        headers={"Authorization": "Bearer $2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"},
+        json={
+            "query": "python",
+            # "start_time": "2023-10-01 00:00:00",
+            # "end_time": "2023-10-31 23:59:59",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    print(data)

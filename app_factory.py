@@ -95,6 +95,7 @@ async def run_service_register(app: AduibAIApp):
     service = await ServiceRegistryFactory.start_service_registry(registry_config)
     factory = AduibServiceFactory(service_instance=service)
     load_service_plugins("rpc.client")
+    load_service_plugins("rpc.service")
     await factory.run_server()
 
 

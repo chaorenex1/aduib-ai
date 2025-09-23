@@ -38,26 +38,26 @@ class RetrievalService:
         # Optimize multithreading with thread pools
         with ThreadPoolExecutor(thread_name_prefix="Retrieval") as executor:  # type: ignore
             futures = [
-                # executor.submit(
-                #     cls.keyword_search,
-                #     knowledge_base_id=knowledge_base_id,
-                #     query=query,
-                #     top_k=top_k,
-                #     all_documents=all_documents,
-                #     exceptions=exceptions,
-                #     knowledge_ids_filter=knowledge_ids_filter,
-                # ),
-                # executor.submit(
-                #     cls.embedding_search,
-                #     knowledge_base_id=knowledge_base_id,
-                #     query=query,
-                #     top_k=top_k,
-                #     score_threshold=score_threshold,
-                #     reranking_model=reranking_model,
-                #     all_documents=all_documents,
-                #     exceptions=exceptions,
-                #     knowledge_ids_filter=knowledge_ids_filter,
-                # ),
+                executor.submit(
+                    cls.keyword_search,
+                    knowledge_base_id=knowledge_base_id,
+                    query=query,
+                    top_k=top_k,
+                    all_documents=all_documents,
+                    exceptions=exceptions,
+                    knowledge_ids_filter=knowledge_ids_filter,
+                ),
+                executor.submit(
+                    cls.embedding_search,
+                    knowledge_base_id=knowledge_base_id,
+                    query=query,
+                    top_k=top_k,
+                    score_threshold=score_threshold,
+                    reranking_model=reranking_model,
+                    all_documents=all_documents,
+                    exceptions=exceptions,
+                    knowledge_ids_filter=knowledge_ids_filter,
+                ),
                 executor.submit(
                     cls.full_text_index_search,
                     knowledge_base_id=knowledge_base_id,

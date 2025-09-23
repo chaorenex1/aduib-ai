@@ -150,9 +150,13 @@ class PGVectoRS(BaseVector):
             stmt = (
                 select(
                     self._table,
-                    func.ts_rank(
+                    (func.ts_rank(
                         func.to_jieba_tsvector(self._table.content), func.to_jieba_tsquery(bindparam("query"))
-                    ).label("rank"),
+                    )
+                    /
+                    func.ts_rank_cd(func.to_jieba_tsvector(self._table.content),
+                                    func.to_jieba_tsquery(bindparam("query")))
+                     ).label("rank")
                 )
                 .where(
                     func.ts_rank(func.to_jieba_tsvector(self._table.content), func.to_jieba_tsquery(bindparam("query")))
@@ -178,10 +182,16 @@ class PGVectoRS(BaseVector):
             # if knowledge_ids_filter:
             #     stmt = stmt.where(self._table.meta["knowledge_id"].in_(knowledge_ids_filter))
             res = session.execute(stmt, {"query": query})
-            results = [row[0] for row in res]
-
-        docs = [Document(content=record.content, metadata=record.meta) for record in results]
-        return docs
+            results = [(row[0], row[1]) for row in res]
+            docs=[]
+            for res,rank in results:
+                meta = res.meta
+                meta["score"] = rank
+                score_threshold = float(kwargs.get("score_threshold") or 0.0)
+                if rank >= score_threshold:
+                    doc = Document(content=res.content, metadata=meta)
+                    docs.append(doc)
+            return docs
 
 
 class PGVectoRSFactory(AbstractVectorFactory):

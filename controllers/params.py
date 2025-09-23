@@ -96,6 +96,12 @@ class KnowledgeRetrievalPayload(BaseModel):
     rag_type: str
 
 
+class BrowserHistoryPayload(BaseModel):
+    query: str
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+
+
 class AgentCreatePayload(BaseModel):
     name: str
     model_id: str

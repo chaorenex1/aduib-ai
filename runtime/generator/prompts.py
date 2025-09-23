@@ -147,6 +147,29 @@ GENERATOR_QA_PROMPT = (
     "<QA Pairs>"
 )
 
+ANSWER_INSTRUCTION_FROM_KNOWLEDGE="""
+    Please answer the question based on the reference materials
+
+## Citation Rules:
+- Please cite the context at the end of sentences when appropriate.
+- Please use the format of citation number [number] to reference the context in corresponding parts of your answer.
+- If a sentence comes from multiple contexts, please list all relevant citation numbers, e.g., [1][2]. Remember not to group citations at the end but list them in the corresponding parts of your answer.
+- If all reference content is not relevant to the user's question, please answer based on your knowledge.
+
+## My question is:
+<question>
+{question}
+</question>
+
+## Reference Materials:
+
+```json
+{context}
+```
+
+Please respond in the same language as the user's question.
+"""
+
 SYSTEM_STRUCTURED_OUTPUT_GENERATE = """
 Your task is to convert simple user descriptions into properly formatted JSON Schema definitions. When a user describes data fields they need, generate a complete, valid JSON Schema that accurately represents those fields with appropriate types and requirements.
 

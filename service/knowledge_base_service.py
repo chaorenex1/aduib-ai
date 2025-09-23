@@ -1,8 +1,14 @@
 import hashlib
+import logging
 
-from models import KnowledgeBase, get_db
+from sqlalchemy import select, func, bindparam, desc
+
+from models import KnowledgeBase, get_db, BrowserHistory
 from models.document import KnowledgeDocument
+from runtime.entities.document_entities import Document
 from runtime.rag.rag_type import RagType
+
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeBaseService:
@@ -114,7 +120,7 @@ class KnowledgeBaseService:
         RagManager().run([doc])
 
     @classmethod
-    async def retrieve_from_knowledge_base(cls, rag_type: str, query: str) -> list[dict]:
+    async def retrieve_from_knowledge_base(cls, rag_type: str, query: str) -> list[Document]:
         """
         Retrieve relevant documents from the knowledge base using RAG.
         """
@@ -138,3 +144,49 @@ class KnowledgeBaseService:
             if existing_kb.rerank_model and existing_kb.rerank_model_provider
             else {},
         )
+
+    @classmethod
+    async def retrieval_from_browser_history(cls, query, start_time, end_time):
+        """
+        Retrieve relevant documents from the Browser History.
+        """
+        with get_db() as session:
+            stmt = (
+                select(
+                    BrowserHistory.id,
+                    BrowserHistory.url,
+                    BrowserHistory.crawl_content,
+                    BrowserHistory.visit_time,
+                    (func.ts_rank(
+                        func.to_jieba_tsvector(BrowserHistory.crawl_content), func.to_jieba_tsquery(bindparam("query"))
+                    )/
+                    func.ts_rank_cd(func.to_jieba_tsvector(BrowserHistory.crawl_content),
+                                    func.to_jieba_tsquery(bindparam("query")))
+                     ).label("rank")
+                )
+                .where(
+                    func.ts_rank(func.to_jieba_tsvector(BrowserHistory.crawl_content), func.to_jieba_tsquery(bindparam("query")))
+                    > 0
+                )
+                .order_by(desc("rank"))
+            )
+            if start_time:
+                stmt = stmt.where(BrowserHistory.visit_time >= start_time)
+            if end_time:
+                stmt = stmt.where(BrowserHistory.visit_time <= end_time)
+            stmt = stmt.limit(20)
+            logger.debug(stmt)
+            res = session.execute(stmt, {"query": query})
+            results = [(row[0], row[1], row[2], row[3], row[4]) for row in res]
+        docs = []
+        for record in results:
+            if record[4]>=0.6:  # score threshold
+                meta = {
+                    "id": record[0],
+                    "url": record[1],
+                    "content": record[2],
+                    "visit_time": record[3],
+                    "score": record[4],
+                }
+                docs.append(meta)
+        return docs

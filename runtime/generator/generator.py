@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import cast
+from typing import cast, Any
 
 from runtime.entities import (
     UserPromptMessage,
@@ -10,6 +10,7 @@ from runtime.entities import (
     PromptMessage,
     PromptMessageRole,
 )
+from runtime.entities.document_entities import Document
 from runtime.entities.llm_entities import ChatCompletionRequest
 from runtime.entities.model_entities import ModelType
 from runtime.generator.prompts import (
@@ -17,7 +18,7 @@ from runtime.generator.prompts import (
     GENERATOR_QA_PROMPT,
     SYSTEM_STRUCTURED_OUTPUT_GENERATE,
     SUMMARY_PROMPT,
-    TRIPLES_PROMPT,
+    TRIPLES_PROMPT, ANSWER_INSTRUCTION_FROM_KNOWLEDGE,
 )
 from runtime.model_manager import ModelManager
 
@@ -207,3 +208,31 @@ class LLMGenerator:
         response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
         answer = cast(str, response.message.content)
         return answer.strip()
+
+    @classmethod
+    def generate_retrieval_content(cls, query: str, results: list[Document], rag_type: str) -> str:
+        question=query
+        contexts:list[dict[str,Any]] = []
+        if rag_type == "paragraph":
+            for result in results:
+                contexts.append({"doc_id": result.metadata.get("doc_id"), "content": result.content})
+            context = json.dumps(contexts, ensure_ascii=False, indent=2)
+        else:
+            for result in results:
+                contexts.append({"doc_id": result.metadata.get("doc_id"), "question": result.content, "answer": result.metadata.get("answer")})
+            context = json.dumps(contexts, ensure_ascii=False, indent=2)
+        prompt = ANSWER_INSTRUCTION_FROM_KNOWLEDGE.format(context=context, question=question)
+        model_manager = ModelManager()
+        model_instance = model_manager.get_default_model_instance(
+            model_type=ModelType.LLM.to_model_type(),
+        )
+        prompts = [UserPromptMessage(role=PromptMessageRole.USER, content=prompt)]
+        request = ChatCompletionRequest(
+            model=model_instance.model,
+            messages=prompts,
+            temperature=0.01,
+            stream=False,
+        )
+        response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
+        answer = cast(str, response.message.content)
+        return answer

@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 
 from controllers.common.base import BaseResponse, catch_exceptions
-from controllers.params import KnowledgeBasePayload, KnowledgeRetrievalPayload
+from controllers.params import KnowledgeBasePayload, KnowledgeRetrievalPayload, BrowserHistoryPayload
+from runtime.generator.generator import LLMGenerator
 from service import KnowledgeBaseService
 
 router = APIRouter(tags=["knowledge"])
@@ -25,4 +26,17 @@ async def create_qa_rag():
 @catch_exceptions
 async def knowledge_retrieval(payload: KnowledgeRetrievalPayload):
     result = await KnowledgeBaseService.retrieve_from_knowledge_base(payload.rag_type, payload.query)
+    return result
+
+@router.post("/knowledge/retrieval/answer")
+@catch_exceptions
+async def knowledge_retrieval(payload: KnowledgeRetrievalPayload):
+    result = await KnowledgeBaseService.retrieve_from_knowledge_base(payload.rag_type, payload.query)
+    return LLMGenerator.generate_retrieval_content(payload.query,result,payload.rag_type)
+
+
+@router.post("/knowledge/retrieval/browser_history")
+@catch_exceptions
+async def knowledge_retrieval_browser_history(payload: BrowserHistoryPayload):
+    result = await KnowledgeBaseService.retrieval_from_browser_history(payload.query,payload.start_time,payload.end_time)
     return result
