@@ -7,6 +7,7 @@ app = None
 if not app:
     app = create_app()
 
+
 async def run_app(**kwargs):
     import uvicorn
 

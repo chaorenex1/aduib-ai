@@ -32,8 +32,10 @@ api_router.include_router(document.router)
 
 # knowledge
 from .knowledge import knowledge
+
 api_router.include_router(knowledge.router)
 
 # agent
 from .agent import agent
+
 api_router.include_router(agent.router)

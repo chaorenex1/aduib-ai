@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class LongTermGraphMemory(MemoryBase):
-
     def __init__(self):
         self.graph_manager = GraphManager()
 
@@ -21,9 +20,15 @@ class LongTermGraphMemory(MemoryBase):
         message_id = message.id
         message_language = message.meta["language"] if "language" in message.meta else "zh"
         message_timestamp = message.meta["timestamp"] if "timestamp" in message.meta else time.time()
-        self.graph_manager.create_node("Message", {"id": message.id, "user_message": message.user_message,
-                                                   "timestamp": message_timestamp,
-                                                   "language": message_language})
+        self.graph_manager.create_node(
+            "Message",
+            {
+                "id": message.id,
+                "user_message": message.user_message,
+                "timestamp": message_timestamp,
+                "language": message_language,
+            },
+        )
         # 上下文串联
         if message.prev_message_id:
             self.graph_manager.create_relationship(message.prev_message_id, message_id, "NEXT", {})
@@ -34,7 +39,8 @@ class LongTermGraphMemory(MemoryBase):
             if triples:
                 # convert dict to list of tuples
                 triple_tuples = TripleCleaner(doc_lang=message_language).deduplicate(
-                    triples=[(t['subject'], t['relation'], t['object']) for t in triples])
+                    triples=[(t["subject"], t["relation"], t["object"]) for t in triples]
+                )
                 for triple in triple_tuples:
                     subject_id = "Entity_" + triple[0]
                     object_id = "Entity_" + triple[2]
@@ -46,7 +52,6 @@ class LongTermGraphMemory(MemoryBase):
                     self.graph_manager.create_relationship(message_id, subject_id, "HAS_TRIPLE", {})
                     self.graph_manager.create_relationship(message_id, object_id, "HAS_TRIPLE", {})
         except Exception as e:
-
             logger.error(f"Error generating triples: {e}")
 
     def get_memory(self, query: str) -> list[dict]:
@@ -71,7 +76,11 @@ class LongTermGraphMemory(MemoryBase):
             message_dict = {
                 "message_id": record["message_id"],
                 "user_message": record["user_message"],
-                "assistant_message": "".join([f"{t['subject']}{t['relation']}{t['object']}\n" for t in record["triples"]]) if record["triples"] else ""
+                "assistant_message": "".join(
+                    [f"{t['subject']}{t['relation']}{t['object']}\n" for t in record["triples"]]
+                )
+                if record["triples"]
+                else "",
             }
             results.append(message_dict)
         return results

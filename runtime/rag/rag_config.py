@@ -14,7 +14,7 @@ AUTOMATIC_RULES: dict[str, Any] = {
 default_retrieval_model = {
     "reranking_model": {"reranking_provider_name": "Qwen/Qwen3-Reranker-4B", "reranking_model_name": "transformer"},
     "top_k": 5,
-    "score_threshold": 0.8
+    "score_threshold": 0.8,
 }
 
 

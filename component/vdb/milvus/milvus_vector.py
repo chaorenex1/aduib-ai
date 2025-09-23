@@ -144,7 +144,9 @@ class MilvusVector(BaseVector):
             index_params_obj = self.client.prepare_index_params()
             index_params_obj.add_index(Field.VECTOR.value, **index_params)
             if self.enable_hybrid:
-                index_params_obj.add_index(field_name=Field.SPARSE_VECTOR.value, index_type="AUTOINDEX", metric_type="BM25")
+                index_params_obj.add_index(
+                    field_name=Field.SPARSE_VECTOR.value, index_type="AUTOINDEX", metric_type="BM25"
+                )
             return self.client.create_collection(
                 collection_name=self.collection_name,
                 schema=schema,

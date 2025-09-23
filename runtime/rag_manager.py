@@ -43,7 +43,7 @@ class RagManager:
                     # transform
                     documents = self._transform(rag_processor, knowledge_doc, kb, docs)
                     # save segment
-                    self._load_segments(knowledge_doc,kb, documents)
+                    self._load_segments(knowledge_doc, kb, documents)
 
                     # load
                     self._load(
@@ -60,9 +60,7 @@ class RagManager:
                     session.commit()
 
     def _extract(
-            self, rag_processor: BaseRAGProcessor,
-            knowledge_doc: KnowledgeDocument,
-            knowledge_base: KnowledgeBase
+        self, rag_processor: BaseRAGProcessor, knowledge_doc: KnowledgeDocument, knowledge_base: KnowledgeBase
     ) -> list[Document]:
         # load file
         processing_rule = knowledge_base.data_process_rule
@@ -80,18 +78,18 @@ class RagManager:
                     text_docs = rag_processor.extract(extract_setting, process_rule_mode=processing_rule["mode"])
             elif knowledge_doc.data_source_type == "db_table":
                 extract_setting = ExtractionSetting(
-                    extraction_source=ExtractionSourceType.DB_TABLE,
-                    extraction_db='conversation_message'
+                    extraction_source=ExtractionSourceType.DB_TABLE, extraction_db="conversation_message"
                 )
                 text_docs = rag_processor.extract(extract_setting, process_rule_mode=processing_rule["mode"])
             # update document status to splitting and word count
             _knowledge_doc = session.query(KnowledgeDocument).filter_by(id=knowledge_doc.id).one_or_none()
-            doc_content= "".join(doc.content for doc in text_docs)
+            doc_content = "".join(doc.content for doc in text_docs)
             if _knowledge_doc:
                 from runtime.generator.generator import LLMGenerator
+
                 name, language = LLMGenerator.generate_conversation_name(doc_content)
                 knowledge_doc.doc_language = language
-                _knowledge_doc.content= LLMGenerator.generate_summary(doc_content)
+                _knowledge_doc.content = LLMGenerator.generate_summary(doc_content)
                 _knowledge_doc.rag_status = "extracting"
                 _knowledge_doc.word_count = sum(len(doc.content) for doc in text_docs)
                 _knowledge_doc.extracted_at = datetime.datetime.now()
@@ -109,11 +107,11 @@ class RagManager:
         return text_docs
 
     def _transform(
-            self,
-            rag_processor: BaseRAGProcessor,
-            knowledge_doc: KnowledgeDocument,
-            knowledge_base: KnowledgeBase,
-            docs: list[Document],
+        self,
+        rag_processor: BaseRAGProcessor,
+        knowledge_doc: KnowledgeDocument,
+        knowledge_base: KnowledgeBase,
+        docs: list[Document],
     ) -> list[Document]:
         embedding_model_instance = self.model_manager.get_model_instance(
             model_name=knowledge_base.embedding_model, provider_name=knowledge_base.embedding_model_provider
@@ -127,7 +125,9 @@ class RagManager:
 
         return documents
 
-    def _load_segments(self,knowledge_doc: KnowledgeDocument, knowledge_base: KnowledgeBase, documents: list[Document]):
+    def _load_segments(
+        self, knowledge_doc: KnowledgeDocument, knowledge_base: KnowledgeBase, documents: list[Document]
+    ):
         # save node to document segment
         with get_db() as session:
             docs = []
@@ -135,8 +135,8 @@ class RagManager:
                 hash_ = document.metadata["doc_hash"]
                 count_ = session.query(KnowledgeEmbeddings).filter(KnowledgeEmbeddings.hash == hash_).one_or_none()
                 if count_:
-                    document.metadata['doc_id'] = str(count_.id)
-                    document.metadata['doc_hash'] = count_.hash
+                    document.metadata["doc_id"] = str(count_.id)
+                    document.metadata["doc_hash"] = count_.hash
                     continue
                 doc = KnowledgeEmbeddings(
                     id=document.metadata["doc_id"],
@@ -144,10 +144,10 @@ class RagManager:
                     knowledge_base_id=knowledge_base.id,
                     content=document.content,
                     meta=document.metadata if document.metadata else {},
-                    hash=hash_
+                    hash=hash_,
                 )
                 docs.append(doc)
-            if len(docs)>0:
+            if len(docs) > 0:
                 session.bulk_save_objects(docs)
                 session.commit()
 
@@ -159,7 +159,13 @@ class RagManager:
                 _knowledge_doc.cleaned_at = datetime.datetime.now()
                 session.commit()
 
-    def _load(self, rag_processor: BaseRAGProcessor,knowledge_doc: KnowledgeDocument, knowledge_base: KnowledgeBase, documents: list[Document]):
+    def _load(
+        self,
+        rag_processor: BaseRAGProcessor,
+        knowledge_doc: KnowledgeDocument,
+        knowledge_base: KnowledgeBase,
+        documents: list[Document],
+    ):
         """
         insert index and update document/segment status to completed
         """
@@ -217,7 +223,7 @@ class RagManager:
                 _knowledge_doc.indexed_time = indexing_end_at - indexing_start_at
                 _knowledge_doc.token_count = tokens
                 session.commit()
-                knowledge_base.token_count+= tokens
+                knowledge_base.token_count += tokens
                 session.commit()
 
     @staticmethod

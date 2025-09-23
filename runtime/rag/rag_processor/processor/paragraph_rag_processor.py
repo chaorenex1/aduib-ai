@@ -104,7 +104,7 @@ class ParagraphRAGProcessor(BaseRAGProcessor):
         docs = []
         for result in results:
             metadata = result.metadata
-            score=result.metadata.get("score")
+            score = result.metadata.get("score")
             if score >= score_threshold:
                 doc = Document(content=result.content, metadata=metadata)
                 docs.append(doc)

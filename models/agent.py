@@ -9,7 +9,7 @@ from models import Base
 class Agent(Base):
     __tablename__ = "agent"
     id = Column(Integer, primary_key=True, index=True, comment="id")
-    name = Column(String(255), nullable=False,index=True, comment="Agent name")
+    name = Column(String(255), nullable=False, index=True, comment="Agent name")
     description = Column(String(255), nullable=True, comment="Agent description", server_default=text("''"))
     model_id = Column(String(255), nullable=False, comment="Model ID")
     prompt_template = Column(TEXT, nullable=False, comment="Prompt template", server_default=text("''"))
@@ -18,7 +18,6 @@ class Agent(Base):
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
     deleted = Column(Integer, default=0, comment="delete flag")
-
 
 
 class AgentSession(Base):

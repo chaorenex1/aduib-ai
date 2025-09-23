@@ -6,7 +6,8 @@ from contextvars import ContextVar
 
 from libs.contextVar_wrapper import ContextVarWrappers
 
-event_manager_context: ContextVarWrappers['EventManager']=ContextVarWrappers(ContextVar("event_manager"))
+event_manager_context: ContextVarWrappers["EventManager"] = ContextVarWrappers(ContextVar("event_manager"))
+
 
 class EventManager:
     def __init__(self):
@@ -17,11 +18,13 @@ class EventManager:
 
     def subscribe(self, event: str):
         """装饰器: 注册事件回调"""
+
         def decorator(func: Callable[..., Any]):
             if event not in self._subscribers:
                 self._subscribers[event] = []
             self._subscribers[event].append(func)
             return func
+
         return decorator
 
     async def emit(self, event: str, *args, **kwargs):
@@ -39,9 +42,7 @@ class EventManager:
                         asyncio.create_task(callback(*args, **kwargs))
                     else:
                         # 同步函数 → 放到线程池执行
-                        asyncio.get_running_loop().run_in_executor(
-                            self._executor, lambda: callback(*args, **kwargs)
-                        )
+                        asyncio.get_running_loop().run_in_executor(self._executor, lambda: callback(*args, **kwargs))
             self._queue.task_done()
 
     def start(self):

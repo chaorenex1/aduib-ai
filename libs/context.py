@@ -71,9 +71,7 @@ class ApiKeyContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         api_key_context.clear()
         auth_key = request.headers.get(AUTHORIZATION_HEADER) or ""
-        api_key_value = request.headers.get(API_KEY_HEADER) or auth_key.replace(
-            "Bearer ", ""
-        )
+        api_key_value = request.headers.get(API_KEY_HEADER) or auth_key.replace("Bearer ", "")
         try:
             ApiKeyService.validate_api_key(api_key_value)
             api_key = ApiKeyService.get_by_hash_key(api_key_value)

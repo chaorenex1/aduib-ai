@@ -1005,8 +1005,10 @@ class TransformersManager:
             self.stop_all()
             sys.exit(0)
 
-        if (multiprocessing.current_process().name == "MainProcess" and
-                threading.current_thread() is threading.main_thread()):
+        if (
+            multiprocessing.current_process().name == "MainProcess"
+            and threading.current_thread() is threading.main_thread()
+        ):
             for sig in [signal.SIGINT, signal.SIGTERM]:
                 signal.signal(sig, stop_handler)
         else:

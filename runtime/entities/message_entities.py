@@ -125,8 +125,9 @@ class TextPromptMessageContent(PromptMessageContent):
     """
 
     type: Literal[PromptMessageContentType.TEXT] = PromptMessageContentType.TEXT
-    data: str=Field(default="", description="the text content of prompt message")
-    text: str=Field(default="", description="the text content of prompt message")
+    data: str = Field(default="", description="the text content of prompt message")
+    text: str = Field(default="", description="the text content of prompt message")
+
 
 class MultiModalPromptMessageContent(PromptMessageContent):
     """

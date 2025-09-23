@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from models import Base
 
 
-class  KnowledgeBase(Base):
+class KnowledgeBase(Base):
     __tablename__ = "knowledge_base"
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"), comment="id")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
@@ -19,12 +19,13 @@ class  KnowledgeBase(Base):
     embedding_model = Column(String(255), nullable=False, comment="embedding model name")
     embedding_model_provider = Column(String(255), nullable=False, comment="embedding provider name")
     rerank_model = Column(String(255), nullable=True, comment="rerank model name", server_default=text("''"))
-    rerank_model_provider = Column(String(255), nullable=True, comment="rerank provider name", server_default=text("''"))
+    rerank_model_provider = Column(
+        String(255), nullable=True, comment="rerank provider name", server_default=text("''")
+    )
     reranking_rule = Column(JSONB, nullable=True, comment="reranking rule", server_default=text("'{}'"))
     word_count = Column(Integer, nullable=True, server_default=text("0"), comment="word count")
     token_count = Column(Integer, nullable=True, server_default=text("0"), comment="token count")
     default_base = Column(Integer, nullable=True, server_default=text("0"), comment="default knowledge base")
-
 
 
 class KnowledgeDocument(Base):
@@ -53,9 +54,7 @@ class KnowledgeDocument(Base):
     token_count = Column(Integer, nullable=True, server_default=text("0"), comment="token count")
 
     __table_args__ = (
-        Index(
-            "idx_knowledge_document_content", func.to_tsvector(text("'jieba_cfg'"), content), postgresql_using="gin"
-        ),
+        Index("idx_knowledge_document_content", func.to_tsvector(text("'jieba_cfg'"), content), postgresql_using="gin"),
     )
 
 
@@ -87,7 +86,7 @@ class KnowledgeEmbeddings(Base):
         ),
         Index(
             "idx_knowledge_embeddings_vector",
-        vector,
+            vector,
             postgresql_using="vectors",
             postgresql_with={
                 "options": """$$optimizing.optimizing_threads = 30

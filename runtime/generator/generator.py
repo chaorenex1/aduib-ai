@@ -3,12 +3,22 @@ import logging
 import re
 from typing import cast
 
-from runtime.entities import UserPromptMessage, ChatCompletionResponse, SystemPromptMessage, PromptMessage, \
-    PromptMessageRole
+from runtime.entities import (
+    UserPromptMessage,
+    ChatCompletionResponse,
+    SystemPromptMessage,
+    PromptMessage,
+    PromptMessageRole,
+)
 from runtime.entities.llm_entities import ChatCompletionRequest
 from runtime.entities.model_entities import ModelType
-from runtime.generator.prompts import CONVERSATION_TITLE_PROMPT, GENERATOR_QA_PROMPT, SYSTEM_STRUCTURED_OUTPUT_GENERATE, \
-    SUMMARY_PROMPT, TRIPLES_PROMPT
+from runtime.generator.prompts import (
+    CONVERSATION_TITLE_PROMPT,
+    GENERATOR_QA_PROMPT,
+    SYSTEM_STRUCTURED_OUTPUT_GENERATE,
+    SUMMARY_PROMPT,
+    TRIPLES_PROMPT,
+)
 from runtime.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
@@ -20,7 +30,7 @@ class LLMGenerator:
         cleaned_answer, query = cls._generate_conversation_name(query)
         if cleaned_answer is None:
             return ""
-        language='chinese'
+        language = "chinese"
         try:
             result_dict = json.loads(cleaned_answer)
             answer = result_dict["Your Output"]
@@ -33,7 +43,7 @@ class LLMGenerator:
         if len(name) > 75:
             name = name[:75] + "..."
 
-        return name,language
+        return name, language
 
     @classmethod
     def _generate_conversation_name(cls, query):
@@ -46,7 +56,7 @@ class LLMGenerator:
         model_instance = model_manager.get_default_model_instance(
             model_type=ModelType.LLM.to_model_type(),
         )
-        prompts = [UserPromptMessage(role=PromptMessageRole.USER,content=prompt)]
+        prompts = [UserPromptMessage(role=PromptMessageRole.USER, content=prompt)]
         request = ChatCompletionRequest(
             model=model_instance.model,
             messages=prompts,
@@ -69,7 +79,10 @@ class LLMGenerator:
         model_instance = model_manager.get_default_model_instance(
             model_type=ModelType.LLM.to_model_type(),
         )
-        prompts = [SystemPromptMessage(role=PromptMessageRole.SYSTEM,content=prompt),UserPromptMessage(role=PromptMessageRole.USER,content=query)]
+        prompts = [
+            SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=prompt),
+            UserPromptMessage(role=PromptMessageRole.USER, content=query),
+        ]
         request = ChatCompletionRequest(
             model=model_instance.model,
             messages=prompts,
@@ -81,7 +94,7 @@ class LLMGenerator:
         return answer
 
     @classmethod
-    def generate_qa_document(cls, query:str, document_language: str):
+    def generate_qa_document(cls, query: str, document_language: str):
         prompt = GENERATOR_QA_PROMPT.format(language=document_language)
 
         model_manager = ModelManager()
@@ -89,7 +102,10 @@ class LLMGenerator:
             model_type=ModelType.LLM.to_model_type(),
         )
 
-        prompt_messages: list[PromptMessage] = [SystemPromptMessage(role=PromptMessageRole.SYSTEM,content=prompt), UserPromptMessage(role=PromptMessageRole.USER,content=query)]
+        prompt_messages: list[PromptMessage] = [
+            SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=prompt),
+            UserPromptMessage(role=PromptMessageRole.USER, content=query),
+        ]
 
         # Explicitly use the non-streaming overload
         request = ChatCompletionRequest(
@@ -128,8 +144,8 @@ class LLMGenerator:
         )
 
         prompt_messages = [
-            SystemPromptMessage(role=PromptMessageRole.SYSTEM,content=SYSTEM_STRUCTURED_OUTPUT_GENERATE),
-            UserPromptMessage(role=PromptMessageRole.USER,content=instruction),
+            SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=SYSTEM_STRUCTURED_OUTPUT_GENERATE),
+            UserPromptMessage(role=PromptMessageRole.USER, content=instruction),
         ]
 
         try:
@@ -168,7 +184,6 @@ class LLMGenerator:
         except Exception as e:
             error = str(e)
             return {"output": "", "error": f"Failed to generate JSON Schema. Error: {error}"}
-
 
     @classmethod
     def generate_triples(cls, query: str):

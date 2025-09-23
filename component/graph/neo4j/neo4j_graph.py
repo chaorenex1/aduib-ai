@@ -31,14 +31,15 @@ class Neo4jGraphStore(BaseGraphStore):
 
     def create_node(self, label: str, properties: Dict[str, Any]) -> None:
         with self._session() as session:
-            props = ', '.join([f"{key}: '{value}'" for key, value in properties.items()])
+            props = ", ".join([f"{key}: '{value}'" for key, value in properties.items()])
             query = f"CREATE (n:{label} {{{props}}})"
             session.run(query)
 
-    def create_relationship(self, start_node_id: str, end_node_id: str, rel_type: str,
-                            properties: Dict[str, Any]) -> None:
+    def create_relationship(
+        self, start_node_id: str, end_node_id: str, rel_type: str, properties: Dict[str, Any]
+    ) -> None:
         with self._session() as session:
-            props = ', '.join([f"{key}: '{value}'" for key, value in properties.items()])
+            props = ", ".join([f"{key}: '{value}'" for key, value in properties.items()])
             query = f"""
             MATCH (a), (b)
             WHERE a.id = '{start_node_id}' AND b.id = '{end_node_id}'
@@ -60,5 +61,3 @@ class Neo4jGraphStore(BaseGraphStore):
         with self._session() as session:
             query = f"MATCH ()-[r]->() WHERE r.id = '{rel_id}' DELETE r"
             session.run(query)
-
-

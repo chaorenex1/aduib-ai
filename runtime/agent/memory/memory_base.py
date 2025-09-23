@@ -9,14 +9,12 @@ class MemoryBase(ABC):
     """
 
     @abstractmethod
-    def add_memory(self, message:Message) -> None:
+    def add_memory(self, message: Message) -> None:
         raise NotImplementedError("Add memory method not implemented.")
 
-
     @abstractmethod
-    def get_memory(self,query:str) -> list[dict]:
+    def get_memory(self, query: str) -> list[dict]:
         raise NotImplementedError("Get memory method not implemented.")
-
 
     @abstractmethod
     def delete_memory(self) -> None:

@@ -67,11 +67,11 @@ class WebMemoService:
                 crawl_text = item.get("crawl_text", "")
                 hit_rule = item.get("hit_rule", "")
                 logger.info(f"Web memo crawl result: url={url}, hit_rule={hit_rule}, length={len(crawl_text)}")
-                if crawl_text!='\n' and crawl_text!='[]':
+                if crawl_text != "\n" and crawl_text != "[]":
                     crawl_text = crawl_text.strip()
                     crawl_type = item.get("crawl_type", "")
                     crawl_media = item.get("crawl_media", {})
-                    screenshot_png=""
+                    screenshot_png = ""
                     if item.get("screenshot", "") != "":
                         screenshot_png = "/his_screenshot/" + random_uuid() + ".png"
                         FileService.upload_base64(screenshot_png, item.get("screenshot", ""))
@@ -87,11 +87,14 @@ class WebMemoService:
                     history.crawl_metadata = json.dumps(metadata).encode("utf-8").decode("unicode-escape")
                     session.add(history)
                     session.commit()
-                    if hit_rule!='default' and crawl_text and len(crawl_text)>0:
+                    if hit_rule != "default" and crawl_text and len(crawl_text) > 0:
                         # from service import KnowledgeBaseService
                         # await KnowledgeBaseService.paragraph_rag_from_web_memo(crawl_text,crawl_type)
                         from runtime.rag_manager import RagManager
 
                         from event.event_manager import event_manager_context
+
                         event_manager = event_manager_context.get()
-                        await event_manager.emit(event="paragraph_rag_from_web_memo", crawl_text=crawl_text, crawl_type=crawl_type)
+                        await event_manager.emit(
+                            event="paragraph_rag_from_web_memo", crawl_text=crawl_text, crawl_type=crawl_type
+                        )

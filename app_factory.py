@@ -66,11 +66,13 @@ def init_apps(app: AduibAIApp):
     init_storage(app)
     from event.event_manager import EventManager
     from event.event_manager import event_manager_context
+
     event_manager = EventManager()
     app.extensions["event_manager"] = event_manager
     event_manager_context.set(event_manager)
-    from event.rag.rag_event import paragraph_rag_from_web_memo,qa_rag_from_conversation_message
+    from event.rag.rag_event import paragraph_rag_from_web_memo, qa_rag_from_conversation_message
     from event.agent.agent_event import agent_from_conversation_message
+
     log.info("middlewares initialized successfully")
 
 
@@ -101,6 +103,7 @@ async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
     log.info("Lifespan is starting")
     asyncio.create_task(run_service_register(app))
     from event.event_manager import EventManager
+
     event_manager: EventManager = app.extensions.get("event_manager")
     if event_manager:
         event_manager.start()

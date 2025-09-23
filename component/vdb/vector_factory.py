@@ -69,7 +69,9 @@ class Vector:
                 batch_start = time.time()
                 logger.info("Processing batch %s/%s (%s texts)", i // batch_size + 1, total_batches, len(batch))
                 batch_embeddings = self._embeddings.embed_documents([document.content for document in batch])
-                logger.info("Embedding batch %s/%s took %s s", i // batch_size + 1, total_batches, time.time() - batch_start)
+                logger.info(
+                    "Embedding batch %s/%s took %s s", i // batch_size + 1, total_batches, time.time() - batch_start
+                )
                 self._vector_processor.save(texts=batch, embeddings=batch_embeddings, **kwargs)
             logger.info("Embedding %s texts took %s s", len(texts), time.time() - start)
 
@@ -112,9 +114,7 @@ class Vector:
                 provider_name=self._knowledge.embedding_model_provider,
             )
         else:
-            embedding_model = model_manager.get_default_model_instance(
-                model_type=ModelType.EMBEDDING.to_model_type()
-            )
+            embedding_model = model_manager.get_default_model_instance(model_type=ModelType.EMBEDDING.to_model_type())
         return CacheEmbeddings(embedding_model)
 
     def _filter_duplicate_texts(self, texts: list[Document]) -> list[Document]:

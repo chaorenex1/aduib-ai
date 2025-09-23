@@ -29,11 +29,7 @@ class CacheEmbeddings(Embeddings):
             embedding_queue_indices = []
             for i, text in enumerate(texts):
                 hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
-                embedding = (
-                    session.query(KnowledgeEmbeddings)
-                    .filter_by(hash=hash)
-                    .one_or_none()
-                )
+                embedding = session.query(KnowledgeEmbeddings).filter_by(hash=hash).one_or_none()
                 if embedding and embedding.vector:
                     text_embeddings[i] = embedding.vector
                 else:

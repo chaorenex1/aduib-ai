@@ -8,8 +8,17 @@ from models import Agent, get_db, ConversationMessage
 from models.agent import AgentSession
 from runtime.agent.memory.agent_memory import AgentMemory
 from runtime.callbacks.base_callback import Callback
-from runtime.entities import TextPromptMessageContent, SystemPromptMessage, PromptMessageRole, UserPromptMessage, \
-    AssistantPromptMessage, PromptMessage, PromptMessageFunction, ChatCompletionResponse, ChatCompletionResponseChunk
+from runtime.entities import (
+    TextPromptMessageContent,
+    SystemPromptMessage,
+    PromptMessageRole,
+    UserPromptMessage,
+    AssistantPromptMessage,
+    PromptMessage,
+    PromptMessageFunction,
+    ChatCompletionResponse,
+    ChatCompletionResponseChunk,
+)
 from runtime.entities.llm_entities import ChatCompletionRequest
 from runtime.model_execution import AiModel
 from runtime.model_manager import ModelManager
@@ -29,27 +38,22 @@ class AgentManager:
         """获取或创建 agent 内存实例"""
         memory_key = f"{agent.id}_{session_id}"
         if memory_key not in self.agent_memories:
-            self.agent_memories[memory_key] = AgentMemory(
-                agent=agent,
-                session_id=session_id
-            )
+            self.agent_memories[memory_key] = AgentMemory(agent=agent, session_id=session_id)
         return self.agent_memories[memory_key]
 
     def _get_or_create_session_id(self, agent: Agent) -> str:
         """获取或创建会话ID"""
         with get_db() as session:
-            active_session = session.query(AgentSession).filter_by(
-                agent_id=agent.id, status='active'
-            ).first()
+            active_session = session.query(AgentSession).filter_by(agent_id=agent.id, status="active").first()
             if active_session:
                 from service import ModelService, ConversationMessageService
+
                 model = ModelService.get_model_by_id(int(agent.model_id))
-                currecnt_context_length = ConversationMessageService.get_context_length(agent.id,
-                                                                                        active_session.id)
+                currecnt_context_length = ConversationMessageService.get_context_length(agent.id, active_session.id)
                 if model and currecnt_context_length >= model.max_tokens:
-                    active_session.status = 'inactive'
+                    active_session.status = "inactive"
                     session.commit()
-                    new_session = AgentSession(agent_id=agent.id, status='active')
+                    new_session = AgentSession(agent_id=agent.id, status="active")
                     session.add(new_session)
                     session.commit()
                     session.refresh(new_session)
@@ -57,7 +61,7 @@ class AgentManager:
                 else:
                     return active_session.id
             else:
-                new_session = AgentSession(agent_id=agent.id, status='active')
+                new_session = AgentSession(agent_id=agent.id, status="active")
                 session.add(new_session)
                 session.commit()
                 session.refresh(new_session)
@@ -93,7 +97,7 @@ class AgentManager:
             logger.debug(f"Retrieved context: {context}")
 
             # 调用模型生成响应
-            response = await self._generate_response(agent,session_id, req, context)
+            response = await self._generate_response(agent, session_id, req, context)
             return response
 
         except Exception as e:
@@ -108,9 +112,13 @@ class AgentManager:
             req.messages = enhanced_messages
 
             from runtime.model_manager import ModelManager
+
             model_manager = ModelManager()
             model_instance = model_manager.get_model_instance(model_name=req.model)
-            return model_instance.invoke_llm(prompt_messages=req, callbacks=[AgentMessageRecordCallback(agent=agent, session_id=session_id, agent_manager=self)])
+            return model_instance.invoke_llm(
+                prompt_messages=req,
+                callbacks=[AgentMessageRecordCallback(agent=agent, session_id=session_id, agent_manager=self)],
+            )
 
         except Exception as e:
             logger.error(f"Error generating response: {e}")
@@ -118,46 +126,48 @@ class AgentManager:
 
     def _build_enhanced_messages(self, query: ChatCompletionRequest, context: Dict, agent: Agent) -> list:
         """构建包含上下文的消息列表"""
-        system_messages =query.messages[0]
-        if system_messages.role==PromptMessageRole.SYSTEM and system_messages.content:
-            system_messages.content=system_messages.content
+        system_messages = query.messages[0]
+        if system_messages.role == PromptMessageRole.SYSTEM and system_messages.content:
+            system_messages.content = system_messages.content
         else:
-            system_messages=SystemPromptMessage(
-                role=PromptMessageRole.SYSTEM,
-                content=agent.prompt_template
-            )
+            system_messages = SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=agent.prompt_template)
         last_message = query.messages[-1]
-        messages = [system_messages]+ [last_message]
+        messages = [system_messages] + [last_message]
 
         # 添加短期记忆上下文
-        if context.get('short_term') and len(context['short_term']) > 0:
-            for memory in context['short_term']:
-                if memory.get('user_message'):
-                    messages.insert(-1, UserPromptMessage(
-                        role=PromptMessageRole.USER,
-                        content=memory['user_message']
-                    ))
-                if memory.get('assistant_message'):
-                    messages.insert(-1, AssistantPromptMessage(
-                        role=PromptMessageRole.ASSISTANT,
-                        content=memory['assistant_message']
-                    ))
+        if context.get("short_term") and len(context["short_term"]) > 0:
+            for memory in context["short_term"]:
+                if memory.get("user_message"):
+                    messages.insert(-1, UserPromptMessage(role=PromptMessageRole.USER, content=memory["user_message"]))
+                if memory.get("assistant_message"):
+                    messages.insert(
+                        -1,
+                        AssistantPromptMessage(role=PromptMessageRole.ASSISTANT, content=memory["assistant_message"]),
+                    )
 
         # 添加长期记忆相关上下文
-        if context.get('long_term') and len(context['long_term']) > 0:
-            relevant_memories = context['long_term']
+        if context.get("long_term") and len(context["long_term"]) > 0:
+            relevant_memories = context["long_term"]
             if relevant_memories:
-                context_content = "<historical_conversations>\n" + "\n".join([
-                    f"<conversation>\n<user>{mem.get('user_message', '')}</user>\n<assistant>{mem.get('assistant_message', '')}</assistant>\n</conversation>"
-                    for mem in relevant_memories
-                ]) + "\n</historical_conversations>"
+                context_content = (
+                    "<historical_conversations>\n"
+                    + "\n".join(
+                        [
+                            f"<conversation>\n<user>{mem.get('user_message', '')}</user>\n<assistant>{mem.get('assistant_message', '')}</assistant>\n</conversation>"
+                            for mem in relevant_memories
+                        ]
+                    )
+                    + "\n</historical_conversations>"
+                )
                 if messages and messages[0].role == PromptMessageRole.SYSTEM:
                     messages[0].content = messages[0].content + "\n\n" + context_content
                 else:
-                    messages.insert(0, SystemPromptMessage(
-                        role=PromptMessageRole.SYSTEM,
-                        content=agent.prompt_template + "\n\n" + context_content
-                    ))
+                    messages.insert(
+                        0,
+                        SystemPromptMessage(
+                            role=PromptMessageRole.SYSTEM, content=agent.prompt_template + "\n\n" + context_content
+                        ),
+                    )
 
         return messages
 
@@ -171,19 +181,23 @@ class AgentManager:
     def get_agent_stats(self, agent_id: int) -> Dict:
         """获取 agent 统计信息"""
         agent_keys = [key for key in self.agent_memories.keys() if key.startswith(f"{agent_id}_")]
-        return {
-            "agent_id": agent_id,
-            "active_sessions": len(agent_keys),
-            "memory_instances": agent_keys
-        }
+        return {"agent_id": agent_id, "active_sessions": len(agent_keys), "memory_instances": agent_keys}
 
 
 class AgentMessageRecordCallback(Callback):
-    def on_before_invoke(self, llm_instance: AiModel, model: str, credentials: dict,
-                         prompt_messages: Union[list[PromptMessage], str], model_parameters: dict,
-                         tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
-                         stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None) -> None:
-
+    def on_before_invoke(
+        self,
+        llm_instance: AiModel,
+        model: str,
+        credentials: dict,
+        prompt_messages: Union[list[PromptMessage], str],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+    ) -> None:
         role: str = ""
         system_prompt: str = ""
         content: str = ""
@@ -200,33 +214,61 @@ class AgentMessageRecordCallback(Callback):
             role = "user"
             content = prompt_messages
 
-        conversation_message = ConversationMessage(message_id=model_parameters.get("message_id"), model_name=model,
-                                                   provider_name=llm_instance.provider_name, role=role, content=content,
-                                                   system_prompt=system_prompt,agent_id=self.agent.id, agent_session_id=int(self.session_id))
+        conversation_message = ConversationMessage(
+            message_id=model_parameters.get("message_id"),
+            model_name=model,
+            provider_name=llm_instance.provider_name,
+            role=role,
+            content=content,
+            system_prompt=system_prompt,
+            agent_id=self.agent.id,
+            agent_session_id=int(self.session_id),
+        )
         # ConversationMessageService.add_conversation_message(
         #     conversation_message
         # )
         self.user_message = content
         from event.event_manager import event_manager_context
+
         event_manager = event_manager_context.get()
         # from concurrent import futures
         # with futures.ThreadPoolExecutor() as executor:
         #     executor.submit(event_manager.emit, event="qa_rag_from_conversation_message", message=conversation_message)
 
         AsyncUtils.run_async_gen(
-            event_manager.emit(event="agent_from_conversation_message", message=conversation_message, callback=self))
+            event_manager.emit(event="agent_from_conversation_message", message=conversation_message, callback=self)
+        )
 
-    def on_new_chunk(self, llm_instance: AiModel, chunk: ChatCompletionResponseChunk, model: str, credentials: dict,
-                     prompt_messages: Sequence[PromptMessage], model_parameters: dict,
-                     tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
-                     stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None):
+    def on_new_chunk(
+        self,
+        llm_instance: AiModel,
+        chunk: ChatCompletionResponseChunk,
+        model: str,
+        credentials: dict,
+        prompt_messages: Sequence[PromptMessage],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+    ):
         pass
 
-    def on_after_invoke(self, llm_instance: AiModel, result: ChatCompletionResponse, model: str, credentials: dict,
-                        prompt_messages: Sequence[PromptMessage], model_parameters: dict,
-                        tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
-                        stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None) -> None:
-
+    def on_after_invoke(
+        self,
+        llm_instance: AiModel,
+        result: ChatCompletionResponse,
+        model: str,
+        credentials: dict,
+        prompt_messages: Sequence[PromptMessage],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+    ) -> None:
         message_id = model_parameters.get("message_id")
         if not message_id:
             return
@@ -238,10 +280,20 @@ class AgentMessageRecordCallback(Callback):
 
         # remove <think> and </think> including the content between them
         import re
+
         message_content = re.sub(r"<think>.*?</think>", "", message_content, flags=re.DOTALL)
-        message = ConversationMessage(message_id=message_id, model_name=model, provider_name=llm_instance.provider_name,
-                                      role=result.message.role.value, content=message_content, system_prompt="",
-                                      usage=result.usage.model_dump_json(exclude_none=True), state="success",agent_id=self.agent.id, agent_session_id=int(self.session_id))
+        message = ConversationMessage(
+            message_id=message_id,
+            model_name=model,
+            provider_name=llm_instance.provider_name,
+            role=result.message.role.value,
+            content=message_content,
+            system_prompt="",
+            usage=result.usage.model_dump_json(exclude_none=True),
+            state="success",
+            agent_id=self.agent.id,
+            agent_session_id=int(self.session_id),
+        )
         # ConversationMessageService.add_conversation_message(
         #     message
         # )
@@ -255,18 +307,30 @@ class AgentMessageRecordCallback(Callback):
         #     meta={"timestamp": time.time()}
         # ))
         from event.event_manager import event_manager_context
+
         event_manager = event_manager_context.get()
         # from concurrent import futures
         # with futures.ThreadPoolExecutor() as executor:
         #     executor.submit(event_manager.emit, event="qa_rag_from_conversation_message", message=conversation_message)
 
         AsyncUtils.run_async_gen(
-            event_manager.emit(event="agent_from_conversation_message", message=message, callback=self))
+            event_manager.emit(event="agent_from_conversation_message", message=message, callback=self)
+        )
 
-    def on_invoke_error(self, llm_instance: AiModel, ex: Exception, model: str, credentials: dict,
-                        prompt_messages: list[PromptMessage], model_parameters: dict,
-                        tools: Optional[list[PromptMessageFunction]] = None, stop: Optional[Sequence[str]] = None,
-                        stream: bool = True, include_reasoning: bool = False, user: Optional[str] = None) -> None:
+    def on_invoke_error(
+        self,
+        llm_instance: AiModel,
+        ex: Exception,
+        model: str,
+        credentials: dict,
+        prompt_messages: list[PromptMessage],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+    ) -> None:
         pass
 
     def __init__(self, agent: Agent, session_id: str, agent_manager: AgentManager):

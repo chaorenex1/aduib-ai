@@ -85,7 +85,6 @@ class MCPServerOut(MCPServerBase):
     id: uuid.UUID
 
 
-
 class KnowledgeBasePayload(BaseModel):
     name: str
     default_base: int = 0

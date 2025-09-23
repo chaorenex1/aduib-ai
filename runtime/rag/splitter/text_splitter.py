@@ -10,7 +10,7 @@ from runtime.rag.splitter.base_splitter import BaseTextSplitter
 class RecursiveTextSplitter(BaseTextSplitter):
     """RecursiveTextSplitter."""
 
-    def __init__(self,separators: Optional[List[str]] = None, **kwargs: Any):
+    def __init__(self, separators: Optional[List[str]] = None, **kwargs: Any):
         super().__init__(**kwargs)
         if "TIKTOKEN_CACHE_DIR" not in os.environ:
             os.environ["TIKTOKEN_CACHE_DIR"] = os.path.expanduser("~/.cache/tiktoken")
@@ -30,7 +30,10 @@ class RecursiveTextSplitter(BaseTextSplitter):
     def transform_document(self, documents: Sequence[Document], **kwargs) -> Sequence[Document]:
         all_docs = []
         from langchain_core.documents import Document as LCDocument
-        split_documents = self.text_splitter.split_documents([LCDocument(page_content=doc.content, metadata=doc.metadata) for doc in documents])
+
+        split_documents = self.text_splitter.split_documents(
+            [LCDocument(page_content=doc.content, metadata=doc.metadata) for doc in documents]
+        )
         if not split_documents:
             return []
         for _document in split_documents:
@@ -50,7 +53,7 @@ class FixedRecursiveTextSplitter(BaseTextSplitter):
         super().__init__(**kwargs)
         if "TIKTOKEN_CACHE_DIR" not in os.environ:
             os.environ["TIKTOKEN_CACHE_DIR"] = os.path.expanduser("~/.cache/tiktoken")
-        separators=[separator for separator in fixed_separator.split(",") if separator]
+        separators = [separator for separator in fixed_separator.split(",") if separator]
         self.text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             encoding_name="cl100k_base",
             separators=separators or ["\n\n", "。", ". ", " ", ""],
@@ -66,8 +69,10 @@ class FixedRecursiveTextSplitter(BaseTextSplitter):
     def transform_document(self, documents: Sequence[Document], **kwargs) -> Sequence[Document]:
         all_docs = []
         from langchain_core.documents import Document as LCDocument
+
         split_documents = self.text_splitter.split_documents(
-            [LCDocument(page_content=doc.content, metadata=doc.metadata) for doc in documents])
+            [LCDocument(page_content=doc.content, metadata=doc.metadata) for doc in documents]
+        )
         if not split_documents:
             return []
         for _document in split_documents:

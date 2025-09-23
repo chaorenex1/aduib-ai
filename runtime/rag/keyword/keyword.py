@@ -86,8 +86,9 @@ class Keyword:
             documents = []
             for doc_id in doc_ids:
                 with get_db() as session:
-                    for document in session.query(KnowledgeEmbeddings).filter(
-                            KnowledgeEmbeddings.document_id == doc_id).all():
+                    for document in (
+                        session.query(KnowledgeEmbeddings).filter(KnowledgeEmbeddings.document_id == doc_id).all()
+                    ):
                         doc = Document(content=document.content, metadata=document.metadata)
                         documents.append(doc)
 

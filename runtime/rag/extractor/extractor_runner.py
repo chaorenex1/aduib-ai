@@ -28,7 +28,7 @@ class ExtractorRunner:
             if not os.path.exists(file_path):
                 Path.mkdir(Path(file_path), parents=True, exist_ok=True)
             # download file
-            target_file=os.path.join(file_path, file.file_hash+suffix)
+            target_file = os.path.join(file_path, file.file_hash + suffix)
             storage_manager.download(file.file_name, target_file)
             input_file = Path(target_file)
             file_type = input_file.suffix.lower()
@@ -58,6 +58,7 @@ class ExtractorRunner:
                 from runtime.rag.extractor.conversation_message_extractor import (
                     ConversationMessageExtractor,
                 )
+
                 extractor = ConversationMessageExtractor()
 
             result = extractor.extract()

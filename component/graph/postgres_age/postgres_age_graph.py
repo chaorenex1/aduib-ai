@@ -14,14 +14,15 @@ class PostgresAGEGraphStore(BaseGraphStore):
 
     def create_node(self, label: str, properties: Dict[str, Any]) -> None:
         with get_db() as session:
-            props = ', '.join([f"{key}: '{value}'" for key, value in properties.items()])
+            props = ", ".join([f"{key}: '{value}'" for key, value in properties.items()])
             query = f"SELECT * FROM cypher('{self.graph_name}', $$ CREATE (n:{label} {{{props}}}) $$) AS (n agtype);"
             session.execute(query)
 
-    def create_relationship(self, start_node_id: str, end_node_id: str, rel_type: str,
-                            properties: Dict[str, Any]) -> None:
+    def create_relationship(
+        self, start_node_id: str, end_node_id: str, rel_type: str, properties: Dict[str, Any]
+    ) -> None:
         with get_db() as session:
-            props = ', '.join([f"{key}: '{value}'" for key, value in properties.items()])
+            props = ", ".join([f"{key}: '{value}'" for key, value in properties.items()])
             query = f"""
             SELECT * FROM cypher('{self.graph_name}', $$
                 MATCH (a), (b)
@@ -46,4 +47,3 @@ class PostgresAGEGraphStore(BaseGraphStore):
         with get_db() as session:
             query = f"SELECT * FROM cypher('{self.graph_name}', $$ MATCH ()-[r]->() WHERE r.id = '{rel_id}' DELETE r $$) AS (r agtype);"
             session.execute(query)
-

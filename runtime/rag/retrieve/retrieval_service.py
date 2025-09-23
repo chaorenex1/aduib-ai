@@ -16,13 +16,13 @@ class RetrievalService:
     # Cache precompiled regular expressions to avoid repeated compilation
     @classmethod
     def retrieve(
-            cls,
-            knowledge_base_id: str,
-            query: str,
-            top_k: int,
-            score_threshold: Optional[float] = 0.0,
-            reranking_model: Optional[dict] = None,
-            knowledge_ids_filter: Optional[list[str]] = None,
+        cls,
+        knowledge_base_id: str,
+        query: str,
+        top_k: int,
+        score_threshold: Optional[float] = 0.0,
+        reranking_model: Optional[dict] = None,
+        knowledge_ids_filter: Optional[list[str]] = None,
     ):
         if not query:
             return []
@@ -92,13 +92,13 @@ class RetrievalService:
 
     @classmethod
     def keyword_search(
-            cls,
-            knowledge_base_id: str,
-            query: str,
-            top_k: int,
-            all_documents: list,
-            exceptions: list,
-            knowledge_ids_filter: Optional[list[str]] = None,
+        cls,
+        knowledge_base_id: str,
+        query: str,
+        top_k: int,
+        all_documents: list,
+        exceptions: list,
+        knowledge_ids_filter: Optional[list[str]] = None,
     ):
         try:
             if knowledge_base_id:
@@ -116,15 +116,15 @@ class RetrievalService:
 
     @classmethod
     def embedding_search(
-            cls,
-            knowledge_base_id: str,
-            query: str,
-            top_k: int,
-            score_threshold: Optional[float],
-            reranking_model: Optional[dict],
-            all_documents: list,
-            exceptions: list,
-            knowledge_ids_filter: Optional[list[str]] = None,
+        cls,
+        knowledge_base_id: str,
+        query: str,
+        top_k: int,
+        score_threshold: Optional[float],
+        reranking_model: Optional[dict],
+        all_documents: list,
+        exceptions: list,
+        knowledge_ids_filter: Optional[list[str]] = None,
     ):
         try:
             if knowledge_base_id:
@@ -149,15 +149,15 @@ class RetrievalService:
 
     @classmethod
     def full_text_index_search(
-            cls,
-            knowledge_base_id: str,
-            query: str,
-            top_k: int,
-            score_threshold: Optional[float],
-            reranking_model: Optional[dict],
-            all_documents: list,
-            exceptions: list,
-            knowledge_ids_filter: Optional[list[str]] = None,
+        cls,
+        knowledge_base_id: str,
+        query: str,
+        top_k: int,
+        score_threshold: Optional[float],
+        reranking_model: Optional[dict],
+        all_documents: list,
+        exceptions: list,
+        knowledge_ids_filter: Optional[list[str]] = None,
     ):
         try:
             if knowledge_base_id:

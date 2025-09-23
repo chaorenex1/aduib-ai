@@ -69,7 +69,7 @@ class QARAGProcessor(BaseRAGProcessor):
         all_qa_documents = []
         for i in range(0, len(all_documents), 10):
             threads = []
-            sub_documents = all_documents[i: i + 10]
+            sub_documents = all_documents[i : i + 10]
             for doc in sub_documents:
                 document_format_thread = threading.Thread(
                     target=self._format_qa_document,
@@ -111,13 +111,13 @@ class QARAGProcessor(BaseRAGProcessor):
                 keyword.delete()
 
     def retrieve(
-            self,
-            retrieval_method: str,
-            query: str,
-            knowledge: KnowledgeBase,
-            top_k: int,
-            score_threshold: float,
-            reranking_model: dict,
+        self,
+        retrieval_method: str,
+        query: str,
+        knowledge: KnowledgeBase,
+        top_k: int,
+        score_threshold: float,
+        reranking_model: dict,
     ) -> list[Document]:
         # Set search parameters.
         results = RetrievalService.retrieve(
@@ -150,7 +150,7 @@ class QARAGProcessor(BaseRAGProcessor):
                 qa_document = Document(content=result["question"], metadata=document_node.metadata.copy())
                 if qa_document.metadata is not None:
                     doc_id = str(uuid.uuid4())
-                    hash = hashlib.sha256(result["question"].encode('utf-8')).hexdigest()
+                    hash = hashlib.sha256(result["question"].encode("utf-8")).hexdigest()
                     qa_document.metadata["answer"] = result["answer"]
                     qa_document.metadata["doc_id"] = doc_id
                     qa_document.metadata["doc_hash"] = hash

@@ -10,7 +10,7 @@ router = APIRouter(tags=["knowledge"])
 @router.post("/knowledge/bases")
 @catch_exceptions
 def create_knowledge(payload: KnowledgeBasePayload):
-    kb=KnowledgeBaseService.create_knowledge_base(payload.name,payload.rag_type,payload.default_base)
+    kb = KnowledgeBaseService.create_knowledge_base(payload.name, payload.rag_type, payload.default_base)
     return kb
 
 
@@ -21,9 +21,8 @@ async def create_qa_rag():
     return BaseResponse.ok()
 
 
-
 @router.post("/knowledge/retrieval")
 @catch_exceptions
-async def knowledge_retrieval(payload:KnowledgeRetrievalPayload):
-    result=await KnowledgeBaseService.retrieve_from_knowledge_base(payload.rag_type,payload.query)
+async def knowledge_retrieval(payload: KnowledgeRetrievalPayload):
+    result = await KnowledgeBaseService.retrieve_from_knowledge_base(payload.rag_type, payload.query)
     return result

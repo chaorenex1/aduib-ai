@@ -54,10 +54,17 @@ class PGVectoRS(BaseVector):
             for document, embedding in zip(documents, embeddings):
                 pk = document.metadata["doc_id"]
                 update_stmt = sql_text(
-                    f"""UPDATE {self._collection_name} SET content = :content, meta = :metadata, vector = :vector WHERE id = :id;""")
-                session.execute(update_stmt,
-                                {"id": pk, "content": document.content, "metadata": json.dumps(document.metadata),
-                                 "vector": f"[{','.join(map(str, embedding))}]"})
+                    f"""UPDATE {self._collection_name} SET content = :content, meta = :metadata, vector = :vector WHERE id = :id;"""
+                )
+                session.execute(
+                    update_stmt,
+                    {
+                        "id": pk,
+                        "content": document.content,
+                        "metadata": json.dumps(document.metadata),
+                        "vector": f"[{','.join(map(str, embedding))}]",
+                    },
+                )
                 pks.append(pk)
             session.commit()
 
@@ -66,9 +73,7 @@ class PGVectoRS(BaseVector):
     def get_ids_by_metadata_field(self, key: str, value: str):
         result = None
         with get_db() as session:
-            select_statement = sql_text(
-                f"SELECT id FROM {self._collection_name} WHERE meta->>'{key}' = '{value}'; "
-            )
+            select_statement = sql_text(f"SELECT id FROM {self._collection_name} WHERE meta->>'{key}' = '{value}'; ")
             result = session.execute(select_statement).fetchall()
         if result:
             return [item[0] for item in result]
@@ -146,14 +151,13 @@ class PGVectoRS(BaseVector):
                 select(
                     self._table,
                     func.ts_rank(
-                        func.to_jieba_tsvector(self._table.content),
-                        func.to_jieba_tsquery(bindparam("query"))
+                        func.to_jieba_tsvector(self._table.content), func.to_jieba_tsquery(bindparam("query"))
                     ).label("rank"),
                 )
-                .where(func.ts_rank(
-                    func.to_jieba_tsvector(self._table.content),
-                    func.to_jieba_tsquery(bindparam("query"))
-                ) > 0)
+                .where(
+                    func.ts_rank(func.to_jieba_tsvector(self._table.content), func.to_jieba_tsquery(bindparam("query")))
+                    > 0
+                )
                 .limit(kwargs.get("top_k", 4))
                 .order_by(desc("rank"))
             )

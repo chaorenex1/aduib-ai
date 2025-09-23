@@ -9,9 +9,10 @@ from service.agent_service import AgentService
 
 router = APIRouter(tags=["web_memo"])
 
+
 @router.post("/agents")
 @catch_exceptions
-async def create_agent(payload:AgentCreatePayload):
+async def create_agent(payload: AgentCreatePayload):
     agent = AgentService.create_agent(payload)
     return BaseResponse.ok(agent)
 
@@ -23,10 +24,9 @@ async def get_agent_models(agent_id: int):
     return models
 
 
-
 @router.post("/agents/{agent_id}/v1/chat/completions")
 @catch_exceptions
-async def completion(agent_id: int,req: ChatCompletionRequest) -> Any:
+async def completion(agent_id: int, req: ChatCompletionRequest) -> Any:
     """
     Completion endpoint
     """

@@ -18,14 +18,12 @@ class ConversationMessage(Base):
     message_id = Column(String, nullable=False, comment="conversation id")
     model_name = Column(String, nullable=False, comment="model name used for this message", index=True)
     provider_name = Column(String, nullable=False, comment="provider name used for this message", index=True)
-    system_prompt= Column(
-        Text, nullable=True, comment="system prompt for the conversation", server_default=text("''")
-    )
-    content= Column(Text, nullable=False, comment="message content", server_default=text("''"))
-    role= Column(String, nullable=False, comment="message role (user/assistant)")
-    usage= Column(Text, nullable=True, comment="message usage information")
-    state= Column(String, nullable=False, comment="message state", default="success")
-    extracted_state= Column(Integer, nullable=False, comment="message extracted state", server_default=text("0"))
+    system_prompt = Column(Text, nullable=True, comment="system prompt for the conversation", server_default=text("''"))
+    content = Column(Text, nullable=False, comment="message content", server_default=text("''"))
+    role = Column(String, nullable=False, comment="message role (user/assistant)")
+    usage = Column(Text, nullable=True, comment="message usage information")
+    state = Column(String, nullable=False, comment="message state", default="success")
+    extracted_state = Column(Integer, nullable=False, comment="message extracted state", server_default=text("0"))
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
     deleted = Column(Integer, default=0, comment="delete flag")
@@ -53,12 +51,16 @@ class MessageTokenUsage(Base):
         Integer, nullable=False, server_default=text("'0'"), comment="number of completion tokens"
     )
     total_tokens = Column(Integer, nullable=False, server_default=text("'0'"), comment="total number of tokens")
-    prompt_unit_price = Column(DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="prompt unit price")
+    prompt_unit_price = Column(
+        DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="prompt unit price"
+    )
     prompt_price = Column(DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="prompt price")
     completion_unit_price = Column(
         DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="completion unit price"
     )
-    completion_price = Column(DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="completion price")
+    completion_price = Column(
+        DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="completion price"
+    )
     total_price = Column(DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="total price")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")

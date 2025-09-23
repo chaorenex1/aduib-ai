@@ -70,16 +70,26 @@ class MessageRecordCallback(Callback):
 
         # remove <think> and </think> including the content between them
         import re
+
         message_content = re.sub(r"<think>.*?</think>", "", message_content, flags=re.DOTALL)
-        message = ConversationMessage(message_id=message_id, model_name=model, provider_name=llm_instance.provider_name,
-                                      role=result.message.role.value, content=message_content, system_prompt="",
-                                      usage=result.usage.model_dump_json(exclude_none=True), state="success", )
+        message = ConversationMessage(
+            message_id=message_id,
+            model_name=model,
+            provider_name=llm_instance.provider_name,
+            role=result.message.role.value,
+            content=message_content,
+            system_prompt="",
+            usage=result.usage.model_dump_json(exclude_none=True),
+            state="success",
+        )
         # ConversationMessageService.add_conversation_message(
         #     message
         # )
         from event.event_manager import event_manager_context
+
         event_manager = event_manager_context.get()
         from concurrent import futures
+
         # with futures.ThreadPoolExecutor() as executor:
         #     executor.submit(event_manager.emit, event="qa_rag_from_conversation_message", message=message)
         # await event_manager.emit(event="qa_rag_from_conversation_message", message=message)
@@ -169,16 +179,24 @@ class MessageRecordCallback(Callback):
             role = "user"
             content = prompt_messages
 
-        conversation_message = ConversationMessage(message_id=model_parameters.get("message_id"), model_name=model,
-                                      provider_name=llm_instance.provider_name, role=role, content=content,
-                                      system_prompt=system_prompt, )
+        conversation_message = ConversationMessage(
+            message_id=model_parameters.get("message_id"),
+            model_name=model,
+            provider_name=llm_instance.provider_name,
+            role=role,
+            content=content,
+            system_prompt=system_prompt,
+        )
         # ConversationMessageService.add_conversation_message(
         #     conversation_message
         # )
         from event.event_manager import event_manager_context
+
         event_manager = event_manager_context.get()
         # from concurrent import futures
         # with futures.ThreadPoolExecutor() as executor:
         #     executor.submit(event_manager.emit, event="qa_rag_from_conversation_message", message=conversation_message)
 
-        AsyncUtils.run_async_gen(event_manager.emit(event="qa_rag_from_conversation_message", message=conversation_message))
+        AsyncUtils.run_async_gen(
+            event_manager.emit(event="qa_rag_from_conversation_message", message=conversation_message)
+        )

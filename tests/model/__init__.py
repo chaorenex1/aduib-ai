@@ -18,8 +18,8 @@ def test_add_model():
             "max_tokens": 8192,
             "model_configs": {"temperature": 0.6, "top_k": 20, "top_p": 0.8, "presence_penalty": 1.5},
             "model_feature": ["thinking", "streaming", "structured_outputs"],
-            "input_price": 4/1000000,
-            "output_price": 12/1000000,
+            "input_price": 4 / 1000000,
+            "output_price": 12 / 1000000,
         },
     )
     assert response.status_code == 200

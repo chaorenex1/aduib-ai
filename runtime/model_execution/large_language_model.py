@@ -65,7 +65,11 @@ class LlMModel(AiModel):
         include_reasoning: bool = False
         message_id: Optional[str] = self.get_message_id()
         if isinstance(prompt_messages, ChatCompletionRequest):
-            include_reasoning = prompt_messages.include_reasoning or prompt_messages.enable_thinking or prompt_messages.thinking is not None
+            include_reasoning = (
+                prompt_messages.include_reasoning
+                or prompt_messages.enable_thinking
+                or prompt_messages.thinking is not None
+            )
             tools = prompt_messages.tools
             if tools:
                 stream = False  # disable stream for tool calling
