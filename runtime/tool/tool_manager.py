@@ -107,7 +107,6 @@ class ToolManager:
             logger.warning(
                 f"Some tools were not invoked successfully. Expected {len(tools)} results, got {len(tool_invoke_results)}."
             )
-
         tool_call_result_prompt = TOOL_CALL_RESULT_PROMPT.format(
             tool_calls="\n".join([f"Tool: {res.name}, Result: {res.data}" for res in tool_invoke_results])
         )
@@ -115,6 +114,9 @@ class ToolManager:
             name="AggregatedToolResults",
             data=tool_call_result_prompt,
         )
+        if len(tool_invoke_results)<=0:
+            aggregated_result.success=False
+            aggregated_result.error="No tools were invoked successfully."
         with get_db() as session:
             if tool_call_results:
                 for call_result in tool_call_results:

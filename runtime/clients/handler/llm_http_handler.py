@@ -1,4 +1,5 @@
 import json
+import traceback
 from typing import Union, Generator, TypeVar, Any, AsyncGenerator, Coroutine, AsyncIterator, overload
 
 from fastapi import Request
@@ -43,7 +44,7 @@ class LLMHttpHandler:
         Make a request to  API.
         """
         response = self.httpx_client.post(
-            self.path, params=params, headers=self.headers, json=data, files=files, stream=self.stream
+            self.path, params=params, headers=self.headers, json=data, files=files, stream=self.stream,timeout=300
         )
 
         return response
@@ -75,10 +76,13 @@ class LLMHttpHandler:
         Make a stream request to the plugin daemon inner API and yield the response as a model.
         """
         for line in self._stream_request(data, params, files):
-            if line == "[DONE]":
-                yield type(done=True)  # type: ignore
-            else:
-                yield type(**json.loads(line))  # type: ignore
+            try:
+                if line == "[DONE]":
+                    yield type(done=True)  # type: ignore
+                else:
+                    yield type(**json.loads(line))  # type: ignore
+            except Exception as e:
+                raise e
 
     def _request_with_model(
         self,
@@ -86,7 +90,7 @@ class LLMHttpHandler:
         data: bytes | dict | None = None,
         params: dict | None = None,
         files: dict | None = None,
-    ) -> T:
+    ) -> T | Generator[T, None, None]:
         """
         Make a request to the plugin daemon inner API and return the response as a model.
         """
@@ -104,24 +108,28 @@ class LLMHttpHandler:
     ) -> Generator[ChatCompletionResponse, None, None] | ChatCompletionResponse:
         if self.stream:
             response = self._stream_request_with_model(type=ChatCompletionResponseChunk, data=prompt_messages)
-
-            def handle_stream_response() -> Generator[ChatCompletionResponse, None, None]:
-                """
-                Handle the stream response and yield the final response
-                """
-                yield from response
-
-            return handle_stream_response()
         else:
             response = self._request_with_model(type=ChatCompletionResponse, data=prompt_messages)
 
-            def handle_no_stream_response() -> ChatCompletionResponse:
-                """
-                Handle the non-stream response and return the final response
-                """
-                return response
+        def handle_stream_response(res) -> Generator[ChatCompletionResponse, None, None]:
+            """
+            Handle the stream response and yield the final response
+            """
+            yield from res
 
-            return handle_no_stream_response()
+
+        def handle_no_stream_response(res) -> ChatCompletionResponse:
+            """
+            Handle the non-stream response and return the final response
+            """
+            if isinstance(res, ChatCompletionResponse):
+                return res
+            else:
+                return next(res)
+        if isinstance(response, Generator):
+            return handle_stream_response(response)
+        else:
+            return handle_no_stream_response(response)
 
     def embedding_request(self, texts: EmbeddingRequest) -> TextEmbeddingResult:
         response = self._request_with_model(type=TextEmbeddingResult, data=jsonable_encoder(texts, exclude_none=True))

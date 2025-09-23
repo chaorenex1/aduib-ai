@@ -26,7 +26,7 @@ class BuiltinToolController(ToolController):
         for tool in self.tools:
             if tool.entity.name == tool_name:
                 return tool
-        raise ValueError(f"Tool {tool_name} not found.")
+        return None
 
     def get_tools(self, filter_names: list[str] = None) -> list[BuiltinTool]:
         """

@@ -18,12 +18,12 @@ class AiModel(BaseModel):
     model_params: dict = Field(description="Model parameters", default_factory=dict)
     credentials: dict = Field(description="Model credentials", default_factory=dict)
 
-    def get_messages(self, prompt_messages) -> Union[list[PromptMessage], str]:
+    def get_messages(self, req) -> Union[list[PromptMessage], str]:
         messages: Union[list[PromptMessage], str]
-        if isinstance(prompt_messages, ChatCompletionRequest):
-            messages = prompt_messages.messages
-        elif isinstance(prompt_messages, CompletionRequest):
-            messages = prompt_messages.prompt
+        if isinstance(req, ChatCompletionRequest):
+            messages = req.messages
+        elif isinstance(req, CompletionRequest):
+            messages = req.prompt
         return messages
 
     def get_model_schema(self, model: Optional[str] = None) -> Optional[AIModelEntity]:

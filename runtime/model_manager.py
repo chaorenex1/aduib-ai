@@ -56,7 +56,7 @@ class ModelInstance:
             Union[ChatCompletionResponse, Generator],
             self._invoke(
                 function=self.model_type_instance.invoke,
-                prompt_messages=prompt_messages,
+                req=prompt_messages,
                 callbacks=callbacks,
             ),
         )

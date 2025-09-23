@@ -350,7 +350,7 @@ class ChatCompletionResponseChunkDelta(BaseModel):
     Model class for llm result chunk delta.
     """
 
-    index: int
+    index: int=0
     message: AssistantPromptMessage = None
     text: Optional[str] = None
     usage: Optional[LLMUsage] = None
