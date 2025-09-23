@@ -3,7 +3,6 @@ from typing import Any
 
 from aduib_rpc.server.rpc_execution.service_call import service
 
-from runtime.generator.generator import LLMGenerator
 from runtime.rag.rag_type import RagType
 from service import KnowledgeBaseService
 
