@@ -19,11 +19,12 @@ RUN \
   fi && \
   echo "INFO: APT sources modification complete."
 # 安装系统依赖（用于编译扩展，如 psycopg2）
-#RUN apt-get update && apt-get install -y --no-install-recommends \
-#    build-essential \
-#    gcc \
-#    libpq-dev \
-#    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    libpq-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # 安装 uv 包管理器并使用 uv 安装依赖（只安装非 dev 依赖）
 RUN pip install --no-cache-dir uv \
