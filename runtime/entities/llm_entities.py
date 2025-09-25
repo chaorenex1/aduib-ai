@@ -56,7 +56,7 @@ class ChatCompletionRequest(BaseModel):
     response_format: Optional[AnyResponseFormat] = None
     seed: Optional[int] = None
     user: Optional[str] = None
-    reasoning_effort: Optional[Literal["low", "medium", "high"]] = None
+    reasoning_effort: str = None
     include_reasoning: bool = None
     enable_thinking: bool = None
     thinking_budget: Optional[int] = None
