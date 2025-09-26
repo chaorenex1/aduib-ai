@@ -111,6 +111,9 @@ class AgentManager:
             enhanced_messages = self._build_enhanced_messages(req, context, agent)
             req.messages = enhanced_messages
 
+            # 构建微调参数
+            self._build_agent_parameters(agent, req)
+
             from runtime.model_manager import ModelManager
 
             model_manager = ModelManager()
@@ -182,6 +185,25 @@ class AgentManager:
         """获取 agent 统计信息"""
         agent_keys = [key for key in self.agent_memories.keys() if key.startswith(f"{agent_id}_")]
         return {"agent_id": agent_id, "active_sessions": len(agent_keys), "memory_instances": agent_keys}
+
+    def _build_agent_parameters(self, agent:Agent, req: ChatCompletionRequest) -> None:
+        """构建微调参数"""
+        model_parameters = {}
+        if agent.agent_parameters:
+            for key, value in agent.agent_parameters.items():
+                model_parameters[key] = value
+        if "temperature" in model_parameters:
+            req.temperature=model_parameters["temperature"]
+        if "top_p" in model_parameters:
+            req.top_p=model_parameters["top_p"]
+        if "frequency_penalty" in model_parameters:
+            req.frequency_penalty=model_parameters["frequency_penalty"]
+        if "presence_penalty" in model_parameters:
+            req.presence_penalty=model_parameters["presence_penalty"]
+        if "max_tokens" in model_parameters:
+            req.max_completion_tokens=model_parameters["max_tokens"]
+        if "max_tokens" in req.model_parameters:
+            req.max_tokens=model_parameters["max_tokens"]
 
 
 class AgentMessageRecordCallback(Callback):
