@@ -63,9 +63,10 @@ class CompletionService:
 
             def handle() -> Generator[bytes, None, None]:
                 for chunk in response:
-                    yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
                     if chunk.done:
-                        break
+                        yield f"data: [DONE]\n\n"
+                    else:
+                        yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
 
             return StreamingResponse(handle(), media_type="text/event-stream")
         else:

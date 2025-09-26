@@ -1,3 +1,4 @@
+import json
 from typing import Union, Optional, Sequence
 
 from libs.context import validate_api_key_in_internal
@@ -77,6 +78,7 @@ class MessageRecordCallback(Callback):
             message_id=message_id,
             model_name=model,
             provider_name=llm_instance.provider_name,
+            model_parameters=json.dumps(model_parameters),
             role=result.message.role.value,
             content=message_content,
             system_prompt=system_prompt,

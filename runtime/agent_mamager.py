@@ -202,7 +202,7 @@ class AgentManager:
             req.presence_penalty=model_parameters["presence_penalty"]
         if "max_tokens" in model_parameters:
             req.max_completion_tokens=model_parameters["max_tokens"]
-        if "max_tokens" in req.model_parameters:
+        if "max_tokens" in model_parameters:
             req.max_tokens=model_parameters["max_tokens"]
 
 

@@ -18,6 +18,7 @@ class ConversationMessage(Base):
     message_id = Column(String, nullable=False, comment="conversation id")
     model_name = Column(String, nullable=False, comment="model name used for this message", index=True)
     provider_name = Column(String, nullable=False, comment="provider name used for this message", index=True)
+    model_parameters = Column(Text, nullable=True, comment="model parameters in json format", server_default=text("'{}'"))
     system_prompt = Column(Text, nullable=True, comment="system prompt for the conversation", server_default=text("''"))
     content = Column(Text, nullable=False, comment="message content", server_default=text("''"))
     role = Column(String, nullable=False, comment="message role (user/assistant)")
