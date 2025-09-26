@@ -55,8 +55,8 @@ class LlMModel(AiModel):
 
         transformation = get_llm_transformation(self.credentials.get("sdk_type", "openai_like"))
 
-        req = transformation.setup_model_parameters(self.model_params, req)
         credentials = transformation.setup_environment(self.credentials, self.model_params)
+        req = transformation.setup_model_parameters(credentials,self.model_params, req)
 
         stream: bool = req.stream
         model: str = req.model

@@ -71,9 +71,9 @@ class MessageRecordCallback(Callback):
             message_content = "".join([content.data for content in result.message.content])
 
         # remove <think> and </think> including the content between them
-        if message_content.startswith("<think>") and message_content.endswith("</think>"):
+        if message_content.startswith("<think>"):
             import re
-            message_content = re.sub(r"<think>.*?</think>", "", message_content, flags=re.DOTALL)
+            message_content = re.sub(r"<think>.*?</think>", "", message_content, flags=re.DOTALL).strip()
         message = ConversationMessage(
             message_id=message_id,
             model_name=model,

@@ -21,7 +21,7 @@ class LLMTransformation:
 
     @classmethod
     def setup_model_parameters(
-        cls, model_params: dict[str, Any], prompt_messages: Union[ChatCompletionRequest, CompletionRequest]
+        cls,credentials:dict, model_params: dict[str, Any], prompt_messages: Union[ChatCompletionRequest, CompletionRequest]
     ):
         """Validate model parameters."""
         if not prompt_messages.temperature:
@@ -36,7 +36,12 @@ class LLMTransformation:
             prompt_messages.frequency_penalty = model_params.get("frequency_penalty")
         # if not prompt_messages.miniP:
         #     prompt_messages.miniP = model_params.get("miniP", 0.0)
-
+        # 判断模型名称是否包含Qwen3
+        if 'Qwen3' in prompt_messages.model and isinstance(prompt_messages, ChatCompletionRequest):
+            if prompt_messages.enable_thinking:
+                prompt_messages.messages[-1].content = prompt_messages.messages[-1].content+" /think"
+            else:
+                prompt_messages.messages[-1].content = prompt_messages.messages[-1].content+" /no_think"
         return prompt_messages
 
     @classmethod
