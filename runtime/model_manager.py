@@ -1,8 +1,6 @@
 import json
 import logging
-from typing import Optional, Generator, Union, cast, Callable, Any, IO, Iterable, overload
-
-from fastapi import Request
+from typing import Optional, Generator, Union, cast, Callable, Any, IO, Iterable
 
 from models import Provider, Model
 from .callbacks.base_callback import Callback
@@ -11,15 +9,15 @@ from .entities.embedding_type import EmbeddingInputType
 from .entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from .entities.model_entities import AIModelEntity, ModelType
 from .entities.provider_entities import ProviderEntity
-from .entities.rerank_entities import RerankResult, RerankRequest, RerankResponse
+from .entities.rerank_entities import RerankRequest, RerankResponse
 from .entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
-from .provider_manager import ProviderManager
 from .model_execution.audio2text_model import Audio2TextModel
 from .model_execution.base import AiModel
 from .model_execution.large_language_model import LlMModel
 from .model_execution.rerank_model import RerankModel
 from .model_execution.text_embedding_model import TextEmbeddingModel
 from .model_execution.tts_model import TTSModel
+from .provider_manager import ProviderManager
 
 logger = logging.getLogger(__name__)
 

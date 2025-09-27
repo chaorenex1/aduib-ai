@@ -11,11 +11,13 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import Any, Dict, Optional
 
-import torch
 import zmq
 from pydantic import BaseModel
-from transformers import AutoTokenizer, AutoModelForCausalLM
-
+try:
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+except ImportError:
+    ...
 logger = logging.getLogger("transformers")
 
 
