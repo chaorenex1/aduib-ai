@@ -164,7 +164,7 @@ class CosineWeightRerankRunner(BaseRerankRunner):
             ,provider_name=self.weights.embedding_provider_name
         )
         cache_embedding = CacheEmbeddings(embedding_model)
-        query_vector = cache_embedding.embed_documents([query])[0]
+        query_vector = cache_embedding.embed_query(query)
         for document in documents:
             # calculate cosine similarity
             if document.metadata and "score" in document.metadata:
@@ -172,7 +172,7 @@ class CosineWeightRerankRunner(BaseRerankRunner):
             else:
                 # transform to NumPy
                 vec1 = np.array(query_vector)
-                vec2 = np.array(document.vector if document.vector else cache_embedding.embed_documents([document.content])[0])
+                vec2 = np.array(document.vector if document.vector else cache_embedding.embed_query(document.content))
 
                 # calculate dot product
                 dot_product = np.dot(vec1, vec2)
