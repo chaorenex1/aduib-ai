@@ -8,6 +8,7 @@ from models import get_db, KnowledgeBase
 from runtime.entities.document_entities import Document
 from runtime.rag.keyword.keyword import Keyword
 from runtime.rag.retrieve.rerank_model import RankerModelRunner
+from runtime.rag.retrieve.rerank_processor import RerankProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +18,13 @@ class RetrievalService:
     @classmethod
     def retrieve(
         cls,
+        rerank_method: str,
         knowledge_base_id: str,
         query: str,
         top_k: int,
         score_threshold: Optional[float] = 0.0,
         reranking_model: Optional[dict] = None,
+        weights: Optional[dict] = None,
         knowledge_ids_filter: Optional[list[str]] = None,
     ):
         if not query:
@@ -75,7 +78,7 @@ class RetrievalService:
         if exceptions:
             raise ValueError(";\n".join(exceptions))
 
-        data_post_processor = RankerModelRunner(reranking_model)
+        data_post_processor = RerankProcessor(rerank_method,reranking_model, weights)
         all_documents = data_post_processor.invoke(
             query=query,
             documents=all_documents,

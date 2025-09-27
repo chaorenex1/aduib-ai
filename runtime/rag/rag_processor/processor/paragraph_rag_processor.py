@@ -91,14 +91,17 @@ class ParagraphRAGProcessor(BaseRAGProcessor):
         top_k: int,
         score_threshold: float,
         reranking_model: dict,
+        weights: Optional[dict] = None,
     ) -> list[Document]:
         # Set search parameters.
         results = RetrievalService.retrieve(
+            rerank_method=retrieval_method,
             knowledge_base_id=knowledge.id if knowledge else None,
             query=query,
             top_k=top_k,
             score_threshold=score_threshold,
             reranking_model=reranking_model,
+            weights=weights,
         )
         # Organize results.
         docs = []

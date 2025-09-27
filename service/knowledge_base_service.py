@@ -7,6 +7,7 @@ from models import KnowledgeBase, get_db, BrowserHistory
 from models.document import KnowledgeDocument
 from runtime.entities.document_entities import Document
 from runtime.rag.rag_type import RagType
+from runtime.rag.retrieve.retrieve import RerankMode
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ class KnowledgeBaseService:
             if not existing_kb:
                 return []
         return rag_processor.retrieve(
-            "score_similarity",
+            RerankMode.WEIGHTED_SCORE,
             query,
             existing_kb,
             existing_kb.reranking_rule.get("top_k", 10),
@@ -144,6 +145,12 @@ class KnowledgeBaseService:
             }
             if existing_kb.rerank_model and existing_kb.rerank_model_provider
             else {},
+            {
+                "keyword_weight": existing_kb.reranking_rule.get("keyword_weight", 0.2),
+                "vector_weight": existing_kb.reranking_rule.get("vector_weight", 0.8),
+                "embedding_model_name": existing_kb.embedding_model,
+                "embedding_provider_name": existing_kb.embedding_model_provider,
+            }
         )
 
     @classmethod

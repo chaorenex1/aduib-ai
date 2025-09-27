@@ -15,6 +15,10 @@ from runtime.rag.embeddings.embeddings import Embeddings
 from configs import config
 
 
+import logging
+logger = logging.getLogger(__name__)
+
+
 class MilvusConfig(BaseModel):
     uri: str
     token: str
@@ -83,12 +87,18 @@ class MilvusVector(BaseVector):
                 self.client.delete(collection_name=self.collection_name, pks=ids)
 
     def search_by_vector(self, vector: list[float], **kwargs) -> list[Document]:
+        knowledge_ids_filter = kwargs.get("knowledge_ids_filter")
+        filter = ""
+        if knowledge_ids_filter:
+            knowledge_ids = ", ".join(f'"{id}"' for id in knowledge_ids_filter)
+            filter = f'metadata["knowledge_id"] in [{knowledge_ids}]'
         results = self.client.search(
             collection_name=self.collection_name,
             data=[vector],
             anns_field=Field.VECTOR.value,
             limit=kwargs.get("top_k", 4),
             output_fields=[Field.CONTENT_KEY.value, Field.METADATA_KEY.value],
+            filter=filter,
         )
 
         return self.process_search_results(
@@ -98,12 +108,24 @@ class MilvusVector(BaseVector):
         )
 
     def search_by_full_text(self, text: str, **kwargs) -> list[Document]:
+        if not self.enable_hybrid:
+            logger.warning(
+                "Full-text search is disabled: set MILVUS_ENABLE_HYBRID_SEARCH=true (requires Milvus >= 2.5.0)."
+            )
+            return []
+        knowledge_ids_filter = kwargs.get("knowledge_ids_filter")
+        filter = ""
+        if knowledge_ids_filter:
+            knowledge_ids = ", ".join(f"'{id}'" for id in knowledge_ids_filter)
+            filter = f'metadata["knowledge_id"] in [{knowledge_ids}]'
+
         results = self.client.search(
             collection_name=self.collection_name,
             data=[text],
             anns_field=Field.SPARSE_VECTOR.value,
             limit=kwargs.get("top_k", 4),
             output_fields=[Field.CONTENT_KEY.value, Field.METADATA_KEY.value],
+            filter=filter,
         )
 
         return self.process_search_results(
