@@ -54,10 +54,6 @@ dependencies = [
     { name = "spacy" },
     { name = "sqlalchemy" },
     { name = "tiktoken" },
-    { name = "torch" },
-    { name = "torchaudio" },
-    { name = "torchvision" },
-    { name = "transformers" },
     { name = "uvicorn" },
 ]
 
@@ -70,6 +66,10 @@ depcated = [
     { name = "openai" },
     { name = "pgvector" },
     { name = "qwen-vl-utils" },
+    { name = "torch" },
+    { name = "torchaudio" },
+    { name = "torchvision" },
+    { name = "transformers" },
 ]
 dev = [
     { name = "alembic" },
@@ -114,10 +114,10 @@ requires-dist = [
     { name = "spacy" },
     { name = "sqlalchemy", specifier = "==2.0.39" },
     { name = "tiktoken", specifier = "~=0.9.0" },
-    { name = "torch", specifier = ">=2.6.0" },
-    { name = "torchaudio", specifier = ">=2.6.0" },
-    { name = "torchvision", specifier = ">=0.21.0" },
-    { name = "transformers", specifier = ">=4.51.0" },
+    { name = "torch", marker = "extra == 'depcated'", specifier = ">=2.6.0" },
+    { name = "torchaudio", marker = "extra == 'depcated'", specifier = ">=2.6.0" },
+    { name = "torchvision", marker = "extra == 'depcated'", specifier = ">=0.21.0" },
+    { name = "transformers", marker = "extra == 'depcated'", specifier = ">=4.51.0" },
     { name = "uvicorn", specifier = ">=0.34.2" },
 ]
 provides-extras = ["depcated", "dev"]
