@@ -1,11 +1,13 @@
 import asyncio
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Union, Generator
 
 from component.storage.base_storage import storage_manager
-from models import Agent, get_db, ConversationMessage
+from models import Agent, get_db, ConversationMessage, McpServer
 from models.agent import AgentSession
+from runtime.agent.agent_type import AgentRuntimeConfig, AgentTool
 from runtime.agent.memory.agent_memory import AgentMemory
 from runtime.callbacks.base_callback import Callback
 from runtime.entities import (
@@ -19,9 +21,12 @@ from runtime.entities import (
     ChatCompletionResponse,
     ChatCompletionResponseChunk,
 )
-from runtime.entities.llm_entities import ChatCompletionRequest
+from runtime.entities.llm_entities import ChatCompletionRequest, ChatCompletionResponseChunkDelta
+from runtime.generator.generator import LLMGenerator
 from runtime.model_execution import AiModel
 from runtime.model_manager import ModelManager
+from runtime.tool.base.tool import Tool
+from runtime.tool.entities import ToolProviderType, ToolInvokeResult
 from utils import AsyncUtils
 
 logger = logging.getLogger(__name__)
@@ -88,17 +93,36 @@ class AgentManager:
 
             # 构建用户消息
             user_message = self._get_user_message(req.messages[-1].content)
-            logger.debug(f"User message: {user_message}")
 
-            # 从内存中检索上下文
-            context = await asyncio.get_event_loop().run_in_executor(
-                self.executor, memory.retrieve_context, user_message
-            )
-            logger.debug(f"Retrieved context: {context}")
+            agent_runtime_config:AgentRuntimeConfig = self._create_agent_runtime_config(agent)
 
-            # 调用模型生成响应
-            response = await self._generate_response(agent, session_id, req, context)
-            return response
+            if agent_runtime_config.tools and len(agent_runtime_config.tools) > 0:
+                # 调用模型生成响应
+                response = await self._generate_tool_response(agent_runtime_config, user_message)
+                def tool_generator()-> Generator[ChatCompletionResponseChunk, None, None]:
+                    yield ChatCompletionResponseChunk(
+                        id="chatcmpl-xxxx",
+                        object="chat.completion.chunk",
+                        created=int(time.time()),
+                        model=req.model,
+                        prompt_messages=req.messages,
+                        choices=[
+                            ChatCompletionResponseChunkDelta(
+                                index=0, delta=AssistantPromptMessage(role=PromptMessageRole.ASSISTANT, content=response), finish_reason="stop"
+                            )
+                        ],
+                    )
+                return tool_generator()
+            else:
+                # 从内存中检索上下文
+                context = await asyncio.get_event_loop().run_in_executor(
+                    self.executor, memory.retrieve_context, user_message
+                )
+                logger.debug(f"Retrieved context: {context}")
+
+                # 调用模型生成响应
+                response = await self._generate_response(agent, session_id, req, context)
+                return response
 
         except Exception as e:
             logger.error(f"Error handling agent request: {e}")
@@ -178,13 +202,9 @@ class AgentManager:
         """清理指定会话的内存"""
         keys_to_remove = [key for key in self.agent_memories.keys() if key.endswith(f"_{session_id}")]
         for key in keys_to_remove:
+            self.agent_memories[key].clear_memory()
             del self.agent_memories[key]
         logger.info(f"Cleaned up memory for session: {session_id}")
-
-    def get_agent_stats(self, agent_id: int) -> Dict:
-        """获取 agent 统计信息"""
-        agent_keys = [key for key in self.agent_memories.keys() if key.startswith(f"{agent_id}_")]
-        return {"agent_id": agent_id, "active_sessions": len(agent_keys), "memory_instances": agent_keys}
 
     def _build_agent_parameters(self, agent:Agent, req: ChatCompletionRequest) -> None:
         """构建微调参数"""
@@ -204,6 +224,60 @@ class AgentManager:
             req.max_completion_tokens=model_parameters["max_tokens"]
         if "max_tokens" in model_parameters:
             req.max_tokens=model_parameters["max_tokens"]
+
+    def _create_agent_runtime_config(self, agent:Agent):
+        """创建AgentRuntimeConfig实例"""
+        from runtime.tool.base.tool import Tool
+        agent_tools: list[Tool] = []
+        if agent.tools and len(agent.tools) > 0:
+            for tool in agent.tools:
+                agent_tool = AgentTool.model_validate(tool)
+                if agent_tool.tool_provider_type==ToolProviderType.BUILTIN:
+                    from runtime.tool.builtin_tool.tool_provider import BuiltinToolController
+                    agent_tools.extend(BuiltinToolController().get_tools())
+                elif agent_tool.tool_provider_type==ToolProviderType.MCP:
+                    from runtime.tool.mcp.tool_provider import McpToolController
+                    with get_db() as session:
+                        from models import ToolInfo
+                        tool_info:ToolInfo = session.query(ToolInfo).filter(ToolInfo.id == int(tool_info.tool_id)).first()
+                        if tool_info:
+                            mcp_server:McpServer = session.query(McpServer).filter(
+                                McpServer.server_code == tool_info.mcp_server_code).first()
+                            agent_tools.extend(McpToolController(server_url=mcp_server.server_url).get_tools())
+        return AgentRuntimeConfig(
+            agent=agent,
+            tools=agent_tools
+        )
+
+    async def _generate_tool_response(self, agent_runtime_config, user_message):
+        """使用工具生成响应"""
+        try:
+            tool_args = LLMGenerator.choice_tool_invoke(agent_runtime_config.tools, user_message)
+            tool_name = tool_args.get("tool_name")
+            if not tool_name:
+                # 提取<tool_response>...</tool_response>中的内容作为最终响应
+                import re
+                match = re.search(r"<tool_response>(.*?)</tool_response>", user_message, re.DOTALL)
+                if match:
+                    return match.group(1).strip()
+                return ""
+
+            tool_arguments = tool_args.get("tool_arguments", {})
+            # 用字典加速查找，避免循环嵌套
+            tool_map = {tool.entity.name: tool for tool in agent_runtime_config.tools}
+            tool = tool_map.get(tool_name)
+            if tool:
+                tool_invoke_result = tool.invoke(tool_arguments)
+                result:ToolInvokeResult = next(tool_invoke_result)
+                if result.success:
+                    new_tools:list[Tool] = [tool for tool in agent_runtime_config.tools if tool.entity.name != tool_name]
+                    return await self._generate_tool_response(AgentRuntimeConfig(
+                        agent=agent_runtime_config.agent, tools=new_tools
+                    ), user_message+"\n<tool_response>\n"+str(result.data)+"\n</tool_response>")
+            return ""
+        except Exception as e:
+            logger.error(f"Error generating tool response: {e}")
+            raise
 
 
 class AgentMessageRecordCallback(Callback):

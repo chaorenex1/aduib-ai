@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import secrets
@@ -99,6 +100,7 @@ class McpClient:
         """Factory method to create an McpClient instance."""
         return cls(server_url, mcp_config)
 
+    @contextlib.asynccontextmanager
     async def get_client_session(self) -> AsyncGenerator[ClientSession, None]:
         """Get an asynchronous context manager for the MCP client session."""
         if self.client_type == McpTransportType.STREAMABLE:

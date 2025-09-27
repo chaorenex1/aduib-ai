@@ -54,3 +54,9 @@ class AgentMemory:
                 return {"short_term": short_term_context, "long_term": long_term_context}
             else:
                 return {"short_term": [], "long_term": []}
+
+    def clear_memory(self) -> None:
+        """Clear memory."""
+        with self._lock:
+            self.short_term_memory.delete_memory()
+            self.long_term_memory.delete_memory()

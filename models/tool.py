@@ -29,6 +29,7 @@ class ToolInfo(Base):
     configs = Column(Text, comment="tool configurations", nullable=True, server_default=text("{}"))
     icon = Column(String, comment="tool icon", nullable=True, server_default=text("'default_tool_icon.png'"))
     provider = Column(String, comment="tool provider type")
+    mcp_server_code = Column(String, comment="mcp server code", nullable=True, server_default=text("''"))
     type = Column(String, comment="tool type")
     credentials = Column(String, comment="tool credentials", nullable=True, server_default=text("none"))
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")

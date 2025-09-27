@@ -59,7 +59,7 @@ def test_update_mcp_server():
 
 
 def test_init_tools():
-    response = client.get("/v1/mcp_server/init_tools/P9Q5NHTdFd8hbeAd")
+    response = client.get("/v1/mcp_server/init_tools/P9Q5NHTdFd8hbeAd",headers={"X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"})
     data = response.json()
     print(data)
     assert response.status_code == 200

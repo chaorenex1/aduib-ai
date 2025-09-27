@@ -37,7 +37,8 @@ dependencies = [
     "uvicorn>=0.34.2",
     "redis>=6.4.0",
     "pyzmq",
-    "spacy"
+    "spacy",
+    "beautifulsoup4>=4.13.4",
 ]
 [project.optional-dependencies]
 depcated = [

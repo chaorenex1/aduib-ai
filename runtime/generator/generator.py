@@ -18,9 +18,10 @@ from runtime.generator.prompts import (
     GENERATOR_QA_PROMPT,
     SYSTEM_STRUCTURED_OUTPUT_GENERATE,
     SUMMARY_PROMPT,
-    TRIPLES_PROMPT, ANSWER_INSTRUCTION_FROM_KNOWLEDGE,
+    TRIPLES_PROMPT, ANSWER_INSTRUCTION_FROM_KNOWLEDGE, TOOL_CHiOCE_PROMPT,
 )
 from runtime.model_manager import ModelManager
+from runtime.tool.base.tool import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -236,3 +237,41 @@ class LLMGenerator:
         response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
         answer = cast(str, response.message.content)
         return answer
+
+    @classmethod
+    def choice_tool_invoke(cls, tools:list[Tool], query:str)-> dict:
+        model_manager = ModelManager()
+        model_instance = model_manager.get_default_model_instance(
+            model_type=ModelType.LLM.to_model_type(),
+        )
+        _tools="".join("<tool>\n<name>"+tool.entity.name+"</name>\n<description>"+tool.entity.description+"</description>\n<arguments>"+json.dumps(tool.entity.parameters)+"</arguments>\n</tool>\n" for tool in tools)
+        TOOL_CHiOCE_PROMPT.format(_tools=_tools)
+        prompt_messages = [
+            SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=TOOL_CHiOCE_PROMPT),
+            UserPromptMessage(role=PromptMessageRole.USER, content=query),
+        ]
+
+        # Explicitly use the non-streaming overload
+        request = ChatCompletionRequest(
+            model=model_instance.model,
+            messages=prompt_messages,
+            temperature=0.01,
+            stream=False,
+        )
+        response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
+        answer = cast(str, response.message.content)
+        # search <tool_use>
+        #   <name>...</name>
+        #   <arguments>...</arguments>
+        # </tool_use>
+        match = re.search(r"<tool_use>\s*<name>(.*?)</name>\s*<arguments>(.*?)</arguments>\s*</tool_use>", answer, re.DOTALL)
+        if match:
+            tool_name = match.group(1).strip()
+            tool_arguments_str = match.group(2).strip()
+            try:
+                tool_arguments = json.loads(tool_arguments_str)
+            except json.JSONDecodeError:
+                tool_arguments = {}
+            return {"tool_name": tool_name, "tool_arguments": tool_arguments, "raw_response": answer}
+        else:
+            return {"tool_name": None, "tool_arguments": {}, "raw_response": answer}

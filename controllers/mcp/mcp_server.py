@@ -111,6 +111,7 @@ async def init_tools(server_code: str):
                         provider=mcp_server.name,
                         credentials=mcp_server.credentials,
                         configs=mcp_server.configs,
+                        mcp_server_code=mcp_server.server_code,
                     )
                     existing_tool = (
                         db.query(ToolInfo)

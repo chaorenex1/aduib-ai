@@ -3,7 +3,7 @@ from typing import Optional, Union
 
 from pydantic import BaseModel
 
-from runtime.mcp.types import TextContent, ImageContent, EmbeddedResource
+from runtime.mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents
 
 
 class McpTransportType(StrEnum):
@@ -113,3 +113,29 @@ class ToolInvokeResult(BaseModel):
     success: bool = True
     error: Optional[str] = None
     meta: Optional[dict] = None
+
+
+    def to_normal(self) -> str | None:
+        if isinstance(self.data, dict):
+            import json
+
+            return json.dumps(self.data, ensure_ascii=False)
+        elif isinstance(self.data, list):
+            import json
+
+            return json.dumps(self.data, ensure_ascii=False)
+        elif isinstance(self.data, bytes):
+            return self.data.decode("utf-8", errors="ignore")
+        elif isinstance(self.data, TextContent):
+            return self.data.text
+        elif isinstance(self.data, ImageContent):
+            return self.data.data
+        elif isinstance(self.data, EmbeddedResource):
+            if isinstance(self.data.resource,BlobResourceContents):
+                return self.data.resource.blob
+            elif isinstance(self.data.resource,TextResourceContents):
+                return self.data.resource.text
+        elif isinstance(self.data, str):
+            return self.data
+        else:
+            return str(self.data) if self.data is not None else ""

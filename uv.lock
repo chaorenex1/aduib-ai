@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 1
 requires-python = ">=3.11, <3.13"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -31,6 +31,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "aduib-rpc" },
     { name = "bcrypt" },
+    { name = "beautifulsoup4" },
     { name = "boto3" },
     { name = "fastapi" },
     { name = "ffmpeg-python" },
@@ -81,6 +82,7 @@ requires-dist = [
     { name = "aduib-rpc", specifier = ">=1.0.10" },
     { name = "alembic", marker = "extra == 'dev'", specifier = "==1.16.4" },
     { name = "bcrypt", specifier = ">=4.3.0" },
+    { name = "beautifulsoup4", specifier = ">=4.13.4" },
     { name = "boto3", specifier = ">=1.37.11" },
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "ffmpeg-python", specifier = ">=0.2.0" },
@@ -388,18 +390,12 @@ sdist = { url = "http://mirrors.aliyun.com/pypi/packages/23/18/35be17103c8f40f9e
 name = "aliyun-python-sdk-core"
 version = "2.11.5"
 source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
-dependencies = [
-    { name = "pycryptodome" },
-]
 sdist = { url = "http://mirrors.aliyun.com/pypi/packages/cc/ad/e32feeaaef73ed3202ee157a5e95df38f389085decab52c29ef4d93eb9db/aliyun-python-sdk-core-2.11.5.tar.gz", hash = "sha256:577265c630c02207c692ca19958bd21665d56208306a834d0885e7770553975e" }
 
 [[package]]
 name = "aliyun-python-sdk-core-v3"
 version = "2.11.5"
 source = { registry = "http://mirrors.aliyun.com/pypi/simple/" }
-dependencies = [
-    { name = "pycryptodome" },
-]
 sdist = { url = "http://mirrors.aliyun.com/pypi/packages/e2/04/6176b46909f17953cb14d268eca09d02b183ddd1f9fdbe1eb9dfa2d215d0/aliyun-python-sdk-core-v3-2.11.5.tar.gz", hash = "sha256:129052ba3fc3fc421f8d8b66ebfa33d3bb9c37c189714392076f4ac63a3150a5" }
 
 [[package]]
