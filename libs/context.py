@@ -17,7 +17,7 @@ from service.api_key_service import ApiKeyService
 from service.error.error import ApiKeyNotFound
 from utils import trace_uuid
 
-API_KEY_HEADER = "X-API-Key"  # 你希望客户端发送的 API Key 的请求头字段名称
+API_KEY_HEADER = "X-Api-key"  # 你希望客户端发送的 API Key 的请求头字段名称
 AUTHORIZATION_HEADER = "Authorization"
 api_key_header = APIKeyHeader(name=API_KEY_HEADER)
 authorization_header = APIKeyHeader(name=AUTHORIZATION_HEADER)
@@ -71,7 +71,10 @@ class ApiKeyContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         api_key_context.clear()
         auth_key = request.headers.get(AUTHORIZATION_HEADER) or ""
-        api_key_value = request.headers.get(API_KEY_HEADER) or auth_key.replace("Bearer ", "")
+        if auth_key.startswith("Bearer "):
+            api_key_value = auth_key.replace("Bearer ", "")
+        else:
+            api_key_value = request.headers.get(API_KEY_HEADER) or ""
         try:
             ApiKeyService.validate_api_key(api_key_value)
             api_key = ApiKeyService.get_by_hash_key(api_key_value)
