@@ -87,12 +87,7 @@ def test_get_models_github_copilot():
 
     response = requests.get(
         dynamic_api_base + "/models",
-        headers={
-            "X-API-Key": dynamic_api_key,
-            "Authorization": f"Bearer {dynamic_api_key}",
-            "user-agent": "GithubCopilot/1.155.0",
-            "content-type": "application/json",
-        },
+        headers=authenticator.get_copilot_headers()
     )
     assert response.status_code == 200
     data = response.json()
@@ -144,5 +139,7 @@ def test_add_github_models():
             }
             print(json)
 
-            response = client.post("v1/models/add", json=json)
+            response = client.post("v1/models/add", json=json,headers={
+                "X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"
+            })
             assert response.status_code == 200

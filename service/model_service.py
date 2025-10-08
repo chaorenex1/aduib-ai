@@ -73,20 +73,22 @@ class ModelService:
             provider: Optional[Provider] = session.query(Provider).filter_by(name=req.provider_name).first()
             if not provider:
                 raise ModelProviderNotFound("Provider not found")
-            model = Model(
-                name=req.model_name,
-                provider_name=req.provider_name,
-                type=req.model_type,
-                max_tokens=req.max_tokens,
-                model_params=json.dumps(req.model_configs),
-                feature=json.dumps(req.model_feature),
-                input_price=req.input_price,
-                output_price=req.output_price,
-                provider_id=provider.id,
-            )
-            session.add(model)
-            session.commit()
-        return model
+            existing_model = session.query(Model).filter_by(name=req.model_name, provider_name=req.provider_name).first()
+            if not existing_model:
+                model = Model(
+                    name=req.model_name,
+                    provider_name=req.provider_name,
+                    type=req.model_type,
+                    max_tokens=req.max_tokens,
+                    model_params=json.dumps(req.model_configs),
+                    feature=json.dumps(req.model_feature),
+                    input_price=req.input_price,
+                    output_price=req.output_price,
+                    provider_id=provider.id,
+                )
+                session.add(model)
+                session.commit()
+                return model
 
     @staticmethod
     def delete_model(model_name: str) -> Optional[Model]:
