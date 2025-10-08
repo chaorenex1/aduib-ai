@@ -24,7 +24,7 @@ from runtime.entities import (
 from runtime.entities.llm_entities import ChatCompletionRequest, ChatCompletionResponseChunkDelta
 from runtime.generator.generator import LLMGenerator
 from runtime.model_execution import AiModel
-from runtime.model_manager import ModelManager
+from runtime.model_manager import ModelManager, ModelInstance
 from runtime.tool.base.tool import Tool
 from runtime.tool.entities import ToolProviderType, ToolInvokeResult
 from utils import AsyncUtils
@@ -135,13 +135,13 @@ class AgentManager:
             enhanced_messages = self._build_enhanced_messages(req, context, agent)
             req.messages = enhanced_messages
 
-            # 构建微调参数
-            self._build_agent_parameters(agent, req)
 
             from runtime.model_manager import ModelManager
-
             model_manager = ModelManager()
             model_instance = model_manager.get_model_instance(model_name=req.model)
+
+            # 构建微调参数
+            self._build_agent_parameters(agent, req,model_instance)
             return model_instance.invoke_llm(
                 prompt_messages=req,
                 callbacks=[AgentMessageRecordCallback(agent=agent, session_id=session_id, agent_manager=self)],
@@ -157,44 +157,54 @@ class AgentManager:
         if system_messages.role == PromptMessageRole.SYSTEM and system_messages.content:
             system_messages.content = system_messages.content
         else:
-            system_messages = SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=agent.prompt_template)
+            if agent.prompt_template:
+                system_messages = SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=agent.prompt_template)
+            else:
+                system_messages=None
         last_message = query.messages[-1]
-        messages = [system_messages] + [last_message]
+        if system_messages:
+            messages = [system_messages, last_message]
+        else:
+            messages = [last_message]
 
-        # 添加短期记忆上下文
-        if context.get("short_term") and len(context["short_term"]) > 0:
-            for memory in context["short_term"]:
-                if memory.get("user_message"):
-                    messages.insert(-1, UserPromptMessage(role=PromptMessageRole.USER, content=memory["user_message"]))
-                if memory.get("assistant_message"):
-                    messages.insert(
-                        -1,
-                        AssistantPromptMessage(role=PromptMessageRole.ASSISTANT, content=memory["assistant_message"]),
-                    )
+        if agent.enabled_memory==1:
+            # 添加短期记忆上下文
+            if context.get("short_term") and len(context["short_term"]) > 0:
+                for memory in context["short_term"]:
+                    if memory.get("user_message"):
+                        messages.insert(-1, UserPromptMessage(role=PromptMessageRole.USER, content=memory["user_message"]))
+                    if memory.get("assistant_message"):
+                        messages.insert(
+                            -1,
+                            AssistantPromptMessage(role=PromptMessageRole.ASSISTANT, content=memory["assistant_message"]),
+                        )
 
-        # 添加长期记忆相关上下文
-        if context.get("long_term") and len(context["long_term"]) > 0:
-            relevant_memories = context["long_term"]
-            if relevant_memories:
-                context_content = (
-                    "<historical_conversations>\n"
-                    + "\n".join(
-                        [
-                            f"<conversation>\n<user>{mem.get('user_message', '')}</user>\n<assistant>{mem.get('assistant_message', '')}</assistant>\n</conversation>"
-                            for mem in relevant_memories
-                        ]
+            # 添加长期记忆相关上下文
+            if context.get("long_term") and len(context["long_term"]) > 0:
+                relevant_memories = context["long_term"]
+                if relevant_memories:
+                    context_content = (
+                        "<historical_conversations>\n"
+                        + "\n".join(
+                            [
+                                f"<conversation>\n<user>{mem.get('user_message', '')}</user>\n<assistant>{mem.get('assistant_message', '')}</assistant>\n</conversation>"
+                                for mem in relevant_memories
+                            ]
+                        )
+                        + "\n</historical_conversations>"
                     )
-                    + "\n</historical_conversations>"
-                )
-                if messages and messages[0].role == PromptMessageRole.SYSTEM:
-                    messages[0].content = messages[0].content + "\n\n" + context_content
-                else:
-                    messages.insert(
-                        0,
-                        SystemPromptMessage(
-                            role=PromptMessageRole.SYSTEM, content=agent.prompt_template + "\n\n" + context_content
-                        ),
-                    )
+                    if messages and messages[0].role == PromptMessageRole.SYSTEM:
+                        messages[0].content = messages[0].content + "\n\n" + context_content
+                    else:
+                        messages.insert(
+                            0,
+                            SystemPromptMessage(
+                                role=PromptMessageRole.SYSTEM, content=agent.prompt_template + "\n\n" + context_content
+                            ),
+                        )
+        else:
+            logger.debug("Memory is disabled for this agent.")
+            messages=query.messages
 
         return messages
 
@@ -206,7 +216,7 @@ class AgentManager:
             del self.agent_memories[key]
         logger.info(f"Cleaned up memory for session: {session_id}")
 
-    def _build_agent_parameters(self, agent:Agent, req: ChatCompletionRequest) -> None:
+    def _build_agent_parameters(self, agent:Agent, req: ChatCompletionRequest,model_instance:ModelInstance) -> None:
         """构建微调参数"""
         model_parameters = {}
         if agent.agent_parameters:
@@ -225,6 +235,11 @@ class AgentManager:
         if "max_tokens" in model_parameters:
             req.max_tokens=model_parameters["max_tokens"]
 
+        if "api_base" in model_parameters:
+            model_instance.provider.provider_credential.credentials["api_base"] = model_parameters["api_base"]
+        if "api_key" in model_parameters:
+            model_instance.provider.provider_credential.credentials["api_key"] = model_parameters["api_key"]
+
     def _create_agent_runtime_config(self, agent:Agent):
         """创建AgentRuntimeConfig实例"""
         from runtime.tool.base.tool import Tool
@@ -239,7 +254,7 @@ class AgentManager:
                     from runtime.tool.mcp.tool_provider import McpToolController
                     with get_db() as session:
                         from models import ToolInfo
-                        tool_info:ToolInfo = session.query(ToolInfo).filter(ToolInfo.id == int(tool_info.tool_id)).first()
+                        tool_info:ToolInfo = session.query(ToolInfo).filter(ToolInfo.id == int(tool_info.id)).first()
                         if tool_info:
                             mcp_server:McpServer = session.query(McpServer).filter(
                                 McpServer.server_code == tool_info.mcp_server_code).first()

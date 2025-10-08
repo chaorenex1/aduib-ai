@@ -126,3 +126,29 @@ def test_create_agent3():
     assert response.status_code == 200
     data = response.json()
     print(data)
+
+
+
+def test_create_agent3():
+    response = client.post(
+        "/v1/agents",
+        json={
+            "name": "Claude Code Agent",
+            "description": "A code generation agent using Deepseek model.",
+            "model_id": "40",
+            "tools": [],
+            "prompt_template": "",
+            "agent_parameters": {
+              "api_base": "https://api.deepseek.com/beta",
+              "x_api_key": "testkey",
+              "temperature": 0.75,
+              "top_p": 0.9,
+              "frequency_penalty": 0.4,
+              "presence_penalty": 0.2
+            },
+        },
+        headers={"Authorization": "Bearer $2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    print(data)

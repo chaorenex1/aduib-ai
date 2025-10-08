@@ -15,6 +15,7 @@ class Agent(Base):
     prompt_template = Column(TEXT, nullable=False, comment="Prompt template", server_default=text("''"))
     tools = Column(JSONB, nullable=True, comment="Tools", server_default=text("'[]'"))
     agent_parameters = Column(JSONB, nullable=True, comment="Agent parameters", server_default=text("'{}'"))
+    enabled_memory = Column(Integer, server_default=text("0"), comment="Enable memory")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
     deleted = Column(Integer, default=0, comment="delete flag")
