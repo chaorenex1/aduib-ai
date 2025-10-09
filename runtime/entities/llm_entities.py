@@ -15,7 +15,7 @@ from .message_entities import (
     UserPromptMessage,
     SystemPromptMessage,
     ToolPromptMessage,
-    ThinkingOptions,
+    ThinkingOptions, PromptMessageTool,
 )
 from .model_entities import ModelUsage, PriceInfo
 
@@ -84,6 +84,28 @@ class ChatCompletionRequest(BaseModel):
             else:
                 v[i] = i_
 
+        return v
+
+    @field_validator("tools", mode="before")
+    @classmethod
+    def convert_tools(cls, v):
+        if not v:
+            return v
+        if not isinstance(v, list):
+            raise ValueError("tools must be a list")
+        for i in range(len(v)):
+            i_ = v[i]
+            if isinstance(i_, dict):
+                if "type" in i_:
+                    v[i] = PromptMessageFunction(**i_)
+                elif 'name' in i_:
+                    v[i] = PromptMessageFunction(type='function', function=PromptMessageTool(
+                        name=i_['name'],
+                        description=i_.get('description', ''),
+                        parameters=i_.get('parameters', {}) or i_.get('input_schema', {})
+                    ))
+            else:
+                v[i] = i_
         return v
 
     @model_validator(mode="before")

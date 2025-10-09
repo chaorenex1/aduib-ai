@@ -31,3 +31,12 @@ async def completion(agent_id: int, req: ChatCompletionRequest) -> Any:
     Completion endpoint
     """
     return await AgentService.create_completion(agent_id, req)
+
+
+@router.post("/agents/{agent_id}/v1/messages")
+@catch_exceptions
+async def messages(agent_id: int, req: ChatCompletionRequest) -> Any:
+    """
+    Completion endpoint
+    """
+    return await AgentService.create_completion(agent_id, req)

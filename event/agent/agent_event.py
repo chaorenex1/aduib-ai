@@ -15,6 +15,8 @@ async def agent_from_conversation_message(message: ConversationMessage, callback
     """
     Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.
     """
+    if callback.agent.enabled_memory==0:
+        return
     logger.debug(f"agent_from_conversation_message message: {message},callback:{callback}")
     from service import ConversationMessageService
 

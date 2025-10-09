@@ -78,6 +78,8 @@ class AgentManager:
             return content
         elif isinstance(content, TextPromptMessageContent):
             return content.text
+        elif isinstance(content, list):
+            return "".join([c.text if isinstance(c, TextPromptMessageContent) else str(c) for c in content])
         else:
             raise ValueError("Unsupported message content type")
 

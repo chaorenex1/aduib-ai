@@ -80,7 +80,6 @@ class PromptMessageTool(BaseModel):
     description: str
     parameters: dict
 
-
 class PromptMessageFunction(BaseModel):
     """
     Model class for prompt message function.

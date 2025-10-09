@@ -117,7 +117,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         logger.info(f"Request: {request.method} {request.url}")
         logger.info(f"Headers: {dict(request.headers)}")
-        logger.info(f"Body: {body_data}")
+        logger.info(f"Body length: {len(body_data)}")
 
         # 调用下一个中间件
         response: Response = await call_next(request)
