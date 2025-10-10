@@ -1,6 +1,6 @@
 from controllers.params import AgentCreatePayload, ModelCard, ModelList
 from models import get_db
-from runtime.agent_mamager import AgentManager
+from runtime.agent_manager import AgentManager
 from runtime.entities.llm_entities import ChatCompletionRequest
 
 

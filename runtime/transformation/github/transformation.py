@@ -6,7 +6,7 @@ from starlette.requests import Request
 
 from runtime.clients.handler.llm_http_handler import LLMHttpHandler
 from runtime.entities import ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessage
-from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
+from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.transformation.base import LLMTransformation
@@ -47,7 +47,7 @@ class GithubCopilotTransformation(LLMTransformation):
         prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         credentials: dict,
         stream: bool = None,
-    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
+    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
         # credentials["headers"]["X-User-Initiator"] = cls._determine_initiator(prompt_messages.messages)
         # credentials["headers"]["X-Initiator"] = cls._determine_initiator(prompt_messages.messages)
         llm_http_handler = LLMHttpHandler("/chat/completions", credentials, stream)

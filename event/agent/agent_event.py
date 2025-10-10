@@ -3,7 +3,7 @@ import logging
 from event.event_manager import event_manager_context
 from models import ConversationMessage
 from runtime.agent.agent_type import Message
-from runtime.agent_mamager import AgentMessageRecordCallback
+from runtime.agent_manager import AgentMessageRecordCallback
 
 event_manager = event_manager_context.get()
 

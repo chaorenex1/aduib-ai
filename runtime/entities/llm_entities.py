@@ -2,7 +2,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Optional, Union, Literal, Sequence
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 from .message_entities import (
     PromptMessage,
@@ -61,6 +61,8 @@ class ChatCompletionRequest(BaseModel):
     enable_thinking: bool = None
     thinking_budget: Optional[int] = None
     thinking: Optional[ThinkingOptions] = None
+    system: Optional[str] = None # for compatibility with anthropic
+    stop_sequences: Optional[Union[str, Sequence[str]]] = None # for compatibility with anthropic
 
     @field_validator("messages", mode="before")
     @classmethod
@@ -380,11 +382,18 @@ class ChatCompletionResponseChunkDelta(BaseModel):
     delta: Optional[AssistantPromptMessage] = None
 
 
-class ChatCompletionResponseChunk(BaseModel):
+class CompletionResponse(BaseModel):
+    """
+    Model class for llm result.
+    """
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    done: bool = False
+
+
+class ChatCompletionResponseChunk(CompletionResponse):
     """
     Model class for llm result chunk.
     """
-
     id: Optional[str] = None
     object: Optional[str] = None
     created: Optional[int] = None
@@ -394,10 +403,9 @@ class ChatCompletionResponseChunk(BaseModel):
     choices: list[ChatCompletionResponseChunkDelta] = None
     delta: ChatCompletionResponseChunkDelta = None
     usage: Optional[LLMUsage] = None
-    done: bool = False
 
 
-class ChatCompletionResponse(BaseModel):
+class ChatCompletionResponse(CompletionResponse):
     """
     Model class for llm result.
     """
@@ -408,8 +416,23 @@ class ChatCompletionResponse(BaseModel):
     message: AssistantPromptMessage = None
     usage: LLMUsage
     system_fingerprint: Optional[str] = None
-    done: bool = False
     choices: list[ChatCompletionResponseChunkDelta] = None
+
+
+class ClaudeChatCompletionResponse(CompletionResponse):
+    """
+    Model class for Claude llm result.
+    """
+
+    id: str
+    type: str
+    role: str
+    prompt_messages: Union[list[PromptMessage], str] = None
+    content: list[dict] = Field(default_factory=list)
+    model: str
+    stop_reason: Optional[str] = None
+    stop_sequence: Optional[str] = None
+    usage: Optional[dict] = None
 
 
 class NumTokensResult(PriceInfo):

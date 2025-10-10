@@ -12,8 +12,8 @@ def test_add_model():
     response = client.post(
         "v1/models/add",
         json={
-            "model_name": "deepseek-chat",
-            "provider_name": "deepseek",
+            "model_name": "deepseek-chat-anthropic",
+            "provider_name": "deepseek_anthropic",
             "model_type": "llm",
             "max_tokens": 8192,
             "model_configs": {"temperature": 0.6, "top_k": 20, "top_p": 0.8, "presence_penalty": 1.5},
@@ -21,6 +21,7 @@ def test_add_model():
             "input_price": 4 / 1000000,
             "output_price": 12 / 1000000,
         },
+        headers={"X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"}
     )
     assert response.status_code == 200
 
@@ -46,11 +47,12 @@ def test_add_provider():
     response = client.post(
         "v1/providers/add",
         json={
-            "provider_name": "deepseek",
+            "provider_name": "deepseek_anthropic",
             "supported_model_types": ["llm", "tts", "asr", "embedding", "reranker"],
-            "provider_type": "deepseek",
-            "provider_config": {"api_key": "testkey", "api_base": "https://api.deepseek.com"},
+            "provider_type": "anthropic",
+            "provider_config": {"api_key": "testkey", "api_base": "https://api.deepseek.com/anthropic"},
         },
+        headers={"X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"}
     )
     assert response.status_code == 200
     data = response.json()

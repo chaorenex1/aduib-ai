@@ -25,3 +25,11 @@ def completion(req: ChatCompletionRequest) -> Any:
     Completion endpoint
     """
     return CompletionService.create_completion(req)
+
+@router.post("/messages")
+@catch_exceptions
+async def messages(req: ChatCompletionRequest) -> Any:
+    """
+    Completion endpoint
+    """
+    return await CompletionService.create_completion(req)

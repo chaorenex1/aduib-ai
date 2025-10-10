@@ -1,11 +1,9 @@
 from typing import Union, Generator
 
 from runtime.clients.handler.llm_http_handler import LLMHttpHandler
-from runtime.entities import ChatCompletionResponse, ChatCompletionResponseChunk
-from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
+from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
-from runtime.mcp.types import Request
 from runtime.transformation.base import LLMTransformation
 
 
@@ -43,7 +41,7 @@ class DeepseekTransformation(LLMTransformation):
         prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         credentials: dict,
         stream: bool = None,
-    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
+    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
         llm_http_handler = LLMHttpHandler("/chat/completions", credentials, stream)
         return llm_http_handler.completion_request(prompt_messages)
 

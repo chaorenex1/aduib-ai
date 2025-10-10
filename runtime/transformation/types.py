@@ -3,11 +3,13 @@ from runtime.transformation.base import LLMTransformation
 from runtime.transformation.deepseek.transformation import DeepseekTransformation
 from runtime.transformation.github.transformation import GithubCopilotTransformation
 from runtime.transformation.openai_like.transformation import OpenAILikeTransformation
+from runtime.transformation.anthropic.transformation import AnthropicTransformation
 
 LLMTransformations: dict[ProviderSDKType, type[LLMTransformation]] = {
     ProviderSDKType.OPENAI_LIKE: OpenAILikeTransformation,
     ProviderSDKType.GITHUB_COPILOT: GithubCopilotTransformation,
     ProviderSDKType.DEEPSEEK: DeepseekTransformation,
+    ProviderSDKType.ANTHROPIC: AnthropicTransformation,
 }
 
 try:

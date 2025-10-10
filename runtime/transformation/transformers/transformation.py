@@ -3,7 +3,7 @@ import os
 from typing import Union, Generator
 
 from runtime.entities import ChatCompletionResponse, ChatCompletionResponseChunk
-from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
+from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse, RerankResult, RerankUsage
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.mcp.types import Request
@@ -186,13 +186,12 @@ class TransformersTransformation(OpenAILikeTransformation):
 
     @classmethod
     def transform_message(
-        cls,
-        model_params: dict,
-        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-        credentials: dict,
-        raw_request: Request,
-        stream: bool = None,
-    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
+            cls,
+            model_params: dict,
+            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+            credentials: dict,
+            stream: bool = None,
+    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
         """Transform chat completion request using transformers manager"""
         try:
             # Extract model information

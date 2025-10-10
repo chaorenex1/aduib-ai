@@ -6,7 +6,7 @@ from models import Provider, Model
 from .callbacks.base_callback import Callback
 from .entities import ChatCompletionResponse
 from .entities.embedding_type import EmbeddingInputType
-from .entities.llm_entities import ChatCompletionRequest, CompletionRequest
+from .entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
 from .entities.model_entities import AIModelEntity, ModelType
 from .entities.provider_entities import ProviderEntity
 from .entities.rerank_entities import RerankRequest, RerankResponse
@@ -38,7 +38,7 @@ class ModelInstance:
         self,
         prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         callbacks: Optional[list[Callback]] = None,
-    ) -> Union[ChatCompletionResponse, Generator]:
+    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
         """
         Invoke large language model
 
@@ -51,7 +51,7 @@ class ModelInstance:
 
         self.model_type_instance = cast(LlMModel, self.model_instance)
         return cast(
-            Union[ChatCompletionResponse, Generator],
+            Union[CompletionResponse, Generator[CompletionResponse, None, None]],
             self._invoke(
                 function=self.model_type_instance.invoke,
                 req=prompt_messages,

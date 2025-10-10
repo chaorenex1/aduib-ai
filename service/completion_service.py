@@ -6,7 +6,7 @@ from starlette.responses import StreamingResponse
 
 from configs import config
 from runtime.entities import ChatCompletionResponse
-from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
+from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
 from utils import RateLimit
 
 logger = logging.getLogger(__name__)
@@ -51,8 +51,8 @@ class CompletionService:
 
     @classmethod
     def convert_to_stream(
-        cls, response: Union[ChatCompletionResponse, Generator], req: Union[ChatCompletionRequest, CompletionRequest]
-    ):
+        cls, response: Union[CompletionResponse, Generator[CompletionResponse, None, None]], req: Union[ChatCompletionRequest, CompletionRequest]
+    ) -> Any:
         """
         Convert the response to a streaming response if the request requires it.
         :param response: The response object or generator to be converted.

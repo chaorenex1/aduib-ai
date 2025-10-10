@@ -1,8 +1,10 @@
 from .llm_entities import (
     LLMMode,
+    CompletionResponse,
     ChatCompletionResponse,
     ChatCompletionResponseChunk,
     ChatCompletionResponseChunkDelta,
+    ClaudeChatCompletionResponse,
     LLMUsage,
 )
 from .message_entities import (
@@ -35,9 +37,11 @@ __all__ = [
     "DocumentPromptMessageContent",
     "ImagePromptMessageContent",
     "LLMMode",
+    "CompletionResponse",
     "ChatCompletionResponse",
     "ChatCompletionResponseChunk",
     "ChatCompletionResponseChunkDelta",
+    "ClaudeChatCompletionResponse",
     "LLMUsage",
     "MultiModalPromptMessageContent",
     "PromptMessage",

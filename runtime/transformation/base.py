@@ -6,11 +6,10 @@ from runtime.entities.llm_entities import (
     ChatCompletionRequest,
     CompletionRequest,
     ChatCompletionResponse,
-    ChatCompletionResponseChunk,
+    ChatCompletionResponseChunk, CompletionResponse,
 )
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
-from runtime.mcp.types import Request
 from runtime.tool.entities import ToolInvokeResult
 
 logger = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ class LLMTransformation:
         prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         credentials: dict,
         stream: bool = None,
-    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
+    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
         """
         Transform the input message using the provided credentials and raw request.
         :param model_params: The model parameters for transformation.
@@ -73,7 +72,7 @@ class LLMTransformation:
         credentials: dict,
         llm_result: Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]],
         stream: bool = None,
-    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
+    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
         if not isinstance(llm_result, ChatCompletionResponse):
             return llm_result
         tools_calls: list[AssistantPromptMessage.ToolCall] = []
@@ -112,7 +111,7 @@ class LLMTransformation:
         prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
         credentials: dict,
         stream: bool = None,
-    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]: ...
+    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]: ...
 
     @classmethod
     def setup_environment(cls, credentials: dict, model_params: dict):

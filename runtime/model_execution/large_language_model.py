@@ -1,7 +1,8 @@
 import decimal
 import logging
 import time
-from typing import Optional, Union, Generator, Sequence, cast
+from inspect import isclass
+from typing import Optional, Union, Generator, Sequence, cast, get_args
 
 from pydantic import ConfigDict
 
@@ -19,7 +20,8 @@ from ..entities import (
     TextPromptMessageContent,
     PromptMessageFunction,
 )
-from ..entities.llm_entities import ChatCompletionRequest, CompletionRequest
+from ..entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse, \
+    ClaudeChatCompletionResponse
 from ..entities.model_entities import ModelType, PriceType, PriceInfo, PriceConfig
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,7 @@ class LlMModel(AiModel):
             self,
             req: Union[ChatCompletionRequest, CompletionRequest],
             callbacks: Optional[list[Callback]] = None,
-    ) -> Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]:
+    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
         """
         Invoke large language model
 
@@ -102,7 +104,7 @@ class LlMModel(AiModel):
             callbacks=callbacks,
         )
 
-        result: Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]]
+        result: Union[CompletionResponse, Generator[CompletionResponse, None, None]]
 
         try:
             # invoke model
@@ -113,7 +115,7 @@ class LlMModel(AiModel):
                 stream=stream,
             )
 
-            if not stream:
+            if not stream and isinstance(result, ChatCompletionResponse):
                 message_content = ""
                 tools_calls: list[AssistantPromptMessage.ToolCall] = []
                 for chunkContent in result.choices:
@@ -131,6 +133,8 @@ class LlMModel(AiModel):
                     result.message = AssistantPromptMessage(content=message_content, tool_calls=tools_calls)
                     result.id = message_id
                     result = cast(ChatCompletionResponse, result)
+            elif not stream and isinstance(result, ClaudeChatCompletionResponse):
+                ...  # do nothing, already in correct format
         except Exception as e:
             self._trigger_invoke_error_callbacks(
                 model=model,
@@ -148,7 +152,7 @@ class LlMModel(AiModel):
         if stream and isinstance(result, Generator):
             return self._invoke_result_generator(
                 model=model,
-                result=result,
+                result=cast(Generator[ChatCompletionResponseChunk, None, None], result),
                 credentials=credentials,
                 req=req,
                 model_parameters=parameters,
@@ -172,12 +176,30 @@ class LlMModel(AiModel):
                 callbacks=callbacks,
             )
             return result
+        elif isinstance(result, ClaudeChatCompletionResponse):
+            usage = LLMUsage.empty_usage()
+            chat=ChatCompletionResponse(model=result.model,usage=usage,done=result.done)
+            chat.usage = self.calc_response_usage(model, result.usage.get("input_tokens",0), result.usage.get("output_tokens",0))
+            result.usage = usage
+            result.prompt_messages = self.get_messages(req)
+            self._trigger_after_invoke_callbacks(
+                model=model,
+                result=chat,
+                credentials=credentials,
+                prompt_messages=self.get_messages(req),
+                model_parameters=parameters,
+                tools=tools,
+                stop=stop,
+                stream=stream,
+                callbacks=callbacks,
+            )
+            return result
         raise NotImplementedError("unsupported invoke result type", type(result))
 
     def _invoke_result_generator(
             self,
             model: str,
-            result: Generator[ChatCompletionResponseChunk, None, None],
+            result: Generator[CompletionResponse, None, None],
             credentials: dict,
             req: Union[ChatCompletionRequest, CompletionRequest],
             model_parameters: dict,
@@ -185,7 +207,7 @@ class LlMModel(AiModel):
             stop: Optional[Sequence[str]] = None,
             stream: bool = True,
             callbacks: Optional[list[Callback]] = None,
-    ) -> Generator[ChatCompletionResponseChunk, None, None]:
+    ) -> Generator[CompletionResponse, None, None]:
         """
         Invoke result generator
 
@@ -199,37 +221,53 @@ class LlMModel(AiModel):
         real_model = model
         try:
             for chunk in result:
-                chunk.prompt_messages = self.get_messages(req)
-                yield chunk
+                if isinstance(chunk, ChatCompletionResponseChunk):
+                    chunk.prompt_messages = self.get_messages(req)
+                    yield chunk
 
-                if chunk.choices:
-                    for chunkContent in chunk.choices:
-                        if chunkContent.delta and chunkContent.delta.content:
-                            message_content.append(TextPromptMessageContent(data=chunkContent.delta.content))
-                        if chunkContent.message and chunkContent.message.content:
-                            message_content.append(TextPromptMessageContent(data=chunkContent.message.content))
-                        if chunkContent.text:
-                            if isinstance(chunkContent.text, str):
-                                message_content.append(TextPromptMessageContent(data=chunkContent.text))
+                    if chunk.choices:
+                        for chunkContent in chunk.choices:
+                            if chunkContent.delta and chunkContent.delta.content:
+                                message_content.append(TextPromptMessageContent(data=chunkContent.delta.content))
+                            if chunkContent.message and chunkContent.message.content:
+                                message_content.append(TextPromptMessageContent(data=chunkContent.message.content))
+                            if chunkContent.text:
+                                if isinstance(chunkContent.text, str):
+                                    message_content.append(TextPromptMessageContent(data=chunkContent.text))
 
-                self._trigger_new_chunk_callbacks(
-                    chunk=chunk,
-                    model=model,
-                    credentials=credentials,
-                    prompt_messages=self.get_messages(req),
-                    model_parameters=model_parameters,
-                    tools=tools,
-                    stop=stop,
-                    stream=stream,
-                    callbacks=callbacks,
-                )
+                    self._trigger_new_chunk_callbacks(
+                        chunk=chunk,
+                        model=model,
+                        credentials=credentials,
+                        prompt_messages=self.get_messages(req),
+                        model_parameters=model_parameters,
+                        tools=tools,
+                        stop=stop,
+                        stream=stream,
+                        callbacks=callbacks,
+                    )
 
-                if chunk.delta and chunk.delta.usage:
-                    usage = chunk.delta.usage
-                if chunk.usage:
-                    usage = chunk.usage
-                if chunk.system_fingerprint:
-                    system_fingerprint = chunk.system_fingerprint
+                    if chunk.delta and chunk.delta.usage:
+                        usage = self.calc_response_usage(real_model, chunk.delta.usage.prompt_tokens, chunk.delta.usage.completion_tokens)
+                    if chunk.usage:
+                        usage = self.calc_response_usage(real_model, chunk.usage.prompt_tokens, chunk.usage.completion_tokens)
+                    if chunk.system_fingerprint:
+                        system_fingerprint = chunk.system_fingerprint
+                elif isinstance(chunk, ClaudeChatCompletionResponse):
+                    # final chunk
+                    chunk.prompt_messages = self.get_messages(req)
+                    yield chunk
+                    if chunk.usage:
+                        usage = self.calc_response_usage(real_model, chunk.usage.get("input_tokens",0), chunk.usage.get("output_tokens",0))
+
+                    for chunkContent in chunk.content:
+                        if isinstance(chunkContent, str):
+                            message_content.append(TextPromptMessageContent(data=chunkContent))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type')=='text':
+                            message_content.append(TextPromptMessageContent(data=chunkContent.get('data','')))
+                    system_fingerprint = "claude"  # Claude does not return system fingerprint, use fixed value
+
+
         except Exception as e:
             logger.error(f"Error in stream processing: {e}", exc_info=True)
             raise e
@@ -243,7 +281,7 @@ class LlMModel(AiModel):
                         model=real_model,
                         prompt_messages=messages,
                         message=assistant_message,
-                        usage=self.calc_response_usage(real_model, usage.prompt_tokens, usage.completion_tokens)
+                        usage=usage
                         if usage
                         else LLMUsage.empty_usage(),
                         system_fingerprint=system_fingerprint,

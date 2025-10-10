@@ -37,7 +37,7 @@ def create_model(req: CreateProviderRequest) -> BaseResponse:
 
 @router.get("/models")
 @catch_exceptions
-def get_models(current_key: CurrentApiKeyDep):
+def get_models():
     """
     获取模型信息
     """
