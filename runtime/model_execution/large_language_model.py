@@ -1,6 +1,8 @@
 import decimal
+import json
 import logging
 import time
+import traceback
 from inspect import isclass
 from typing import Optional, Union, Generator, Sequence, cast, get_args
 
@@ -135,7 +137,22 @@ class LlMModel(AiModel):
                     result.id = message_id
                     result = cast(ChatCompletionResponse, result)
             elif not stream and isinstance(result, ClaudeChatCompletionResponse):
-                ...  # do nothing, already in correct format
+                message_content = ""
+                tools_calls: list[AssistantPromptMessage.ToolCall] = []
+                if result.content or result.delta:
+                    for chunkContent in result.content or result.delta:
+                        if isinstance(chunkContent, str):
+                            message_content += chunkContent
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'text':
+                            message_content += chunkContent.get('text', '')
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'thinking':
+                            message_content += chunkContent.get('thinking', '')
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'input_json':
+                            message_content += chunkContent.get('partial_json', '')
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'tool_use':
+                            message_content += json.dumps(chunkContent.get('input', ''))
+                result.message = AssistantPromptMessage(content=message_content, tool_calls=tools_calls)
+                result.id = message_id
         except Exception as e:
             self._trigger_invoke_error_callbacks(
                 model=model,
@@ -183,6 +200,7 @@ class LlMModel(AiModel):
             chat.usage = self.calc_response_usage(model, result.usage.get("input_tokens",0), result.usage.get("output_tokens",0))
             result.usage = usage
             result.prompt_messages = self.get_messages(req)
+            chat.message=result.message
             self._trigger_after_invoke_callbacks(
                 model=model,
                 result=chat,
@@ -223,8 +241,8 @@ class LlMModel(AiModel):
         try:
             for chunk in result:
                 if isinstance(chunk, ChatCompletionResponseChunk):
-                    chunk.prompt_messages = self.get_messages(req)
                     yield chunk
+                    chunk.prompt_messages = self.get_messages(req)
 
                     if chunk.choices:
                         for chunkContent in chunk.choices:
@@ -255,9 +273,9 @@ class LlMModel(AiModel):
                     if chunk.system_fingerprint:
                         system_fingerprint = chunk.system_fingerprint
                 elif isinstance(chunk, ClaudeChatCompletionResponse):
+                    yield chunk
                     # final chunk
                     chunk.prompt_messages = self.get_messages(req)
-                    yield chunk
                     if chunk.usage:
                         usage = self.calc_response_usage(real_model, chunk.usage.get("input_tokens",0), chunk.usage.get("output_tokens",0))
 
@@ -271,6 +289,8 @@ class LlMModel(AiModel):
                             message_content.append(TextPromptMessageContent(data=chunkContent.get('thinking','')))
                         elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'input_json_delta':
                             message_content.append(TextPromptMessageContent(data=chunkContent.get('partial_json', '')))
+                        else:
+                            message_content.append(TextPromptMessageContent(data=''))
                     system_fingerprint = "claude"  # Claude does not return system fingerprint, use fixed value
 
 
@@ -498,6 +518,7 @@ class LlMModel(AiModel):
                         stream=stream,
                     )
                 except Exception as e:
+                    traceback.print_exc()
                     if callback.raise_error:
                         raise e
                     else:

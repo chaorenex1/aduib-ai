@@ -13,6 +13,7 @@ from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbed
 from runtime.transformation.base import LLMTransformation
 from utils import jsonable_encoder
 from .error import AnthropicErrorMapper, AnthropicAPIError
+from ...entities.provider_entities import ProviderSDKType
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ class AnthropicTransformation(LLMTransformation):
 
         # Transform OpenAI-like request to Anthropic format
         anthropic_request={}
-        if credentials["sdk_type"] == "anthropic":
+        if credentials["sdk_type"] == ProviderSDKType.ANTHROPIC:
             anthropic_request = cls._transform_to_anthropic_format(prompt_messages, model_params)
         else:
             anthropic_request=jsonable_encoder(obj=prompt_messages, exclude_none=True, exclude_unset=True)
@@ -133,7 +134,7 @@ class AnthropicTransformation(LLMTransformation):
             )
             # If we shouldn't retry, raise the error
             raise last_error
-        if credentials["sdk_type"] == "anthropic":
+        if credentials["sdk_type"] == ProviderSDKType.ANTHROPIC:
             return cls.handle_anthropic_response(response, stream)
         else:
             return cls.handle_non_anthropic_response(response, stream)
@@ -150,6 +151,7 @@ class AnthropicTransformation(LLMTransformation):
                 stop_reason = ''
                 stop_sequence = ''
                 for line in response.iter_lines():
+                    logger.debug(f"Received streaming line: {line}")
                     if len(line.strip()) == 0:
                         continue
                     if line.strip().startswith("event:"):
@@ -451,7 +453,7 @@ class AnthropicTransformation(LLMTransformation):
 
         # Add system prompt if present
         if system_prompt:
-            anthropic_request["system"] = system_prompt
+            anthropic_request["system"] = [{"type": "text", "text": system_prompt}]
 
         if hasattr(prompt_messages, 'stop_sequences') and prompt_messages.stop_sequences:
             anthropic_request["stop_sequences"] = prompt_messages.stop_sequences
@@ -480,7 +482,7 @@ class AnthropicTransformation(LLMTransformation):
             anthropic_request["tool_choice"] = prompt_messages.tool_choice
 
         if hasattr(prompt_messages, 'tools') and prompt_messages.tools:
-            anthropic_request["tools"] = [tool.model_dump(exclude_none=True) for tool in prompt_messages.tools]
+            anthropic_request["tools"] = [tool.function.model_dump(exclude_none=True) for tool in prompt_messages.tools]
 
         return anthropic_request
 

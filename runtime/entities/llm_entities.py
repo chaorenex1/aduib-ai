@@ -57,7 +57,7 @@ class ChatCompletionRequest(BaseModel):
     enable_thinking: bool = None
     thinking_budget: Optional[int] = None
     thinking: Optional[ThinkingOptions] = None
-    system: Optional[str] = None # for compatibility with anthropic
+    system: list[dict[str, Any]] = None # for compatibility with anthropic
     stop_sequences: Optional[Union[str, Sequence[str]]] = None # for compatibility with anthropic
 
     @field_validator("messages", mode="before")

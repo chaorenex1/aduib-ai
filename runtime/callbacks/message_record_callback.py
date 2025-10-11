@@ -7,7 +7,7 @@ from runtime.callbacks.base_callback import Callback
 from runtime.entities import PromptMessage, ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessageFunction
 from runtime.model_execution import AiModel
 from service import ConversationMessageService
-from utils import AsyncUtils
+from utils import AsyncUtils, jsonable_encoder
 
 
 class MessageRecordCallback(Callback):
@@ -176,7 +176,10 @@ class MessageRecordCallback(Callback):
                 if isinstance(c, str):
                     content = c
                 else:
-                    content = "".join([ct.data or ct.text for ct in c])
+                    try:
+                        content = "".join([ct.data or ct.text for ct in c])
+                    except Exception:
+                        content = json.dumps(jsonable_encoder(c,exclude_none=True))
             system_prompt = prompt_messages[0].content if prompt_messages[0].role.value == "system" else ""
         elif isinstance(prompt_messages, str):
             role = "user"
