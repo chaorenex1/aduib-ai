@@ -22,6 +22,7 @@ from ..entities import (
 )
 from ..entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse, \
     ClaudeChatCompletionResponse
+from ..entities.message_entities import ClaudeThinkingPromptMessageContent
 from ..entities.model_entities import ModelType, PriceType, PriceInfo, PriceConfig
 
 logger = logging.getLogger(__name__)
@@ -260,11 +261,16 @@ class LlMModel(AiModel):
                     if chunk.usage:
                         usage = self.calc_response_usage(real_model, chunk.usage.get("input_tokens",0), chunk.usage.get("output_tokens",0))
 
-                    for chunkContent in chunk.content:
+                    if chunk.content or chunk.delta:
+                        chunkContent = chunk.content or chunk.delta
                         if isinstance(chunkContent, str):
                             message_content.append(TextPromptMessageContent(data=chunkContent))
-                        elif isinstance(chunkContent, dict) and chunkContent.get('type')=='text':
-                            message_content.append(TextPromptMessageContent(data=chunkContent.get('data','')))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type')=='text_delta':
+                            message_content.append(TextPromptMessageContent(data=chunkContent.get('text','')))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type')=='thinking_delta':
+                            message_content.append(TextPromptMessageContent(data=chunkContent.get('thinking','')))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'input_json_delta':
+                            message_content.append(TextPromptMessageContent(data=chunkContent.get('partial_json', '')))
                     system_fingerprint = "claude"  # Claude does not return system fingerprint, use fixed value
 
 

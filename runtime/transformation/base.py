@@ -70,7 +70,7 @@ class LLMTransformation:
         model_params: dict,
         req: Union[ChatCompletionRequest, CompletionRequest],
         credentials: dict,
-        llm_result: Union[ChatCompletionResponse, Generator[ChatCompletionResponseChunk, None, None]],
+        llm_result: Union[CompletionResponse, Generator[CompletionResponse, None, None]],
         stream: bool = None,
     ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
         if not isinstance(llm_result, ChatCompletionResponse):

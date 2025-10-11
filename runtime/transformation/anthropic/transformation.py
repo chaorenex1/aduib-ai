@@ -130,14 +130,55 @@ class AnthropicTransformation(LLMTransformation):
             raise last_error
         if stream:
             def response_generator():
+                chat_id=''
+                model=''
+                role=''
+                input_tokens=0
+                output_tokens=0
+                stop_reason=''
+                stop_sequence=''
                 for line in response.iter_lines():
-                    if line.startswith("data:"):
+                    if len(line.strip()) == 0:
+                        continue
+                    if line.strip().startswith("event:"):
+                        continue
+                    if line.strip().startswith("data:"):
                         line = line[5:].strip()
                     if line == "[DONE]":
                         yield ClaudeChatCompletionResponse(done=True)
                     else:
                         try:
-                            yield ClaudeChatCompletionResponse(**json.loads(line))
+                            completion_response = ClaudeChatCompletionResponse(**json.loads(line.strip()))
+                            if completion_response.type=='message_start':
+                                chat_id=completion_response.message['id']
+                                model=completion_response.message['model']
+                                role=completion_response.message['role']
+                                input_tokens=completion_response.message['usage']['input_tokens']
+                                completion_response.id = chat_id
+                                completion_response.model = model
+                                completion_response.role = role
+                            if completion_response.type=='message_delta':
+                                output_tokens=completion_response.usage['output_tokens']
+                                stop_reason=completion_response.delta['stop_reason'] if 'stop_reason' in completion_response.delta else ''
+                                stop_sequence=completion_response.delta['stop_sequence'] if 'stop_sequence' in completion_response.delta else ''
+                                completion_response.id = chat_id
+                                completion_response.model = model
+                                completion_response.role = role
+                                completion_response.usage['input_tokens']=input_tokens
+                                completion_response.stop_reason=stop_reason
+                                completion_response.stop_sequence=stop_sequence
+                            elif completion_response.type=='message_stop':
+                                completion_response.id = chat_id
+                                completion_response.model = model
+                                completion_response.role = role
+                                completion_response.usage={'input_tokens':input_tokens,'output_tokens':output_tokens}
+                                completion_response.stop_reason=stop_reason
+                                completion_response.stop_sequence=stop_sequence
+                            else:
+                                completion_response.id = chat_id
+                                completion_response.model = model
+                                completion_response.role = role
+                            yield completion_response
                         except Exception as e:
                             logger.error(f"Error parsing streaming line: {line}, error: {e}")
                             continue
@@ -204,11 +245,10 @@ class AnthropicTransformation(LLMTransformation):
             anthropic_request["thinking"] = prompt_messages.thinking.model_dump(exclude_none=True)
 
         if hasattr(prompt_messages, 'tool_choice') and prompt_messages.tool_choice:
-            anthropic_request["tool_choice"] = prompt_messages.tool_choice.model_dump(exclude_none=True)
+            anthropic_request["tool_choice"] = prompt_messages.tool_choice
 
         if hasattr(prompt_messages, 'tools') and prompt_messages.tools:
-            anthropic_request["tools"] = [{"name": tool.function.name, "description": tool.function.description,
-                                           "input_schema": tool.function.parameters} for tool in prompt_messages.tools]
+            anthropic_request["tools"] = [tool.model_dump(exclude_none=True) for tool in prompt_messages.tools]
 
         return anthropic_request
 

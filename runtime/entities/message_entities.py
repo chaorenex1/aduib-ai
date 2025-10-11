@@ -79,6 +79,7 @@ class PromptMessageTool(BaseModel):
     name: str
     description: str
     parameters: dict
+    input_schema: Optional[dict] = None  # openai specific
 
 class PromptMessageFunction(BaseModel):
     """
@@ -86,7 +87,9 @@ class PromptMessageFunction(BaseModel):
     """
 
     type: str = "function"
-    function: PromptMessageTool
+    function: PromptMessageTool=None
+    name: str=Field(default=None, description="the name of function") # anthropic specific
+    max_usage: Optional[int] = Field(default=None, description="the max usage of function") # anthropic specific
 
 
 class PromptMessageNamedFunction(BaseModel):
@@ -176,6 +179,15 @@ class ImagePromptMessageContent(MultiModalPromptMessageContent):
 class DocumentPromptMessageContent(MultiModalPromptMessageContent):
     type: Literal[PromptMessageContentType.DOCUMENT] = PromptMessageContentType.DOCUMENT
 
+
+class ClaudeTextPromptMessageContent(PromptMessageContent):
+    """
+    Model class for text prompt message content.
+    """
+
+    type: Literal[PromptMessageContentType.TEXT] = PromptMessageContentType.TEXT
+    data: str = Field(default="", description="the text content of prompt message")
+    text: str = Field(default="", description="the text content of prompt message")
 
 class ClaudeThinkingPromptMessageContent(PromptMessageContent):
     type: Literal[PromptMessageContentType.CLAUDE_THINKING] = PromptMessageContentType.CLAUDE_THINKING

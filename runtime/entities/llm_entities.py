@@ -1,6 +1,6 @@
 from decimal import Decimal
 from enum import StrEnum
-from typing import Optional, Union, Literal, Sequence
+from typing import Optional, Union, Sequence, Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
@@ -8,7 +8,6 @@ from .message_entities import (
     PromptMessage,
     AssistantPromptMessage,
     PromptMessageFunction,
-    PromptMessageToolChoiceParam,
     StreamOptions,
     AnyResponseFormat,
     PromptMessageRole,
@@ -26,12 +25,9 @@ class ChatCompletionRequest(BaseModel):
     tools: Optional[list[PromptMessageFunction]] = None
     tool_choice: Optional[
         Union[
-            Literal["none"],
-            Literal["auto"],
-            Literal["required"],
-            PromptMessageToolChoiceParam,
+            str,dict[str,Any]
         ]
-    ] = "none"
+    ] = None  # "none", "auto", "required" or {"type": "function", "function": {"name": "my_function"}}
     stream: bool = None
     stream_options: Optional[StreamOptions] | None = None
     top_p: Optional[float] = None
@@ -104,7 +100,8 @@ class ChatCompletionRequest(BaseModel):
                     v[i] = PromptMessageFunction(type='function', function=PromptMessageTool(
                         name=i_['name'],
                         description=i_.get('description', ''),
-                        parameters=i_.get('parameters', {}) or i_.get('input_schema', {})
+                        parameters=i_.get('parameters', {}) or i_.get('input_schema', {}),
+                        input_schema=i_.get('parameters', {}) or i_.get('input_schema', {}),
                     ))
             else:
                 v[i] = i_
@@ -116,66 +113,6 @@ class ChatCompletionRequest(BaseModel):
         if data.get("stream_options") and not data.get("stream"):
             raise ValueError("Stream options can only be defined when `stream=True`.")
 
-        return data
-
-    @model_validator(mode="before")
-    @classmethod
-    def check_tool_usage(cls, data):
-        # if "tool_choice" is not specified but tools are provided,
-        # default to "auto" tool_choice
-        if "tool_choice" not in data and data.get("tools"):
-            data["tool_choice"] = "auto"
-
-        # if "tool_choice" is "none" -- no validation is needed for tools
-        if "tool_choice" in data and data["tool_choice"] == "none":
-            return data
-
-        # if "tool_choice" is specified -- validation
-        if "tool_choice" in data and data["tool_choice"] is not None:
-            # ensure that if "tool choice" is specified, tools are present
-            if "tools" not in data or data["tools"] is None:
-                raise ValueError("When using `tool_choice`, `tools` must be set.")
-
-            # make sure that tool choice is either a named tool
-            # OR that it's set to "auto" or "required"
-            if data["tool_choice"] not in ["auto", "required"] and not isinstance(data["tool_choice"], dict):
-                raise ValueError(
-                    f"Invalid value for `tool_choice`: {data['tool_choice']}! "
-                    'Only named tools, "none", "auto" or "required" '
-                    "are supported."
-                )
-
-            # if tool_choice is "required" but the "tools" list is empty,
-            # override the data to behave like "none" to align with
-            # OpenAI’s behavior.
-            if data["tool_choice"] == "required" and isinstance(data["tools"], list) and len(data["tools"]) == 0:
-                data["tool_choice"] = "none"
-                del data["tools"]
-                return data
-
-            # ensure that if "tool_choice" is specified as an object,
-            # it matches a valid tool
-            correct_usage_message = 'Correct usage: `{"type": "function", "function": {"name": "my_function"}}`'
-            if isinstance(data["tool_choice"], dict):
-                valid_tool = False
-                function = data["tool_choice"].get("function")
-                if not isinstance(function, dict):
-                    raise ValueError(
-                        f"Invalid value for `function`: `{function}` in `tool_choice`! {correct_usage_message}"
-                    )
-                if "name" not in function:
-                    raise ValueError(f"Expected field `name` in `function` in `tool_choice`! {correct_usage_message}")
-                function_name = function["name"]
-                if not isinstance(function_name, str) or len(function_name) == 0:
-                    raise ValueError(
-                        f"Invalid `name` in `function`: `{function_name}` in `tool_choice`! {correct_usage_message}"
-                    )
-                for tool in data["tools"]:
-                    if tool["function"]["name"] == function_name:
-                        valid_tool = True
-                        break
-                if not valid_tool:
-                    raise ValueError("The tool specified in `tool_choice` does not match any of the specified `tools`")
         return data
 
 
@@ -214,66 +151,6 @@ class CompletionRequest(BaseModel):
         if data.get("stream_options") and not data.get("stream"):
             raise ValueError("Stream options can only be defined when `stream=True`.")
 
-        return data
-
-    @model_validator(mode="before")
-    @classmethod
-    def check_tool_usage(cls, data):
-        # if "tool_choice" is not specified but tools are provided,
-        # default to "auto" tool_choice
-        if "tool_choice" not in data and data.get("tools"):
-            data["tool_choice"] = "auto"
-
-        # if "tool_choice" is "none" -- no validation is needed for tools
-        if "tool_choice" in data and data["tool_choice"] == "none":
-            return data
-
-        # if "tool_choice" is specified -- validation
-        if "tool_choice" in data and data["tool_choice"] is not None:
-            # ensure that if "tool choice" is specified, tools are present
-            if "tools" not in data or data["tools"] is None:
-                raise ValueError("When using `tool_choice`, `tools` must be set.")
-
-            # make sure that tool choice is either a named tool
-            # OR that it's set to "auto" or "required"
-            if data["tool_choice"] not in ["auto", "required"] and not isinstance(data["tool_choice"], dict):
-                raise ValueError(
-                    f"Invalid value for `tool_choice`: {data['tool_choice']}! "
-                    'Only named tools, "none", "auto" or "required" '
-                    "are supported."
-                )
-
-            # if tool_choice is "required" but the "tools" list is empty,
-            # override the data to behave like "none" to align with
-            # OpenAI’s behavior.
-            if data["tool_choice"] == "required" and isinstance(data["tools"], list) and len(data["tools"]) == 0:
-                data["tool_choice"] = "none"
-                del data["tools"]
-                return data
-
-            # ensure that if "tool_choice" is specified as an object,
-            # it matches a valid tool
-            correct_usage_message = 'Correct usage: `{"type": "function", "function": {"name": "my_function"}}`'
-            if isinstance(data["tool_choice"], dict):
-                valid_tool = False
-                function = data["tool_choice"].get("function")
-                if not isinstance(function, dict):
-                    raise ValueError(
-                        f"Invalid value for `function`: `{function}` in `tool_choice`! {correct_usage_message}"
-                    )
-                if "name" not in function:
-                    raise ValueError(f"Expected field `name` in `function` in `tool_choice`! {correct_usage_message}")
-                function_name = function["name"]
-                if not isinstance(function_name, str) or len(function_name) == 0:
-                    raise ValueError(
-                        f"Invalid `name` in `function`: `{function_name}` in `tool_choice`! {correct_usage_message}"
-                    )
-                for tool in data["tools"]:
-                    if tool["function"]["name"] == function_name:
-                        valid_tool = True
-                        break
-                if not valid_tool:
-                    raise ValueError("The tool specified in `tool_choice` does not match any of the specified `tools`")
         return data
 
 
@@ -424,15 +301,19 @@ class ClaudeChatCompletionResponse(CompletionResponse):
     Model class for Claude llm result.
     """
 
-    id: str
-    type: str
-    role: str
+    id: str= None
+    type: str= None
+    role: str= None
+    index:int=0
     prompt_messages: Union[list[PromptMessage], str] = None
-    content: list[dict] = Field(default_factory=list)
-    model: str
+    content: list[dict] = None
+    delta:Optional[dict[str,Any]] = None
+    model: str= None
     stop_reason: Optional[str] = None
     stop_sequence: Optional[str] = None
-    usage: Optional[dict] = None
+    usage: Optional[dict[str,Any]] = None
+    message: dict[str,Any]= None
+    content_block: Optional[dict[str,Any]] = None
 
 
 class NumTokensResult(PriceInfo):

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 
 from controllers.common.base import catch_exceptions
 from runtime.entities.llm_entities import CompletionRequest, ChatCompletionRequest
+from service import ClaudeCompletionService
 from service.completion_service import CompletionService
 
 router = APIRouter(tags=["completion"])
@@ -28,8 +29,8 @@ def completion(req: ChatCompletionRequest) -> Any:
 
 @router.post("/messages")
 @catch_exceptions
-async def messages(req: ChatCompletionRequest) -> Any:
+def messages(req: ChatCompletionRequest) -> Any:
     """
     Completion endpoint
     """
-    return await CompletionService.create_completion(req)
+    return ClaudeCompletionService.create_completion(req)

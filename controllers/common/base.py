@@ -74,7 +74,7 @@ def catch_exceptions(func):
             logger.error(f"BaseServiceError in \n {func.__name__}:{func.__doc__}: {e.description}")
             if config.DEBUG:
                 traceback.print_exc()
-            return BaseResponse.error(e.description)
+            return BaseResponse.error(500,e.description)
         except Exception as e:
             logger.error(f"Exception in \n {func.__name__}:{func.__doc__}: {e}")
             if config.DEBUG:
