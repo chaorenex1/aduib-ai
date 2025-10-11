@@ -201,6 +201,7 @@ class LlMModel(AiModel):
             result.usage = usage
             result.prompt_messages = self.get_messages(req)
             chat.message=result.message
+            chat.id = result.id
             self._trigger_after_invoke_callbacks(
                 model=model,
                 result=chat,
