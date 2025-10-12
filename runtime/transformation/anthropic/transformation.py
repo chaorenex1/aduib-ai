@@ -67,6 +67,7 @@ class AnthropicTransformation(LLMTransformation):
             "api_base": api_base,
             "headers": headers,
             "sdk_type": credentials["sdk_type"],
+            "none_anthropic": _credentials.get("none_anthropic", False)
         }
 
     @classmethod
@@ -92,7 +93,7 @@ class AnthropicTransformation(LLMTransformation):
 
         # Transform OpenAI-like request to Anthropic format
         anthropic_request={}
-        if credentials["sdk_type"] == ProviderSDKType.ANTHROPIC:
+        if not credentials["none_anthropic"]:
             anthropic_request = cls._transform_to_anthropic_format(prompt_messages, model_params)
         else:
             anthropic_request=jsonable_encoder(obj=prompt_messages, exclude_none=True, exclude_unset=True)
@@ -134,7 +135,7 @@ class AnthropicTransformation(LLMTransformation):
             )
             # If we shouldn't retry, raise the error
             raise last_error
-        if credentials["sdk_type"] == ProviderSDKType.ANTHROPIC:
+        if not credentials["none_anthropic"]:
             return cls.handle_anthropic_response(response, stream)
         else:
             return cls.handle_non_anthropic_response(response, stream)
@@ -544,3 +545,4 @@ class AnthropicTransformation(LLMTransformation):
             True if model is supported, False otherwise
         """
         return False
+

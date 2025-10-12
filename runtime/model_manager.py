@@ -4,11 +4,10 @@ from typing import Optional, Generator, Union, cast, Callable, Any, IO, Iterable
 
 from models import Provider, Model
 from .callbacks.base_callback import Callback
-from .entities import ChatCompletionResponse
 from .entities.embedding_type import EmbeddingInputType
 from .entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
 from .entities.model_entities import AIModelEntity, ModelType
-from .entities.provider_entities import ProviderEntity
+from .entities.provider_entities import ProviderEntity, ProviderSDKType
 from .entities.rerank_entities import RerankRequest, RerankResponse
 from .entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
 from .model_execution.audio2text_model import Audio2TextModel
@@ -232,3 +231,14 @@ class ModelManager:
             provider_entity, json.loads(model.model_params), ModelType.value_of(model.type)
         )
         return ModelInstance(provider_entity, model_instance, model.name)
+
+
+    def get_anthropic_model_instance(self, model_name: str, provider_name: str = None) -> Optional[ModelInstance]:
+        model_instance:ModelInstance=self.get_model_instance(model_name,provider_name)
+        if model_instance.provider.provider_credential.sdk_type!=ProviderSDKType.ANTHROPIC:
+            model_instance.provider.provider_credential.sdk_type=ProviderSDKType.ANTHROPIC
+            model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
+            model_instance.credentials["none_anthropic"]=True
+        else:
+            model_instance.credentials["none_anthropic"]=False
+        return model_instance
