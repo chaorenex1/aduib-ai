@@ -35,6 +35,8 @@ class LLMTransformation:
             prompt_messages.frequency_penalty = model_params.get("frequency_penalty")
         # if not prompt_messages.miniP:
         #     prompt_messages.miniP = model_params.get("miniP", 0.0)
+        if prompt_messages.max_tokens:
+            prompt_messages.max_tokens = model_params.get("max_tokens") if (prompt_messages.max_tokens > model_params.get("max_tokens")) else prompt_messages.max_tokens
         # 判断模型名称是否包含Qwen3
         if 'Qwen3' in prompt_messages.model and isinstance(prompt_messages, ChatCompletionRequest):
             content=prompt_messages.messages[-1].content

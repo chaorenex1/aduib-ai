@@ -213,8 +213,11 @@ class ModelManager:
         provider: Provider = ProviderService.get_provider(model.provider_name)
         model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
         provider_entity = self.provider.get_provider_entity(provider, model_list)
+        model_params = json.loads(model.model_params)
+        if 'max_tokens' not in model_params:
+            model_params['max_tokens']=model.max_tokens
         model_instance = self.provider.provider_factory.get_model_type_instance(
-            provider_entity, json.loads(model.model_params), ModelType.value_of(model.type)
+            provider_entity, model_params, ModelType.value_of(model.type)
         )
         return ModelInstance(provider_entity, model_instance, model.name)
 

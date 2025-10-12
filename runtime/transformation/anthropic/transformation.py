@@ -26,6 +26,50 @@ def map_stop_reason(finish_reason: Optional[str]) -> str:
         return "max_tokens"
     return "end_turn"
 
+def normalize_content(content: Any) -> Optional[str]:
+    # If content is a string, return it directly.
+    if isinstance(content, str):
+        return content
+    # If content is a list of blocks (with potential {text}), join texts.
+    if isinstance(content, list):
+        parts: List[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                txt = item.get("text")
+                if isinstance(txt, str):
+                    parts.append(txt)
+        return " ".join(parts) if parts else None
+    return None
+
+def remove_uri_format(schema: Any) -> Any:
+    # Recursively traverse JSON schema and remove format: 'uri'
+    if not isinstance(schema, (dict, list)):
+        return schema
+
+    if isinstance(schema, list):
+        return [remove_uri_format(it) for it in schema]
+
+    # dict case
+    if schema.get("type") == "string" and schema.get("format") == "uri":
+        # return a copy without 'format'
+        result = dict(schema)
+        result.pop("format", None)
+        return result
+
+    result: Dict[str, Any] = {}
+    for key, value in schema.items():
+        if key == "properties" and isinstance(value, dict):
+            result[key] = {k: remove_uri_format(v) for k, v in value.items()}
+        elif key == "items" and isinstance(value, (dict, list)):
+            result[key] = remove_uri_format(value)
+        elif key == "additionalProperties" and isinstance(value, (dict, list)):
+            result[key] = remove_uri_format(value)
+        elif key in ("anyOf", "allOf", "oneOf") and isinstance(value, list):
+            result[key] = [remove_uri_format(v) for v in value]
+        else:
+            result[key] = remove_uri_format(value)
+    return result
+
 
 def _approx_tokens_from_text(text: str) -> int:
     # Very rough estimate: word count as token count fallback
@@ -92,7 +136,7 @@ class AnthropicTransformation(LLMTransformation):
             "api_base": api_base,
             "headers": headers,
             "sdk_type": credentials["sdk_type"],
-            "none_anthropic": _credentials.get("none_anthropic", False)
+            "none_anthropic": credentials["none_anthropic"],
         }
 
     @classmethod
@@ -120,11 +164,12 @@ class AnthropicTransformation(LLMTransformation):
         anthropic_request={}
         if not credentials["none_anthropic"]:
             anthropic_request = cls._transform_to_anthropic_format(prompt_messages, model_params)
+            llm_http_handler = LLMHttpHandler("/messages", credentials, stream)
         else:
-            anthropic_request=jsonable_encoder(obj=prompt_messages, exclude_none=True, exclude_unset=True)
+            anthropic_request= cls._transform_to_openai_format(prompt_messages, model_params)
+            llm_http_handler = LLMHttpHandler("/v1/chat/completions", credentials, stream)
 
         # Create HTTP handler and make request
-        llm_http_handler = LLMHttpHandler("/messages", credentials, stream)
         try:
             response = llm_http_handler._request(data=anthropic_request)
         except httpx.HTTPStatusError as e:
@@ -568,6 +613,100 @@ class AnthropicTransformation(LLMTransformation):
             anthropic_request["tools"] = [tool.function.model_dump(exclude_none=True) for tool in prompt_messages.tools]
 
         return anthropic_request
+
+    @classmethod
+    def _transform_to_openai_format(cls, prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+                                       model_params: dict)-> dict:
+        """
+        Transform Anthropic request format to OpenAI format.
+        """
+        # Build messages array for the OpenAI payload.
+        messages: List[Dict[str, Any]] = []
+        payload = jsonable_encoder(prompt_messages, exclude_none=True, exclude_unset=True)
+
+        # System messages
+        system_msgs = payload.get("system")
+        if isinstance(system_msgs, list):
+            for sys_msg in system_msgs:
+                if isinstance(sys_msg, dict):
+                    normalized = normalize_content(sys_msg.get("text") or sys_msg.get("content"))
+                    if normalized:
+                        messages.append({"role": "system", "content": normalized})
+
+        # User/assistant messages
+        if isinstance(payload.get("messages"), list):
+            for msg in payload["messages"]:
+                if not isinstance(msg, dict):
+                    continue
+
+                content = msg.get("content")
+                role = msg.get("role")
+
+                # Extract tool calls from anthropic-like blocks
+                tool_calls: List[Dict[str, Any]] = []
+                if isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict) and item.get("type") == "tool_use":
+                            tool_calls.append({
+                                "type": "function",
+                                "id": item.get("id"),
+                                "function": {
+                                    "name": item.get("name"),
+                                    "arguments": json.dumps(item.get("input")),
+                                },
+                            })
+
+                new_msg: Dict[str, Any] = {"role": role}
+                normalized = normalize_content(content)
+                if normalized:
+                    new_msg["content"] = normalized
+                if tool_calls:
+                    new_msg["tool_calls"] = tool_calls
+                if new_msg.get("content") is not None or new_msg.get("tool_calls") is not None:
+                    messages.append(new_msg)
+
+                # Append tool results as separate 'tool' role messages
+                if isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict) and item.get("type") == "tool_result":
+                            messages.append({
+                                "role": "tool",
+                                "content": item.get("text") or item.get("content"),
+                                "tool_call_id": item.get("tool_use_id"),
+                            })
+
+        # Tools mapping
+        tools: List[Dict[str, Any]] = []
+        for tool in payload.get("tools", []) or []:
+            if isinstance(tool, dict) and tool.get("name") not in ("BatchTool",):
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": tool.get("function").get("name"),
+                        "description": tool.get("function").get("description"),
+                        "parameters": remove_uri_format(tool.get("function").get("input_schema")),
+                    },
+                })
+
+        openai_payload: Dict[str, Any] = {
+            **payload,
+            "model": prompt_messages.model,
+            "messages": messages,
+            "max_tokens": payload.get("max_tokens"),
+            "temperature": payload.get("temperature", 1),
+            "stream": payload.get("stream") is True,
+        }
+        openai_payload.pop("system", None)
+        openai_payload.pop("top_logprobs", None)
+        openai_payload.pop("logit_bias", None)
+        openai_payload.pop("logprobs", None)
+        openai_payload.pop("n", None)
+        if tools:
+            openai_payload["tools"] = tools
+
+        # Remove any Nones
+        return {k: v for k, v in openai_payload.items() if v is not None}
+
 
     @classmethod
     def transform_embeddings(cls, texts: EmbeddingRequest, credentials: dict) -> TextEmbeddingResult:
