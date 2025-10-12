@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Union, Generator, Any
+from typing import Union, Generator, Any, Optional, List, Dict
 
 import httpx
 from httpx import Response
@@ -13,9 +13,34 @@ from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbed
 from runtime.transformation.base import LLMTransformation
 from utils import jsonable_encoder
 from .error import AnthropicErrorMapper, AnthropicAPIError
-from ...entities.provider_entities import ProviderSDKType
 
 logger = logging.getLogger(__name__)
+
+
+def map_stop_reason(finish_reason: Optional[str]) -> str:
+    if finish_reason == "tool_calls":
+        return "tool_use"
+    if finish_reason == "stop":
+        return "end_turn"
+    if finish_reason == "length":
+        return "max_tokens"
+    return "end_turn"
+
+
+def _approx_tokens_from_text(text: str) -> int:
+    # Very rough estimate: word count as token count fallback
+    if not text:
+        return 0
+    return len([w for w in text.strip().split() if w])
+
+
+def _approx_tokens_from_messages(msgs: List[Dict[str, Any]]) -> int:
+    total = 0
+    for m in msgs or []:
+        c = m.get("content")
+        if isinstance(c, str):
+            total += _approx_tokens_from_text(c)
+    return total
 
 
 class AnthropicTransformation(LLMTransformation):
@@ -152,7 +177,6 @@ class AnthropicTransformation(LLMTransformation):
                 stop_reason = ''
                 stop_sequence = ''
                 for line in response.iter_lines():
-                    logger.debug(f"Received streaming line: {line}")
                     if len(line.strip()) == 0:
                         continue
                     if line.strip().startswith("event:"):
@@ -211,16 +235,6 @@ class AnthropicTransformation(LLMTransformation):
     def handle_non_anthropic_response(cls, response, stream):
         """Handle response for non-Anthropic SDK types by converting OpenAI-compatible
         responses into Anthropic-style ClaudeChatCompletionResponse models/events."""
-        def map_finish_reason(fr: str | None) -> str | None:
-            if fr is None:
-                return None
-            fr = str(fr)
-            if fr == 'stop':
-                return 'end_turn'
-            if fr in ('length', 'max_tokens'):
-                return 'max_tokens'
-            # pass through others
-            return fr
 
         if stream:
             def response_generator():
@@ -232,6 +246,11 @@ class AnthropicTransformation(LLMTransformation):
                 started = False
                 content_block_started = False
                 pending_stop_reason = None
+                encountered_tool_call = False
+                accumulated_content = ""
+                accumulated_reasoning = ""
+                tool_call_accumulators: Dict[int, str] = {}
+                usage={}
 
                 for raw in response.iter_lines():
                     line = raw.strip() if isinstance(raw, str) else raw
@@ -250,17 +269,46 @@ class AnthropicTransformation(LLMTransformation):
                         line = line[5:].strip()
                     if line == "[DONE]":
                         # Finalize stream with message_stop if we started
-                        if started:
-                            stop_event = ClaudeChatCompletionResponse(
-                                type='message_stop',
+                        if encountered_tool_call:
+                            # Close any open tool_use blocks
+                            for idx in tool_call_accumulators.keys():
+                                if tool_call_accumulators[idx]:
+                                    cb_stop = ClaudeChatCompletionResponse(
+                                        type='content_block_stop',
+                                        index=idx,
+                                        id=chat_id,
+                                        model=model,
+                                        role=role
+                                    )
+                                    yield cb_stop
+                        elif content_block_started:
+                            # Close text content block if open
+                            cb_stop = ClaudeChatCompletionResponse(
+                                type='content_block_stop',
+                                index=0,
                                 id=chat_id,
                                 model=model,
-                                role=role,
-                                usage={'input_tokens': input_tokens, 'output_tokens': output_tokens},
-                                stop_reason=pending_stop_reason,
-                                stop_sequence=None,
+                                role=role
                             )
-                            yield stop_event
+                            yield cb_stop
+                        yield ClaudeChatCompletionResponse(
+                            type='message_delta',
+                            delta={'stop_reason': 'tool_use' if encountered_tool_call else 'end_turn',
+                                   'stop_sequence': None},
+                            usage={'output_tokens': output_tokens},
+                            id=chat_id,
+                            model=model,
+                            role=role
+                        )
+                        yield ClaudeChatCompletionResponse(
+                            type='message_stop',
+                            id=chat_id,
+                            model=model,
+                            role=role,
+                            usage={'input_tokens': input_tokens, 'output_tokens': output_tokens},
+                            stop_reason=pending_stop_reason,
+                            stop_sequence=None,
+                        )
                         yield ClaudeChatCompletionResponse(done=True)
                         break
 
@@ -279,7 +327,7 @@ class AnthropicTransformation(LLMTransformation):
                         continue
                     choice0 = choices[0]
                     delta = choice0.get('delta') or {}
-                    finish_reason = choice0.get('finish_reason')
+                    # finish_reason = choice0.get('finish_reason')
 
                     # Attempt to pick up usage if provider includes it in stream
                     usage = chunk.get('usage') or {}
@@ -287,140 +335,174 @@ class AnthropicTransformation(LLMTransformation):
                         input_tokens = usage.get('prompt_tokens', input_tokens) or input_tokens
                         output_tokens = usage.get('completion_tokens', output_tokens) or output_tokens
 
-                    text_piece = ''
-                    if isinstance(delta, dict):
-                        role = delta.get('role', role) or role
-                        text_piece = delta.get('content') or ''
-                    else:
-                        # Some providers may send {"text": "..."}
-                        text_piece = choice0.get('text') or ''
-
                     # Send message_start once
                     if not started:
                         started = True
-                        msg_start = ClaudeChatCompletionResponse(
+                        yield ClaudeChatCompletionResponse(
                             type='message_start',
                             message={
                                 'id': chat_id or '',
                                 'type': 'message',
                                 'role': role or 'assistant',
                                 'model': model or '',
-                                'usage': {'input_tokens': input_tokens or 0}
+                                'usage': {'input_tokens': input_tokens or 0, 'output_tokens': 0}
                             },
+                            id=chat_id or '',
+                            model=model or '',
+                            role=role or 'assistant'
                         )
                         # also expose convenience fields
-                        msg_start.id = chat_id or ''
-                        msg_start.model = model or ''
-                        msg_start.role = role or 'assistant'
-                        yield msg_start
+                        ping=ClaudeChatCompletionResponse(
+                            type='ping',
+                            id=chat_id or '',
+                            model=model or '',
+                            role=role or 'assistant'
+                        )
+                        yield ping
 
                     # Start a single text content block once before deltas
-                    if not content_block_started:
-                        content_block_started = True
-                        cb_start = ClaudeChatCompletionResponse(
-                            type='content_block_start',
-                            index=0,
-                            content_block={'type': 'text', 'text': ''},
-                        )
-                        cb_start.id = chat_id or ''
-                        cb_start.model = model or ''
-                        cb_start.role = role or 'assistant'
-                        yield cb_start
+                    # Tool calls streaming
+                    if delta.get("tool_calls"):
+                        for tc in delta["tool_calls"]:
+                            encountered_tool_call = True
+                            idx = int(tc.get("index", 0))
+                            if idx not in tool_call_accumulators:
+                                tool_call_accumulators[idx] = ""
 
-                    # Emit text delta if present
-                    if text_piece:
-                        cb_delta = ClaudeChatCompletionResponse(
+                                yield ClaudeChatCompletionResponse(
+                                    type='content_block_start',
+                                    index=idx,
+                                    content_block={
+                                        "type": "tool_use",
+                                        "id": tc.get("id"),
+                                        "name": ((tc.get("function") or {}).get("name")),
+                                        "input": {},
+                                    },
+                                    id=chat_id or '',
+                                    model=model or '',
+                                    role=role or 'assistant'
+                                )
+                            new_args = ((tc.get("function") or {}).get("arguments")) or ""
+                            old_args = tool_call_accumulators.get(idx, "")
+                            if len(new_args) > len(old_args):
+                                delta_text = new_args[len(old_args):]
+
+                                yield ClaudeChatCompletionResponse(
+                                    type='content_block_delta',
+                                    index=idx,
+                                    delta={
+                                        "type": "input_json_delta",
+                                        "partial_json": delta_text,
+                                    },
+                                    id=chat_id or '',
+                                    model=model or '',
+                                    role=role or 'assistant'
+                                )
+                                tool_call_accumulators[idx] = new_args
+
+                    # Text streaming
+                    elif isinstance(delta.get("content"), str):
+                        if not content_block_started:
+                            content_block_started = True
+
+                            yield ClaudeChatCompletionResponse(
+                                type='content_block_start',
+                                index=0,
+                                content_block={'type': 'text', 'text': ''},
+                                id=chat_id or '',
+                                model=model or '',
+                                role=role or 'assistant'
+                            )
+
+                        accumulated_content += delta["content"]
+
+                        yield ClaudeChatCompletionResponse(
                             type='content_block_delta',
                             index=0,
-                            delta={'type': 'text_delta', 'text': text_piece},
+                            delta={'type': 'text_delta', 'text': delta["content"]},
+                            id=chat_id or '',
+                            model=model or '',
+                            role=role or 'assistant'
                         )
-                        cb_delta.id = chat_id or ''
-                        cb_delta.model = model or ''
-                        cb_delta.role = role or 'assistant'
-                        yield cb_delta
 
-                    # If finish, close blocks and emit message_delta + message_stop
-                    if finish_reason is not None:
-                        # close the content block
-                        cb_stop = ClaudeChatCompletionResponse(
-                            type='content_block_stop',
+                    # Reasoning/thinking streaming (if provided by upstream)
+                    elif isinstance(delta.get("reasoning"), str):
+                        if not content_block_started:
+                            content_block_started = True
+
+                            yield ClaudeChatCompletionResponse(
+                                type='content_block_start',
+                                index=0,
+                                content_block={'type': 'text', 'text': ''},
+                                id=chat_id or '',
+                                model=model or '',
+                                role=role or 'assistant'
+                            )
+                        accumulated_reasoning += delta["reasoning"]
+
+                        yield ClaudeChatCompletionResponse(
+                            type='content_block_delta',
                             index=0,
+                            delta={'type': 'thinking_delta', 'thinking': delta["reasoning"]},
+                            id=chat_id or '',
+                            model=model or '',
+                            role=role or 'assistant'
                         )
-                        cb_stop.id = chat_id or ''
-                        cb_stop.model = model or ''
-                        cb_stop.role = role or 'assistant'
-                        yield cb_stop
-
-                        pending_stop_reason = map_finish_reason(finish_reason)
-
-                        msg_delta = ClaudeChatCompletionResponse(
-                            type='message_delta',
-                            delta={'stop_reason': pending_stop_reason, 'stop_sequence': None},
-                            usage={'output_tokens': output_tokens or 0},
-                        )
-                        msg_delta.id = chat_id or ''
-                        msg_delta.model = model or ''
-                        msg_delta.role = role or 'assistant'
-                        yield msg_delta
-                        # message_stop will be emitted when we receive [DONE] or in next iteration end
-                # ensure termination if upstream doesn't send [DONE]
-                if started:
-                    stop_event = ClaudeChatCompletionResponse(
-                        type='message_stop',
-                        id=chat_id,
-                        model=model,
-                        role=role,
-                        usage={'input_tokens': input_tokens, 'output_tokens': output_tokens},
-                        stop_reason=pending_stop_reason,
-                        stop_sequence=None,
-                    )
-                    yield stop_event
-                    yield ClaudeChatCompletionResponse(done=True)
-
             return response_generator()
         else:
             # Non-streaming: Convert OpenAI ChatCompletionResponse to Anthropic message object
             try:
-                res = response.json()
+                data = response.json()
             except Exception as e:
                 logger.error(f"Error parsing non-streaming response json: {e}")
                 raise
 
-            id_ = res.get('id', '')
-            model = res.get('model', '')
-            choices = (res.get('choices') or [])
-            role = 'assistant'
-            content_text = ''
-            finish_reason = None
-            if choices:
-                ch0 = choices[0]
-                finish_reason = ch0.get('finish_reason')
-                # OpenAI non-streaming places message here
-                msg = ch0.get('message') or {}
-                role = (msg.get('role') or role)
-                content_text = msg.get('content') or ch0.get('text') or ''
+            choice = (data.get("choices") or [{}])[0]
+            openai_message = choice.get("message", {})
 
-            usage = res.get('usage') or {}
-            input_tokens = usage.get('prompt_tokens', 0) if isinstance(usage, dict) else 0
-            output_tokens = usage.get('completion_tokens', 0) if isinstance(usage, dict) else 0
+            stop_reason = map_stop_reason(choice.get("finish_reason"))
+            tool_calls = openai_message.get("tool_calls") or []
 
-            anthropic_message = {
-                'id': id_,
-                'type': 'message',
-                'role': role or 'assistant',
-                'model': model,
-                'content': [{
-                    'type': 'text',
-                    'text': content_text or ''
-                }],
-                'stop_reason': map_finish_reason(finish_reason),
-                'stop_sequence': None,
-                'usage': {
-                    'input_tokens': input_tokens or 0,
-                    'output_tokens': output_tokens or 0
-                }
+            msg_id = data.get("id")
+
+            content_blocks: List[Dict[str, Any]] = []
+            content_text = openai_message.get("content")
+            if isinstance(content_text, str):
+                content_blocks.append({"text": content_text, "type": "text"})
+
+            for tc in tool_calls:
+                try:
+                    args_raw = (((tc or {}).get("function") or {}).get("arguments"))
+                    input_obj = json.loads(args_raw) if isinstance(args_raw, str) and args_raw else {}
+                except Exception:
+                    input_obj = {}
+                content_blocks.append({
+                    "type": "tool_use",
+                    "id": tc.get("id"),
+                    "name": ((tc or {}).get("function") or {}).get("name"),
+                    "input": input_obj,
+                })
+
+            usage = data.get("usage") or {}
+
+            anthropic_response = {
+                "content": content_blocks,
+                "id": msg_id,
+                "model": data.get("model"),
+                "role": openai_message.get("role"),
+                "stop_reason": stop_reason,
+                "stop_sequence": None,
+                "type": "message",
+                "usage": {
+                    "input_tokens": usage.get("prompt_tokens")
+                    if usage
+                    else 0,
+                    "output_tokens": usage.get("completion_tokens")
+                    if usage
+                    else _approx_tokens_from_text(content_text or ""),
+                },
             }
-            return ClaudeChatCompletionResponse(**anthropic_message)
+            return ClaudeChatCompletionResponse(**anthropic_response)
 
     @classmethod
     def _transform_to_anthropic_format(cls, prompt_messages: Union[ChatCompletionRequest, CompletionRequest],

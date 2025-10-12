@@ -47,7 +47,7 @@ class ClaudeCompletionService:
         from runtime.callbacks.message_record_callback import MessageRecordCallback
 
         model_manager = ModelManager()
-        model_instance = model_manager.get_model_instance(model_name=req.model)
+        model_instance = model_manager.get_anthropic_model_instance(model_name=req.model)
         return model_instance.invoke_llm(prompt_messages=req, callbacks=[MessageRecordCallback()])
 
     @classmethod

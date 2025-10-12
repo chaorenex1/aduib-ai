@@ -1,7 +1,7 @@
 import logging
 from typing import Union, Generator, Any
 
-from runtime.entities import ToolPromptMessage, AssistantPromptMessage
+from runtime.entities import ToolPromptMessage, AssistantPromptMessage, TextPromptMessageContent, UserPromptMessage
 from runtime.entities.llm_entities import (
     ChatCompletionRequest,
     CompletionRequest,
@@ -37,10 +37,18 @@ class LLMTransformation:
         #     prompt_messages.miniP = model_params.get("miniP", 0.0)
         # 判断模型名称是否包含Qwen3
         if 'Qwen3' in prompt_messages.model and isinstance(prompt_messages, ChatCompletionRequest):
-            if prompt_messages.enable_thinking:
-                prompt_messages.messages[-1].content = prompt_messages.messages[-1].content+" /think"
-            else:
-                prompt_messages.messages[-1].content = prompt_messages.messages[-1].content+" /no_think"
+            content=prompt_messages.messages[-1].content
+            if isinstance(content,str):
+                if prompt_messages.enable_thinking:
+                    prompt_messages.messages[-1].content = content+" /think"
+                else:
+                    prompt_messages.messages[-1].content = content+" /no_think"
+            elif isinstance(content,list):
+                if prompt_messages.enable_thinking:
+                    content.insert(len(content),TextPromptMessageContent(data="/think",text="/think"))
+                else:
+                    content.insert(len(content),TextPromptMessageContent(data="/no_think",text="/no_think"))
+                prompt_messages.messages[-1].content = content
         return prompt_messages
 
     @classmethod

@@ -236,9 +236,11 @@ class ModelManager:
     def get_anthropic_model_instance(self, model_name: str, provider_name: str = None) -> Optional[ModelInstance]:
         model_instance:ModelInstance=self.get_model_instance(model_name,provider_name)
         if model_instance.provider.provider_credential.sdk_type!=ProviderSDKType.ANTHROPIC:
-            model_instance.provider.provider_credential.sdk_type=ProviderSDKType.ANTHROPIC
+            model_instance.model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
+            model_instance.model_instance.credentials["none_anthropic"]=True
             model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
             model_instance.credentials["none_anthropic"]=True
         else:
+            model_instance.model_instance.credentials["none_anthropic"]=False
             model_instance.credentials["none_anthropic"]=False
         return model_instance
