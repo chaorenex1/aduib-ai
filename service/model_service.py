@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Optional
 
 from controllers.params import CreateModelRequest, ModelCard, ModelList
@@ -7,6 +8,8 @@ from models.engine import get_db
 from models.model import Model
 from runtime.entities.model_entities import AIModelEntity, ModelFeature, ModelType, PriceConfig
 from .error.error import ModelNotFound, ModelProviderNotFound
+
+logger = logging.getLogger(__name__)
 
 
 def get_model_features(model: Model) -> list[ModelFeature]:
@@ -32,7 +35,8 @@ class ModelService:
         with get_db() as session:
             model = session.query(Model).filter_by(name=model_name).first()
             if not model:
-                raise ModelNotFound("Model not found")
+                logger.error(f"Model {model_name} not found")
+                raise ModelNotFound("Model "+model_name+" not found")
         return model
 
     @staticmethod
