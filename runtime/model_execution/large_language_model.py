@@ -151,6 +151,12 @@ class LlMModel(AiModel):
                             message_content += chunkContent.get('partial_json', '')
                         elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'tool_use':
                             message_content += json.dumps(chunkContent.get('input', ''))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'tool_result':
+                            message_content += json.dumps(chunkContent.get('content', ''))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'mcp_tool_use':
+                            message_content += json.dumps(chunkContent.get('input', ''))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'mcp_tool_result':
+                            message_content += json.dumps(chunkContent.get('content', ''))
                 result.message = AssistantPromptMessage(content=message_content, tool_calls=tools_calls)
                 result.id = message_id
         except Exception as e:
@@ -290,6 +296,14 @@ class LlMModel(AiModel):
                             message_content.append(TextPromptMessageContent(data=chunkContent.get('thinking','')))
                         elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'input_json_delta':
                             message_content.append(TextPromptMessageContent(data=chunkContent.get('partial_json', '')))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'tool_use':
+                            message_content.append(TextPromptMessageContent(data=json.dumps(chunkContent.get('input', ''))))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'tool_result':
+                            message_content.append(TextPromptMessageContent(data=json.dumps(chunkContent.get('content', ''))))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'mcp_tool_use':
+                            message_content.append(TextPromptMessageContent(data=json.dumps(chunkContent.get('input', ''))))
+                        elif isinstance(chunkContent, dict) and chunkContent.get('type') == 'mcp_tool_result':
+                            message_content.append(TextPromptMessageContent(data=json.dumps(chunkContent.get('content', ''))))
                         else:
                             message_content.append(TextPromptMessageContent(data=''))
                     system_fingerprint = "claude"  # Claude does not return system fingerprint, use fixed value

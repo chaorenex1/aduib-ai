@@ -191,7 +191,7 @@ class ClaudeTextPromptMessageContent(PromptMessageContent):
 
 class ClaudeThinkingPromptMessageContent(PromptMessageContent):
     type: Literal[PromptMessageContentType.CLAUDE_THINKING] = PromptMessageContentType.CLAUDE_THINKING
-    thinking: str = Field(default="", description="the thinking content of prompt message")
+    thinking: Union[str,list[dict[str,Any]]] = Field(default="", description="the thinking content of prompt message")
     signature: str = Field(default="", description="the signature of thinking content of prompt message")
 
 class ClaudeRedactedTextPromptMessageContent(PromptMessageContent):
@@ -207,7 +207,7 @@ class ClaudeToolUsePromptMessageContent(PromptMessageContent):
 class ClaudeToolResultPromptMessageContent(PromptMessageContent):
     type: Literal[PromptMessageContentType.CLAUDE_TOOL_RESULT] = PromptMessageContentType.CLAUDE_TOOL_RESULT
     tool_use_id: str = Field(default="", description="the tool use id of tool result content of prompt message")
-    content: str = Field(default="", description="the content of tool result content of prompt message")
+    content: Union[str,list[dict[str,Any]]] = Field(default="", description="the content of tool result content of prompt message")
     is_error: Optional[bool] = Field(default=False, description="whether the tool result content is error")
 
 class ClaudeMCPUserPromptMessageContent(PromptMessageContent):
@@ -221,7 +221,7 @@ class ClaudeMCPUserPromptMessageContent(PromptMessageContent):
 class ClaudeMCPResultPromptMessageContent(PromptMessageContent):
     type: Literal[PromptMessageContentType.CLAUDE_MCP_RESULT] = PromptMessageContentType.CLAUDE_MCP_RESULT
     mcp_user_id: str = Field(default="", description="the mcp user id of mcp result content of prompt message")
-    content: str = Field(default="", description="the content of mcp result content of prompt message")
+    content: Union[str,list[dict[str,Any]]] = Field(default="", description="the content of mcp result content of prompt message")
     is_error: Optional[bool] = Field(default=False, description="whether the mcp result content is error")
 
 
@@ -263,7 +263,7 @@ class PromptMessage(ABC, BaseModel):
     """
 
     role: PromptMessageRole
-    content: Optional[str | Sequence[PromptMessageContentUnionTypes]] = None
+    content: Optional[Union[str, PromptMessageContentUnionTypes, list[PromptMessageContentUnionTypes]]] = None
     name: Optional[str] = None
 
     def is_empty(self) -> bool:

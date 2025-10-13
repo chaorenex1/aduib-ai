@@ -4,7 +4,8 @@ from typing import Union, Optional, Sequence
 from libs.context import validate_api_key_in_internal
 from models import ConversationMessage
 from runtime.callbacks.base_callback import Callback
-from runtime.entities import PromptMessage, ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessageFunction
+from runtime.entities import PromptMessage, ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessageFunction, \
+    TextPromptMessageContent
 from runtime.model_execution import AiModel
 from service import ConversationMessageService
 from utils import AsyncUtils, jsonable_encoder
@@ -68,7 +69,14 @@ class MessageRecordCallback(Callback):
         if isinstance(result.message.content, str):
             message_content = result.message.content
         elif isinstance(result.message.content, list):
-            message_content = "".join([content.data for content in result.message.content])
+            for c in result.message.content:
+                if isinstance(c, TextPromptMessageContent):
+                    if c.text:
+                        message_content += c.text
+                    if c.data:
+                        message_content += c.data
+                else:
+                    message_content += json.dumps(c)
 
         # remove <think> and </think> including the content between them
         if message_content.startswith("<think>"):
