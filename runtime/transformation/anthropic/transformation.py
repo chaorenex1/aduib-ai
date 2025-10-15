@@ -671,7 +671,7 @@ class AnthropicTransformation(LLMTransformation):
                         if isinstance(item, dict) and item.get("type") == "tool_result":
                             messages.append({
                                 "role": "tool",
-                                "content": item.get("text") or item.get("content"),
+                                "content": json.dumps(item.get("text")) or json.dumps(item.get("content")),
                                 "tool_call_id": item.get("tool_use_id"),
                             })
 
