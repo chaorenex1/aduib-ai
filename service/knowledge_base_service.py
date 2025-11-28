@@ -55,8 +55,8 @@ class KnowledgeBaseService:
 
         from runtime.generator.generator import LLMGenerator
 
-        # name,language = LLMGenerator.generate_conversation_name(crawl_text)
-        name, language = "", "chinese"
+        name,language = LLMGenerator.generate_conversation_name(crawl_text)
+        # name, language = LLMGenerator.generate_conversation_name(crawl_text), "chinese"
         with get_db() as session:
             existing_kb = (
                 session.query(KnowledgeBase).filter_by(default_base=1, rag_type=RagType.PARAGRAPH).one_or_none()
