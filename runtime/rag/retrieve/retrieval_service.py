@@ -41,15 +41,15 @@ class RetrievalService:
         # Optimize multithreading with thread pools
         with ThreadPoolExecutor(thread_name_prefix="Retrieval") as executor:  # type: ignore
             futures = [
-                executor.submit(
-                    cls.keyword_search,
-                    knowledge_base_id=knowledge_base_id,
-                    query=query,
-                    top_k=top_k,
-                    all_documents=all_documents,
-                    exceptions=exceptions,
-                    knowledge_ids_filter=knowledge_ids_filter,
-                ),
+                # executor.submit(
+                #     cls.keyword_search,
+                #     knowledge_base_id=knowledge_base_id,
+                #     query=query,
+                #     top_k=top_k,
+                #     all_documents=all_documents,
+                #     exceptions=exceptions,
+                #     knowledge_ids_filter=knowledge_ids_filter,
+                # ),
                 executor.submit(
                     cls.embedding_search,
                     knowledge_base_id=knowledge_base_id,
@@ -168,14 +168,14 @@ class RetrievalService:
                 if not knowledge_base:
                     raise ValueError("knowledge not found")
 
-            vector_processor = Vector(knowledge=knowledge_base)
+                vector_processor = Vector(knowledge=knowledge_base)
 
-            documents = vector_processor.search_by_full_text(
-                cls.escape_query_for_search(query), top_k=top_k, knowledge_ids_filter=knowledge_ids_filter
-            )
-            logger.debug(f"Full Text search found {len(documents)} documents.")
-            if documents:
-                all_documents.extend(documents)
+                documents = vector_processor.search_by_full_text(
+                    cls.escape_query_for_search(query), top_k=top_k, knowledge_ids_filter=knowledge_ids_filter
+                )
+                logger.debug(f"Full Text search found {len(documents)} documents.")
+                if documents:
+                    all_documents.extend(documents)
         except Exception as e:
             exceptions.append(str(e))
 

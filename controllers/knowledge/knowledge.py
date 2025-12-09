@@ -29,6 +29,13 @@ async def create_paragraph_rag(file: UploadFile = File(...)):
     return BaseResponse.ok()
 
 
+@router.get("/knowledge/rag/paragraph/retry")
+@catch_exceptions
+async def retry_paragraph_rag():
+    await KnowledgeBaseService.retry_failed_paragraph_rag_embeddings()
+    return BaseResponse.ok()
+
+
 @router.post("/knowledge/rag/paragraph/background")
 @catch_exceptions
 async def create_paragraph_rag_background(background_tasks: BackgroundTasks,file: UploadFile = File(...)):

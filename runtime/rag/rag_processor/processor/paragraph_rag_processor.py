@@ -63,19 +63,21 @@ class ParagraphRAGProcessor(BaseRAGProcessor):
     def load(self, knowledge: KnowledgeBase, documents: list[Document], with_keywords: bool = True, **kwargs):
         vector = Vector(knowledge)
         vector.create(documents)
-        keywords_list = kwargs.get("keywords_list")
-        keyword = Keyword(knowledge)
-        if keywords_list and len(keywords_list) > 0:
-            keyword.add_texts(documents, keywords_list=keywords_list)
-        else:
-            keyword.add_texts(documents)
+
+        if with_keywords:
+            keywords_list = kwargs.get("keywords_list")
+            keyword = Keyword(knowledge)
+            if keywords_list and len(keywords_list) > 0:
+                keyword.add_texts(documents, keywords_list=keywords_list)
+            else:
+                keyword.add_texts(documents)
 
     def clean(self, knowledge: KnowledgeBase, node_ids: Optional[list[str]], with_keywords: bool = True, **kwargs):
         vector = Vector(knowledge)
         if node_ids and len(node_ids) > 0:
             vector.delete_by_ids(node_ids)
         else:
-            vector.delete_all()
+            vector.delete()
         if with_keywords:
             keyword = Keyword(knowledge)
             if node_ids and len(node_ids) > 0:

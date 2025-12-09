@@ -8,9 +8,8 @@ from sqlalchemy import select
 
 from component.storage.base_storage import storage_manager
 from models import KnowledgeBase, get_db, FileResource, KnowledgeEmbeddings
-from models.document import KnowledgeDocument
+from models.document import KnowledgeDocument, KnowledgeKeywords
 from runtime.entities.document_entities import Document
-from runtime.generator.generator import LLMGenerator
 from runtime.model_manager import ModelManager
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 from runtime.rag.extractor.entity.extraction_source_type import ExtractionSourceType
@@ -59,6 +58,30 @@ class RagManager:
                     knowledge_doc.stopped_at = datetime.datetime.now()
                     session.commit()
 
+    def clean(self,knowledge_docs: list[KnowledgeDocument]):
+        """Clean the RAG data."""
+        with get_db() as session:
+            for knowledge_doc in knowledge_docs:
+                try:
+                    kb = session.query(KnowledgeBase).filter_by(id=knowledge_doc.knowledge_base_id).one_or_none()
+                    processing_rule = kb.data_process_rule
+                    if not processing_rule:
+                        raise ValueError("no process rule found")
+                    rag_type = knowledge_doc.rag_type
+                    rag_processor = RAGProcessorFactory.get_rag_processor(rag_type)
+
+                    rag_processor.clean(knowledge_doc, [str(kb.id)],with_keywords=True)
+
+                    session.query(KnowledgeEmbeddings).filter_by(document_id=knowledge_doc.id).delete()
+                    session.query(KnowledgeKeywords).filter_by(document_id=kb.id).delete()
+                    session.commit()
+                except Exception as e:
+                    logger.exception("clean document failed")
+                    knowledge_doc.rag_status = "error"
+                    knowledge_doc.error_message = str(e)
+                    knowledge_doc.stopped_at = datetime.datetime.now()
+                    session.commit()
+
     def _extract(
         self, rag_processor: BaseRAGProcessor, knowledge_doc: KnowledgeDocument, knowledge_base: KnowledgeBase
     ) -> list[Document]:
@@ -85,8 +108,6 @@ class RagManager:
             _knowledge_doc = session.query(KnowledgeDocument).filter_by(id=knowledge_doc.id).one_or_none()
             doc_content = "".join(doc.content for doc in text_docs)
             if _knowledge_doc:
-                from runtime.generator.generator import LLMGenerator
-
                 # name, language = LLMGenerator.generate_conversation_name(doc_content)
                 # knowledge_doc.doc_language = language
                 _knowledge_doc.content = doc_content
@@ -243,6 +264,6 @@ class RagManager:
             tokens += embedding_model_instance.get_text_embedding_num_tokens(page_content_list)
 
         # load index
-        rag_processor.load(dataset, chunk_documents, with_keywords=True)
+        rag_processor.load(dataset, chunk_documents, with_keywords=False)
 
         return tokens

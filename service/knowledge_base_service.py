@@ -250,3 +250,48 @@ class KnowledgeBaseService:
                 }
                 docs.append(meta)
         return docs
+
+    @classmethod
+    async def retry_failed_paragraph_rag_embeddings(cls):
+        """
+        Retry failed paragraph RAG embeddings.
+        """
+        with get_db() as session:
+            blog_list: list[KnowledgeDocument] = session.query(KnowledgeDocument).filter(
+                KnowledgeDocument.rag_status != 'completed',
+                KnowledgeDocument.rag_type == 'paragraph',
+                KnowledgeDocument.rag_count < 3,
+            ).all()
+            for blog in blog_list:
+                try:
+                    from runtime.rag_manager import RagManager
+                    manager = RagManager()
+                    blog_ = [blog]
+                    manager.clean(blog_)
+                    manager.run(blog_)
+                    blog.rag_count += 1
+                    session.commit()
+                except Exception as e:
+                    logger.exception(f"Failed to process document ID {blog.id}: {e}")
+                    session.rollback()
+
+
+    @classmethod
+    async  def clean_knowledge_documents(cls):
+        """
+        Clean knowledge documents with failed RAG status exceeding retry limit.
+        """
+        with get_db() as session:
+            docs_to_delete: list[KnowledgeDocument] = session.query(KnowledgeDocument).filter(
+                KnowledgeDocument.rag_status != 'completed',
+                KnowledgeDocument.rag_count >= 3,
+            ).all()
+            from runtime.rag_manager import RagManager
+            try:
+                RagManager().clean(docs_to_delete)
+                for doc in docs_to_delete:
+                    session.delete(doc)
+                session.commit()
+            except Exception as e:
+                logger.exception(f"Failed to clean knowledge documents: {e}")
+                session.rollback()
