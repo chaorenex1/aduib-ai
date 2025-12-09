@@ -136,7 +136,11 @@ class KnowledgeBaseService:
                 session.commit()
                 session.refresh(doc)
 
-        RagManager().run([doc])
+                RagManager().run([doc])
+            else:
+                logger.warning("Document already exists in knowledge base.")
+                if doc.rag_status != "completed":
+                    RagManager().run([doc])
 
     @classmethod
     async def qa_rag_from_conversation_message(cls,message_id: str) -> None:
