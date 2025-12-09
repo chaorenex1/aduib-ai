@@ -6,7 +6,6 @@ BRANCH="main"
 CONTAINER_NAME="${PROJECT_NAME}-app"
 BASE_IMAGE_NAME="aduib-ai-base"
 IMAGE_NAME="${PROJECT_NAME}"
-cd ".."
 WORK_DIR=$(pwd)
 
 LOG_HOST_DIR="${WORK_DIR}/logs"
@@ -28,19 +27,6 @@ err() { echo -e "${RED}[ERROR]${NC} $*"; }
 #trap 'err "部署失败"; exit 1' ERR
 
 log "开始部署 ${PROJECT_NAME}"
-
-# 克隆或更新代码
-if [ -d ".git" ]; then
-  log "仓库已存在，拉取远端 ${BRANCH}"
-  git fetch origin "${BRANCH}"
-  git checkout "${BRANCH}"
-  git reset --hard "origin/${BRANCH}"
-  git clean -fd
-else
-  log "克隆仓库 ${REPO_URL}"
-  rm -rf ./*
-  git clone --branch "${BRANCH}" "${REPO_URL}" .
-fi
 
 #调用aduib_mcp_server_base.sh构建基础镜像
 if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${BASE_IMAGE_NAME}:"; then
