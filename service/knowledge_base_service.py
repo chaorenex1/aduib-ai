@@ -123,7 +123,7 @@ class KnowledgeBaseService:
             if not doc:
                 doc = KnowledgeDocument(
                     knowledge_base_id=existing_kb.id,
-                    title=filename,
+                    title=name,
                     file_id=file_record.id,
                     doc_language=language,
                     doc_from="blog_content",
