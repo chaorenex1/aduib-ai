@@ -70,10 +70,10 @@ class RagManager:
                     rag_type = knowledge_doc.rag_type
                     rag_processor = RAGProcessorFactory.get_rag_processor(rag_type)
 
-                    rag_processor.clean(knowledge_doc, [str(kb.id)],with_keywords=True)
+                    rag_processor.clean(kb, [str(knowledge_doc.id)],with_keywords=True)
 
                     session.query(KnowledgeEmbeddings).filter_by(document_id=knowledge_doc.id).delete()
-                    session.query(KnowledgeKeywords).filter_by(document_id=kb.id).delete()
+                    session.query(KnowledgeKeywords).filter_by(document_id=knowledge_doc.id).delete()
                     session.commit()
                 except Exception as e:
                     logger.exception("clean document failed")
