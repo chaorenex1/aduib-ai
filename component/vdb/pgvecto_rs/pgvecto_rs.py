@@ -5,7 +5,6 @@ from typing import Any
 from pgvecto_rs.sqlalchemy import VECTOR  # type: ignore
 from sqlalchemy import Float, select, func, bindparam, desc
 from sqlalchemy import text as sql_text
-from sqlalchemy.orm import Session
 
 from component.vdb.base_vector import BaseVector
 from component.vdb.vector_factory import AbstractVectorFactory
@@ -29,7 +28,22 @@ class PGVectoRS(BaseVector):
         return VectorType.PGVECTO_RS
 
     def save(self, texts: list[Document], embeddings: list[list[float]], **kwargs):
-        self.create_collection(len(embeddings[0]))
+        # Get dimension from first embedding, handling Vector objects
+        first_embedding = embeddings[0]
+        if hasattr(first_embedding, '__len__'):
+            dimension = len(first_embedding)
+        else:
+            # Handle Vector objects by converting to string and parsing
+            embedding_str = str(first_embedding)
+            if embedding_str.startswith("Vector(") and embedding_str.endswith(")"):
+                # Extract array from "Vector([...])" and count elements
+                array_str = embedding_str[8:-2]  # Remove "Vector([" and "])"
+                dimension = len(array_str.split(','))
+            else:
+                # Fallback to default dimension
+                dimension = self.dim
+
+        self.create_collection(dimension)
         self.add_texts(texts, embeddings)
 
     def create_collection(self, dimension: int):
@@ -53,6 +67,30 @@ class PGVectoRS(BaseVector):
         with get_db() as session:
             for document, embedding in zip(documents, embeddings):
                 pk = document.metadata["doc_id"]
+                # Convert embedding to proper vector format for pgvecto_rs
+                if embedding is not None:
+                    # Convert to string first to check if it's a Vector object
+                    embedding_str = str(embedding)
+
+                    # Check if it's a Vector object string representation (starts with "Vector(")
+                    if embedding_str.startswith("Vector(") and embedding_str.endswith(")"):
+                        # Extract the array part from "Vector([...])" -> "[...]"
+                        vector_str = embedding_str[7:-1]  # Remove "Vector(" and ")"
+                    elif isinstance(embedding, str):
+                        # Already a string, use as-is if it's in correct format
+                        vector_str = embedding if embedding.startswith("[") else f"[{embedding}]"
+                    elif hasattr(embedding, '__iter__'):
+                        # It's an iterable (list, numpy array, etc.)
+                        try:
+                            vector_str = f"[{','.join(map(str, embedding))}]"
+                        except TypeError:
+                            # Last resort: try to convert to list first
+                            vector_str = f"[{','.join(map(str, list(embedding)))}]"
+                    else:
+                        vector_str = str(embedding)
+                else:
+                    vector_str = "[]"
+
                 update_stmt = sql_text(
                     f"""UPDATE {self._collection_name} SET content = :content, meta = :metadata, vector = :vector WHERE id = :id;"""
                 )
@@ -62,7 +100,7 @@ class PGVectoRS(BaseVector):
                         "id": pk,
                         "content": document.content,
                         "metadata": json.dumps(document.metadata),
-                        "vector": f"[{','.join(map(str, embedding))}]",
+                        "vector": vector_str,
                     },
                 )
                 pks.append(pk)
@@ -97,7 +135,7 @@ class PGVectoRS(BaseVector):
         if result:
             ids = [item[0] for item in result]
             if ids:
-                with Session(self._client) as session:
+                with get_db() as session:
                     select_statement = sql_text(f"DELETE FROM {self._collection_name} WHERE id = ANY(:ids)")
                     session.execute(select_statement, {"ids": ids})
                     session.commit()
@@ -117,11 +155,13 @@ class PGVectoRS(BaseVector):
 
     def search_by_vector(self, query_vector: list[float], **kwargs: Any) -> list[Document]:
         with get_db() as session:
+            # Convert query_vector to proper format for pgvecto_rs
+            vector_str = f"[{','.join(map(str, query_vector))}]"
             stmt = (
                 select(
                     self._table,
                     self._table.vector.op(self._distance_op, return_type=Float)(
-                        query_vector,
+                        vector_str,
                     ).label("distance"),
                 )
                 .limit(kwargs.get("top_k", 4))

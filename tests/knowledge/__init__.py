@@ -100,3 +100,14 @@ def test_knowledge_retrieval_browser_history():
     assert response.status_code == 200
     data = response.json()
     print(data)
+
+
+
+def test_paragraph_rag_retry():
+    response = client.get(
+        "/v1/knowledge/rag/paragraph/retry",
+        headers={"Authorization": "Bearer $2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    print(data)

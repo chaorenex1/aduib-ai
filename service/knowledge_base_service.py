@@ -260,6 +260,7 @@ class KnowledgeBaseService:
             blog_list: list[KnowledgeDocument] = session.query(KnowledgeDocument).filter(
                 KnowledgeDocument.rag_status != 'completed',
                 KnowledgeDocument.rag_type == 'paragraph',
+                KnowledgeDocument.id=='448258a0-b3a4-445e-8374-6efa235185a2',
                 KnowledgeDocument.rag_count < 3,
             ).all()
             for blog in blog_list:

@@ -78,7 +78,7 @@ class RagManager:
                 except Exception as e:
                     logger.exception("clean document failed")
                     knowledge_doc.rag_status = "error"
-                    knowledge_doc.error_message = str(e)
+                    knowledge_doc.error_message = "clean document failed"
                     knowledge_doc.stopped_at = datetime.datetime.now()
                     session.commit()
 
@@ -152,6 +152,8 @@ class RagManager:
         # save node to document segment
         with get_db() as session:
             docs = []
+            # clean duplicate hash
+            documents=list({doc.metadata["doc_hash"]: doc for doc in documents}.values())
             for document in documents:
                 hash_ = document.metadata["doc_hash"]
                 count_ = session.query(KnowledgeEmbeddings).filter(KnowledgeEmbeddings.hash == hash_).one_or_none()
