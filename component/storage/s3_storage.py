@@ -54,7 +54,7 @@ class S3Storage(BaseStorage):
         self.client.delete_object(Bucket=self.bucket_name, Key=filename)
 
     def download(self, filename: str, target_file_path: str):
-        self.download(filename, target_file_path)
+        self.client.download_file(self.bucket_name, filename, target_file_path)
 
     def size(self, filename: str) -> int:
         response = self.client.head_object(Bucket=self.bucket_name, Key=filename)

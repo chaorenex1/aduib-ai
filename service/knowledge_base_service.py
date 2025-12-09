@@ -91,6 +91,54 @@ class KnowledgeBaseService:
         RagManager().run([doc])
 
     @classmethod
+    async def paragraph_rag_from_blog_content(cls, blog_content: bytes,filename:str) -> None:
+        """
+        Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.
+        """
+        from service import FileService
+        from runtime.rag_manager import RagManager
+
+        # file_hash = hashlib.sha256(blog_content).hexdigest()
+        file_name = f"/blog_content/{filename}"
+        file_record = FileService.upload_bytes(file_name, blog_content)
+
+        from runtime.generator.generator import LLMGenerator
+
+        name, language = LLMGenerator.generate_conversation_name(str(blog_content))
+        with get_db() as session:
+            existing_kb = (
+                session.query(KnowledgeBase).filter_by(default_base=1, rag_type=RagType.PARAGRAPH).one_or_none()
+            )
+            if not existing_kb:
+                existing_kb = cls.create_knowledge_base("Default Paragraph KB", RagType.PARAGRAPH, 1)
+
+            doc = (
+                session.query(KnowledgeDocument)
+                .filter_by(
+                    knowledge_base_id=existing_kb.id,
+                    file_id=str(file_record.id),
+                )
+                .one_or_none()
+            )
+            if not doc:
+                doc = KnowledgeDocument(
+                    knowledge_base_id=existing_kb.id,
+                    title=filename,
+                    file_id=file_record.id,
+                    doc_language=language,
+                    doc_from="blog_content",
+                    rag_type=RagType.PARAGRAPH,
+                    data_source_type="file",
+                    rag_status="pending",
+                )
+
+                session.add(doc)
+                session.commit()
+                session.refresh(doc)
+
+        RagManager().run([doc])
+
+    @classmethod
     async def qa_rag_from_conversation_message(cls,message_id: str) -> None:
         """
         Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.

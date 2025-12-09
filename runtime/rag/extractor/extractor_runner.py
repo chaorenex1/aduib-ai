@@ -29,7 +29,7 @@ class ExtractorRunner:
                 Path.mkdir(Path(file_path), parents=True, exist_ok=True)
             # download file
             target_file = os.path.join(file_path, file.file_hash + suffix)
-            storage_manager.download(file.file_name, target_file)
+            storage_manager.download(file.file_path, target_file)
             input_file = Path(target_file)
             file_type = input_file.suffix.lower()
             extractor: Optional[BaseExtractor] = None

@@ -96,7 +96,10 @@ class StorageManager:
 
     def download(self, filename: str, target_file_path: str):
         try:
-            self.storage_instance.download(filename, target_file_path)
+            load = self.load(filename, stream=True)
+            with open(target_file_path, "wb") as f:
+                for chunk in load:
+                    f.write(chunk)
         except Exception as e:
             log.exception(f"Failed to download file {filename}")
             raise e

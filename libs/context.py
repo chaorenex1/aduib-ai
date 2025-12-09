@@ -108,16 +108,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         start_time = time.time()
 
-        # 获取请求体（注意：只能读取一次）
-        body = await request.body()
-        try:
-            body_data = body.decode("utf-8")
-        except Exception:
-            body_data = str(body)
-
         logger.info(f"Request: {request.method} {request.url}")
         logger.info(f"Headers: {dict(request.headers)}")
-        logger.info(f"Body length: {len(body_data)}")
 
         # 调用下一个中间件
         response: Response = await call_next(request)

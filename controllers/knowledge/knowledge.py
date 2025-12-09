@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File, BackgroundTasks
 
 from controllers.common.base import BaseResponse, catch_exceptions
 from controllers.params import KnowledgeBasePayload, KnowledgeRetrievalPayload, BrowserHistoryPayload
@@ -19,6 +19,20 @@ def create_knowledge(payload: KnowledgeBasePayload):
 @catch_exceptions
 async def create_qa_rag():
     await KnowledgeBaseService.qa_rag_from_conversation_message()
+    return BaseResponse.ok()
+
+
+@router.post("/knowledge/rag/paragraph")
+@catch_exceptions
+async def create_paragraph_rag(file: UploadFile = File(...)):
+    await KnowledgeBaseService.paragraph_rag_from_blog_content(await file.read(),file.filename)
+    return BaseResponse.ok()
+
+
+@router.post("/knowledge/rag/paragraph/background")
+@catch_exceptions
+async def create_paragraph_rag_background(background_tasks: BackgroundTasks,file: UploadFile = File(...)):
+    background_tasks.add_task(KnowledgeBaseService.paragraph_rag_from_blog_content,await file.read())
     return BaseResponse.ok()
 
 
