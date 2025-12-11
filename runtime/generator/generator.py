@@ -275,3 +275,22 @@ class LLMGenerator:
             return {"tool_name": tool_name, "tool_arguments": tool_arguments, "raw_response": answer}
         else:
             return {"tool_name": None, "tool_arguments": {}, "raw_response": answer}
+
+    @classmethod
+    def generate_content(cls, prompt: str,temperature:float=0.7) -> str:
+        model_manager = ModelManager()
+        model_instance = model_manager.get_default_model_instance(
+            model_type=ModelType.LLM.to_model_type(),
+        )
+        prompt_messages = [
+            UserPromptMessage(role=PromptMessageRole.USER, content=prompt),
+        ]
+        request = ChatCompletionRequest(
+            model=model_instance.model,
+            messages=prompt_messages,
+            temperature=temperature,
+            stream=False,
+        )
+        response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
+        answer = cast(str, response.message.content)
+        return answer.strip()
