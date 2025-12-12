@@ -738,6 +738,7 @@ class HTTPHandler:
                 setattr(e, "text", error_text)
 
             setattr(e, "status_code", e.response.status_code)
+            verbose_logger.debug(f"HTTPStatusError error: {e.message},{e.text}")
             raise e
         except Exception as e:
             raise e

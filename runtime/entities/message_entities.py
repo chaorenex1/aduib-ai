@@ -261,10 +261,13 @@ class PromptMessage(ABC, BaseModel):
     """
     Model class for prompt message.
     """
+    model_config = {"extra": "allow", "arbitrary_types_allowed": True}
 
     role: PromptMessageRole
     content: Optional[Union[str, PromptMessageContentUnionTypes, list[PromptMessageContentUnionTypes]]] = None
     name: Optional[str] = None
+    tool_calls: Optional[list[Any]] = None  # to be overridden in AssistantPromptMessage
+    tool_call_id: Optional[str] = None # to be overridden in ToolPromptMessage
 
     def is_empty(self) -> bool:
         """
@@ -298,12 +301,12 @@ class AssistantPromptMessage(PromptMessage):
             Model class for assistant prompt message tool call function.
             """
 
-            name: str
-            arguments: str
+            name: Optional[str]=None
+            arguments: Optional[str]=None
 
-        id: str
-        type: str
-        function: ToolCallFunction
+        id: Optional[str]=Field(default=None)
+        type: Optional[str]=Field(default=None)
+        function: Optional[ToolCallFunction]=None
 
         @field_validator("id", mode="before")
         @classmethod
@@ -314,7 +317,7 @@ class AssistantPromptMessage(PromptMessage):
                 return value
 
     role: PromptMessageRole = PromptMessageRole.ASSISTANT
-    tool_calls: list[ToolCall] = []
+    tool_calls: list[ToolCall] = None
 
     def is_empty(self) -> bool:
         """

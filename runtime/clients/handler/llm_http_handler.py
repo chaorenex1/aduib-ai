@@ -1,5 +1,6 @@
 import json
-from typing import Union, Generator, TypeVar, Any
+import logging
+from typing import Union, Generator, TypeVar, Any, Dict
 
 from httpx import Response
 from pydantic import BaseModel
@@ -10,8 +11,9 @@ from runtime.entities.llm_entities import ChatCompletionRequest, CompletionReque
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
 from utils import jsonable_encoder
+logger=logging.getLogger(__name__)
 
-T = TypeVar("T", bound=(BaseModel | dict | list | bool | str))
+T = TypeVar("T", bound=(BaseModel | dict | list | bool | str))\
 
 
 class LLMHttpHandler:
@@ -30,6 +32,7 @@ class LLMHttpHandler:
         self.path = api_base + api_path
         self.headers = credentials["headers"]
         self.stream = stream
+        self.tool_calls_buffer: Dict[int, Dict[str, Any]] = {}
 
     def _request(
         self,
@@ -77,8 +80,11 @@ class LLMHttpHandler:
                 if line == "[DONE]":
                     yield type(done=True)  # type: ignore
                 else:
-                    yield type(**json.loads(line))  # type: ignore
+                    logger.debug(f"Parsing line: {line}")
+                    chunk  = json.loads(line)
+                    yield type(**chunk)  # type: ignore
             except Exception as e:
+                logger.error(f"Error parsing line: {line}, error: {e}")
                 raise e
 
     def _request_with_model(
@@ -98,7 +104,7 @@ class LLMHttpHandler:
     def completion_request(
         self, prompt_messages: Union[ChatCompletionRequest, CompletionRequest]
     ) -> Generator[ChatCompletionResponse, None, None] | ChatCompletionResponse:
-        return self.completion_dict(jsonable_encoder(obj=prompt_messages, exclude_none=True, exclude_unset=True))
+        return self.completion_dict(jsonable_encoder(obj=prompt_messages, exclude_none=True))
 
     def completion_dict(
         self, prompt_messages: dict[str, Any]

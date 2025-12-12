@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 from enum import StrEnum
 from typing import Optional, Union, Sequence, Any
@@ -17,6 +18,8 @@ from .message_entities import (
     ThinkingOptions, PromptMessageTool,
 )
 from .model_entities import ModelUsage, PriceInfo
+
+logger=logging.getLogger(__name__)
 
 
 class ChatCompletionRequest(BaseModel):
@@ -41,11 +44,11 @@ class ChatCompletionRequest(BaseModel):
     max_completion_tokens: Optional[int] = Field(
         default=None, description="The maximum number of tokens that can be generated in the completion."
     )
-    n: Optional[int] = 1
+    # n: Optional[int] = 1
     miniP: Optional[float] = None
-    logit_bias: Optional[dict[str, float]] = None
-    logprobs: Optional[bool] = False
-    top_logprobs: Optional[int] = 0
+    # logit_bias: Optional[dict[str, float]] = None
+    # logprobs: Optional[bool] = False
+    # top_logprobs: Optional[int] = 0
     stop: Optional[Union[str, Sequence[str]]] = None
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
@@ -114,6 +117,70 @@ class ChatCompletionRequest(BaseModel):
             raise ValueError("Stream options can only be defined when `stream=True`.")
 
         return data
+
+    @model_validator(mode="after")
+    def change_tool_calls_sequence(self):
+        """
+        ToolPromptMessage to match assistant.tool_calls order
+        - Move ToolPromptMessage entries to follow their AssistantPromptMessage in the exact order
+          of assistant.tool_calls ids.
+        - Delete tool messages from their original positions.
+        - Preserve other messages' order; append unmatched tool messages at the end.
+        """
+        try:
+            msgs = self.messages or []
+            if not msgs:
+                return self
+
+            from .message_entities import AssistantPromptMessage as _Assistant, ToolPromptMessage as _Tool
+
+            # Build map of tool_call_id -> list of ToolPromptMessage (preserve original relative order per id)
+            tool_msg_map: dict[str, list[_Tool]] = {}
+            original_tool_msgs: list[_Tool] = []
+            for m in msgs:
+                if isinstance(m, _Tool) and getattr(m, "tool_call_id", None):
+                    tool_msg_map.setdefault(m.tool_call_id, []).append(m)
+                    original_tool_msgs.append(m)
+
+            consumed_ids: set[str] = set()
+            new_messages: list = []
+
+            for m in msgs:
+                # Skip original ToolPromptMessage positions (they will be re-inserted in order later)
+                if isinstance(m, _Tool):
+                    continue
+
+                # Append non-tool messages as-is
+                new_messages.append(m)
+
+                # If assistant, insert its related tool messages in the declared order immediately after
+                if isinstance(m, _Assistant) and getattr(m, "tool_calls", None):
+                    ordered_ids: list[str] = []
+                    for tc in m.tool_calls or []:
+                        tc_id = getattr(tc, "id", None)
+                        if tc_id:
+                            ordered_ids.append(str(tc_id))
+
+                    for tc_id in ordered_ids:
+                        if tc_id in consumed_ids:
+                            continue
+                        if tc_id in tool_msg_map and tool_msg_map[tc_id]:
+                            for tm in tool_msg_map[tc_id]:
+                                new_messages.append(tm)
+                            consumed_ids.add(tc_id)
+                            tool_msg_map[tc_id] = []
+
+            # Append any remaining tool messages that were not matched to an assistant (preserve original grouping)
+            for id_, tms in tool_msg_map.items():
+                for tm in tms:
+                    new_messages.append(tm)
+
+            self.messages = new_messages
+        except Exception:
+            logger.exception("Failed to reorder tool calls sequence; keeping original messages order.")
+            return self
+
+        return self
 
 
 class CompletionRequest(BaseModel):

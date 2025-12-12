@@ -70,8 +70,8 @@ class LLMTransformation:
         :return: A response object containing the transformed message, or a streaming response if requested.
         """
         llm_result = cls._transform_message(model_params, prompt_messages, credentials, stream)
-        if prompt_messages.tools:
-            return cls._call_tools(model_params,prompt_messages, credentials, llm_result,stream)
+        # if prompt_messages.tools and not stream:
+        #     return cls._call_tools(model_params,prompt_messages, credentials, llm_result,stream)
         return llm_result
 
     @classmethod
