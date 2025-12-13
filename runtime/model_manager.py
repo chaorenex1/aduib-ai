@@ -240,8 +240,10 @@ class ModelManager:
         model_instance:ModelInstance=self.get_model_instance(model_name,provider_name)
         if model_instance.provider.provider_credential.sdk_type!=ProviderSDKType.ANTHROPIC:
             model_instance.model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
+            model_instance.model_instance.credentials["orig_sdk_type"]=model_instance.provider.provider_credential.sdk_type
             model_instance.model_instance.credentials["none_anthropic"]=True
             model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
+            model_instance.credentials["orig_sdk_type"]=model_instance.provider.provider_credential.sdk_type
             model_instance.credentials["none_anthropic"]=True
         else:
             model_instance.model_instance.credentials["none_anthropic"]=False

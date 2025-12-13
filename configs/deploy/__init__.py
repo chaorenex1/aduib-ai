@@ -25,6 +25,7 @@ class DeploymentConfig(BaseSettings):
     SSL_CERTFILE: str = Field(default="", description="Path to the SSL certificate file")
     SSL_KEYFILE: str = Field(default="", description="Path to the SSL key file")
     DEBUG: bool = Field(default=True, description="Enable debug mode")
+    API_TIME_OUT: int = Field(default=2*60*60, description="API request timeout in seconds")
 
     @property
     def url(self) -> str:
@@ -33,5 +34,4 @@ class DeploymentConfig(BaseSettings):
 
 
 class ServiceConfig(BaseSettings):
-    SERVICE_URL: str = Field(default="http://localhost:5001", description="Service URL")
     SERVICE_URL: str = Field(default="http://localhost:5001", description="Service URL")

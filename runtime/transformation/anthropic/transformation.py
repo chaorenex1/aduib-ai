@@ -13,6 +13,7 @@ from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbed
 from runtime.transformation.base import LLMTransformation
 from utils import jsonable_encoder
 from .error import AnthropicErrorMapper, AnthropicAPIError
+from ...entities.provider_entities import ProviderSDKType
 
 logger = logging.getLogger(__name__)
 
@@ -124,12 +125,21 @@ class AnthropicTransformation(LLMTransformation):
 
         # Get API base URL or use default
         api_base = _credentials.get("api_base", "https://api.anthropic.com/v1")
+        if credentials["none_anthropic"] and credentials["orig_sdk_type"] == ProviderSDKType.GITHUB_COPILOT:
+            from runtime.transformation.github.Authenticator import Authenticator
+            authenticator = Authenticator()
+            api_base = authenticator.get_api_base()
 
-        # Add user agent if provided
-        user_agent = "AduibLLM-Anthropic-Client/1.0"
-        if params:
-            user_agent = params.get("user_agent", user_agent)
-        headers["User-Agent"] = user_agent
+            vision = False
+            if params:
+                vision = params.get("vision", False)
+            headers = authenticator.get_copilot_headers(vision=vision)
+        else:
+            # Add user agent if provided
+            user_agent = "AduibLLM-Anthropic-Client/1.0"
+            if params:
+                user_agent = params.get("user_agent", user_agent)
+            headers["User-Agent"] = user_agent
 
         return {
             "api_key": _credentials["api_key"],
@@ -137,6 +147,7 @@ class AnthropicTransformation(LLMTransformation):
             "headers": headers,
             "sdk_type": credentials["sdk_type"],
             "none_anthropic": credentials["none_anthropic"],
+            "orig_sdk_type": credentials["orig_sdk_type"],
         }
 
     @classmethod
@@ -165,6 +176,9 @@ class AnthropicTransformation(LLMTransformation):
         if not credentials["none_anthropic"]:
             anthropic_request = cls._transform_to_anthropic_format(prompt_messages, model_params)
             llm_http_handler = LLMHttpHandler("/messages", credentials, stream)
+        elif credentials["orig_sdk_type"] == ProviderSDKType.GITHUB_COPILOT:
+            anthropic_request = cls._transform_to_openai_format(prompt_messages, model_params)
+            llm_http_handler = LLMHttpHandler("/chat/completions", credentials, stream)
         else:
             anthropic_request= cls._transform_to_openai_format(prompt_messages, model_params)
             llm_http_handler = LLMHttpHandler("/v1/chat/completions", credentials, stream)
