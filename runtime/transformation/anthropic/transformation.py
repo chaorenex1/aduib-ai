@@ -636,16 +636,22 @@ class AnthropicTransformation(LLMTransformation):
         """
         # Build messages array for the OpenAI payload.
         messages: List[Dict[str, Any]] = []
-        payload = jsonable_encoder(prompt_messages, exclude_none=True, exclude_unset=True)
+        payload = jsonable_encoder(prompt_messages, exclude_none=True)
 
         # System messages
         system_msgs = payload.get("system")
         if isinstance(system_msgs, list):
+            sys_texts=[]
             for sys_msg in system_msgs:
                 if isinstance(sys_msg, dict):
                     normalized = normalize_content(sys_msg.get("text") or sys_msg.get("content"))
                     if normalized:
-                        messages.append({"role": "system", "content": normalized})
+                        sys_texts.append({"type": "text", "text": normalized})
+                elif isinstance(sys_msg, str):
+                    normalized = normalize_content(sys_msg)
+                    if normalized:
+                        sys_texts.append({"type": "text", "text": normalized})
+            messages.append({"role": "system", "content": sys_texts})
 
         # User/assistant messages
         if isinstance(payload.get("messages"), list):
@@ -658,9 +664,16 @@ class AnthropicTransformation(LLMTransformation):
 
                 # Extract tool calls from anthropic-like blocks
                 tool_calls: List[Dict[str, Any]] = []
+                msg_content_List = []
                 if isinstance(content, list):
                     for item in content:
-                        if isinstance(item, dict) and item.get("type") == "tool_use":
+                        if isinstance(item, dict) and item.get("type") == "tool_result":
+                            messages.append({
+                                "role": "tool",
+                                "content": normalize_content(item.get("content")),
+                                "tool_call_id": item.get("tool_use_id"),
+                            })
+                        elif isinstance(item, dict) and item.get("type") == "tool_use":
                             tool_calls.append({
                                 "type": "function",
                                 "id": item.get("id"),
@@ -669,25 +682,19 @@ class AnthropicTransformation(LLMTransformation):
                                     "arguments": json.dumps(item.get("input")),
                                 },
                             })
+                        elif isinstance(item, dict) and item.get("type") == "text":
+                            msg_content_List.append({"type": "text", "text": normalize_content(item.get("text"))})
+                        elif isinstance(content, str) and item.get("type") == "text":
+                            msg_content_List.append({"type": "text", "text": normalize_content(item)})
 
                 new_msg: Dict[str, Any] = {"role": role}
-                normalized = normalize_content(content)
-                if normalized:
-                    new_msg["content"] = normalized
+                if len(msg_content_List) > 0:
+                    new_msg["content"] = msg_content_List
+
                 if tool_calls:
                     new_msg["tool_calls"] = tool_calls
-                if new_msg.get("content") is not None or new_msg.get("tool_calls") is not None:
-                    messages.append(new_msg)
 
-                # Append tool results as separate 'tool' role messages
-                if isinstance(content, list):
-                    for item in content:
-                        if isinstance(item, dict) and item.get("type") == "tool_result":
-                            messages.append({
-                                "role": "tool",
-                                "content": json.dumps(item.get("text")) or json.dumps(item.get("content")),
-                                "tool_call_id": item.get("tool_use_id"),
-                            })
+                messages.append(new_msg)
 
         # Tools mapping
         tools: List[Dict[str, Any]] = []
