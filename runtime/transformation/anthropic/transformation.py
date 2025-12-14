@@ -717,7 +717,7 @@ class AnthropicTransformation(LLMTransformation):
             "temperature": payload.get("temperature"),
             "top_p": payload.get("top_p"),
             "top_k": payload.get("top_k"),
-            "stream": payload.get("stream", True)
+            "stream": payload.get("stream", False)
         }
         openai_payload.pop("system", None)
         openai_payload.pop("top_logprobs", None)
