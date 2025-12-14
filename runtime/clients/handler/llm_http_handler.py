@@ -83,7 +83,7 @@ class LLMHttpHandler:
                 if line == "[DONE]":
                     yield type(done=True)  # type: ignore
                 else:
-                    logger.debug(f"Parsing line: {line}")
+                    # logger.debug(f"Parsing line: {line}")
                     chunk  = json.loads(line)
                     yield type(**chunk)  # type: ignore
             except Exception as e:

@@ -91,8 +91,8 @@ class LlMModel(AiModel):
             "response_format": req.response_format,
         }
 
-        # if config.DEBUG:
-        #     callbacks.append(LoggingCallback())
+        if config.DEBUG:
+            callbacks.append(LoggingCallback())
 
         # trigger before invoke callbacks
         self._trigger_before_invoke_callbacks(

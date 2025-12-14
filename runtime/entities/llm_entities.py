@@ -177,9 +177,9 @@ class ChatCompletionRequest(BaseModel):
 
             self.messages = new_messages
             #打印消息顺序
-            logger.warning("Reordered messages:")
-            for i, m in enumerate(self.messages):
-                logger.warning(f"  [{i}] {m.role}")
+            # logger.warning("Reordered messages:")
+            # for i, m in enumerate(self.messages):
+            #     logger.warning(f"  [{i}] {m.role}")
         except Exception:
             logger.exception("Failed to reorder tool calls sequence; keeping original messages order.")
             return self
