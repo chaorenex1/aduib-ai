@@ -714,8 +714,10 @@ class AnthropicTransformation(LLMTransformation):
             "model": prompt_messages.model,
             "messages": messages,
             "max_tokens": payload.get("max_tokens"),
-            "temperature": payload.get("temperature", 1),
-            "stream": payload.get("stream") is True,
+            "temperature": payload.get("temperature"),
+            "top_p": payload.get("top_p"),
+            "top_k": payload.get("top_k"),
+            "stream": payload.get("stream", True)
         }
         openai_payload.pop("system", None)
         openai_payload.pop("top_logprobs", None)
