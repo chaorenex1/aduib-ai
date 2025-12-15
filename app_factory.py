@@ -4,9 +4,8 @@ import logging
 import os
 import pathlib
 import time
-from typing import AsyncIterator
+from typing import AsyncIterator, Optional
 
-from aduib_rpc.utils.net_utils import NetUtils
 from fastapi.routing import APIRoute
 
 from aduib_app import AduibAIApp
@@ -17,8 +16,14 @@ from configs import config
 from controllers.route import api_router
 from libs.context import LoggingMiddleware, TraceIdContextMiddleware, ApiKeyContextMiddleware
 from utils.snowflake_id import init_idGenerator
+from utils.port_utils import get_ip_and_free_port
 
 log = logging.getLogger(__name__)
+
+# RPC service singleton state
+_rpc_service_started = False
+_rpc_service_lock = asyncio.Lock()
+_rpc_service_task: Optional[asyncio.Task] = None
 
 
 def create_app_with_configs() -> AduibAIApp:
@@ -78,57 +83,110 @@ def init_apps(app: AduibAIApp):
 
 
 async def run_service_register(app: AduibAIApp):
-    registry_config = {
-        "server_addresses": app.config.NACOS_SERVER_ADDR,
-        "namespace": app.config.NACOS_NAMESPACE,
-        "group_name": app.config.NACOS_GROUP,
-        "username": app.config.NACOS_USERNAME,
-        "password": app.config.NACOS_PASSWORD,
-        "DISCOVERY_SERVICE_ENABLED": app.config.DISCOVERY_SERVICE_ENABLED,
-        "DISCOVERY_SERVICE_TYPE": app.config.DISCOVERY_SERVICE_TYPE,
-        "SERVICE_TRANSPORT_SCHEME": app.config.SERVICE_TRANSPORT_SCHEME,
-        "APP_NAME": app.config.APP_NAME,
-    }
-    from aduib_rpc.discover.registry.registry_factory import ServiceRegistryFactory
-    from aduib_rpc.discover.entities import ServiceInstance
-    from aduib_rpc.utils.constant import AIProtocols
-    from aduib_rpc.utils.constant import TransportSchemes
-    from aduib_rpc.discover.service import AduibServiceFactory
-    from aduib_rpc.server.rpc_execution.service_call import load_service_plugins
-    ip, port = NetUtils.get_ip_and_free_port()
-    service_registry = ServiceRegistryFactory.start_service_discovery(registry_config)
-    rpc_service_info = ServiceInstance(service_name=registry_config.get('APP_NAME', 'aduib-rpc'), host=ip, port=port,
-                                       protocol=AIProtocols.AduibRpc, weight=1,
-                                       scheme=config.SERVICE_TRANSPORT_SCHEME or TransportSchemes.GRPC)
-    if rpc_service_info and config.RPC_SERVICE_PORT>0:
-        rpc_service_info.port=config.RPC_SERVICE_PORT
+    """
+    Start RPC service registration and server.
+    This function implements singleton pattern to ensure RPC service only starts once.
+    """
+    global _rpc_service_started, _rpc_service_task
 
-    factory = AduibServiceFactory(service_instance=rpc_service_info)
-    load_service_plugins('rpc.service')
-    load_service_plugins('rpc.client')
-    if rpc_service_info and config.DOCKER_ENV:
-        rpc_service_info = ServiceInstance(service_name=rpc_service_info.service_name, host=config.RPC_SERVICE_HOST, port=rpc_service_info.port,
-                                       protocol=rpc_service_info.protocol, weight=rpc_service_info.weight,
-                                       scheme=rpc_service_info.scheme)
-    aduib_ai_service = rpc_service_info.__deepcopy__()
-    aduib_ai_service.service_name=config.APP_NAME+"-app"
-    if config.DOCKER_ENV:
-        aduib_ai_service.host=config.RPC_SERVICE_HOST
-        aduib_ai_service.port=config.APP_PORT
-    else:
-        aduib_ai_service.host=ip
-        aduib_ai_service.port=config.APP_PORT
-    await service_registry.register_service(rpc_service_info)
-    await service_registry.register_service(aduib_ai_service)
-    await factory.run_server()
+    async with _rpc_service_lock:
+        if _rpc_service_started:
+            log.info("RPC service already started, skipping...")
+            return
+
+        log.info("Starting RPC service registration...")
+        _rpc_service_started = True
+
+    try:
+        registry_config = {
+            "server_addresses": app.config.NACOS_SERVER_ADDR,
+            "namespace": app.config.NACOS_NAMESPACE,
+            "group_name": app.config.NACOS_GROUP,
+            "username": app.config.NACOS_USERNAME,
+            "password": app.config.NACOS_PASSWORD,
+            "DISCOVERY_SERVICE_ENABLED": app.config.DISCOVERY_SERVICE_ENABLED,
+            "DISCOVERY_SERVICE_TYPE": app.config.DISCOVERY_SERVICE_TYPE,
+            "SERVICE_TRANSPORT_SCHEME": app.config.SERVICE_TRANSPORT_SCHEME,
+            "APP_NAME": app.config.APP_NAME,
+        }
+        from aduib_rpc.discover.registry.registry_factory import ServiceRegistryFactory
+        from aduib_rpc.discover.entities import ServiceInstance
+        from aduib_rpc.utils.constant import AIProtocols
+        from aduib_rpc.utils.constant import TransportSchemes
+        from aduib_rpc.discover.service import AduibServiceFactory
+        from aduib_rpc.server.rpc_execution.service_call import load_service_plugins
+
+        # Get IP and determine RPC port
+        preferred_port = config.RPC_SERVICE_PORT if config.RPC_SERVICE_PORT > 0 else None
+        ip, port = get_ip_and_free_port(preferred_port=preferred_port)
+
+        log.info(f"RPC service will use IP: {ip}, Port: {port}")
+
+        service_registry = ServiceRegistryFactory.start_service_discovery(registry_config)
+        rpc_service_info = ServiceInstance(
+            service_name=registry_config.get('APP_NAME', 'aduib-rpc'),
+            host=ip,
+            port=port,
+            protocol=AIProtocols.AduibRpc,
+            weight=1,
+            scheme=config.SERVICE_TRANSPORT_SCHEME or TransportSchemes.GRPC
+        )
+
+        factory = AduibServiceFactory(service_instance=rpc_service_info)
+        load_service_plugins('rpc.service')
+        load_service_plugins('rpc.client')
+
+        # Docker environment configuration
+        if config.DOCKER_ENV:
+            rpc_service_info = ServiceInstance(
+                service_name=rpc_service_info.service_name,
+                host=config.RPC_SERVICE_HOST,
+                port=rpc_service_info.port,
+                protocol=rpc_service_info.protocol,
+                weight=rpc_service_info.weight,
+                scheme=rpc_service_info.scheme
+            )
+
+        # Setup AI app service instance
+        aduib_ai_service = rpc_service_info.__deepcopy__()
+        aduib_ai_service.service_name = config.APP_NAME + "-app"
+        if config.DOCKER_ENV:
+            aduib_ai_service.host = config.RPC_SERVICE_HOST
+            aduib_ai_service.port = config.APP_PORT
+        else:
+            aduib_ai_service.host = ip
+            aduib_ai_service.port = config.APP_PORT
+
+        # Register services
+        await service_registry.register_service(rpc_service_info)
+        log.info(f"Registered RPC service: {rpc_service_info.service_name} at {rpc_service_info.host}:{rpc_service_info.port}")
+
+        await service_registry.register_service(aduib_ai_service)
+        log.info(f"Registered AI app service: {aduib_ai_service.service_name} at {aduib_ai_service.host}:{aduib_ai_service.port}")
+
+        # Run RPC server
+        await factory.run_server()
+
+    except Exception as e:
+        log.error(f"Failed to start RPC service: {e}", exc_info=True)
+        async with _rpc_service_lock:
+            _rpc_service_started = False
+        raise
 
 
 @contextlib.asynccontextmanager
 async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
-    log.info("Lifespan is starting")
-    asyncio.create_task(run_service_register(app))
-    from event.event_manager import EventManager
+    """
+    Application lifespan manager - handles startup and shutdown logic.
+    """
+    global _rpc_service_task
 
+    log.info("Lifespan is starting")
+
+    # Start RPC service as a background task (singleton pattern ensures it only runs once)
+    _rpc_service_task = asyncio.create_task(run_service_register(app))
+
+    from event.event_manager import EventManager
     event_manager: EventManager = app.extensions.get("event_manager")
     if event_manager:
         event_manager.start()
@@ -138,6 +196,20 @@ async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
 
     # Shutdown logic
     log.info("Application is shutting down, cleaning up resources...")
+
+    # Cancel RPC service task if running
+    global _rpc_service_started
+    if _rpc_service_task and not _rpc_service_task.done():
+        try:
+            _rpc_service_task.cancel()
+            try:
+                await _rpc_service_task
+            except asyncio.CancelledError:
+                log.info("RPC service task cancelled")
+            async with _rpc_service_lock:
+                _rpc_service_started = False
+        except Exception as e:
+            log.error(f"Error cancelling RPC service task: {e}")
 
     # Stop event manager
     if event_manager:

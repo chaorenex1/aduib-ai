@@ -17,6 +17,7 @@ COPY . .
 # 安装 uv 包管理器并使用 uv 安装依赖（只安装非 dev 依赖）
 RUN  pip install uv \
     && uv venv \
-    && uv sync --frozen --no-dev
+    && uv sync --frozen --no-dev \
+    && uv add uvloop httptools \
 
-ENTRYPOINT [".venv/bin/python", "app.py"]
+ENTRYPOINT ["uvicorn app.main:app --host 0.0.0.0 --port 5001 --workers 4  --loop uvloop --http httptools"]

@@ -3,7 +3,6 @@ import json
 import logging
 from typing import Optional, Any
 
-from aduib_rpc.utils.net_utils import NetUtils
 
 from models import get_db, ApiKey
 from models.browser import BrowserHistory
@@ -32,8 +31,9 @@ class WebMemoService:
         try:
             from configs import config
             from rpc.client import CrawlService
+            from utils.port_utils import get_local_ip
 
-            host, port = NetUtils.get_ip_and_free_port()
+            host = get_local_ip()
             notify_url = f"http://{host}:{config.APP_PORT}/v1/web_memo/notify?api_key={api_key.hash_key}"
             crawl_service = CrawlService()
             resp = await crawl_service.crawl([url], notify_url)
