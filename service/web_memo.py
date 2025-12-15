@@ -23,10 +23,15 @@ class WebMemoService:
         """
         url = data.get("url")
         ua = data.get("ua")
+
+        # Extract hash_key before session closes
+        api_key_hash: str
         with get_db() as session:
             api_key: Optional[ApiKey] = session.query(ApiKey).filter(ApiKey.source == "aduib_mcp_server").first()
             if not api_key:
                 raise ApiKeyNotFound
+            # Store hash_key value before session closes to avoid detached instance error
+            api_key_hash = api_key.hash_key
 
         try:
             from configs import config
@@ -34,11 +39,11 @@ class WebMemoService:
             from utils.port_utils import get_local_ip
 
             host = get_local_ip()
-            notify_url = f"http://{host}:{config.APP_PORT}/v1/web_memo/notify?api_key={api_key.hash_key}"
+            notify_url = f"http://{host}:{config.APP_PORT}/v1/web_memo/notify?api_key={api_key_hash}"
             crawl_service = CrawlService()
             resp = await crawl_service.crawl([url], notify_url)
             if resp:
-                await cls.handle_web_memo_notify(resp, api_key.hash_key, ua)
+                await cls.handle_web_memo_notify(resp, api_key_hash, ua)
         except Exception as e:
             raise RuntimeError(f"Error fetching web memo: {e}")
 
@@ -90,7 +95,6 @@ class WebMemoService:
                     if hit_rule != "default" and crawl_text and len(crawl_text) > 0:
                         # from service import KnowledgeBaseService
                         # await KnowledgeBaseService.paragraph_rag_from_web_memo(crawl_text,crawl_type)
-                        from runtime.rag_manager import RagManager
 
                         from event.event_manager import event_manager_context
 

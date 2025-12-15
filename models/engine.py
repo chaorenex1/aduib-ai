@@ -36,7 +36,7 @@ def get_db() -> Generator[Session, None, None]:
     session = SessionLocal()
     try:
         yield session
-        session.commit()  # 如果没有异常，提交事务
+        # session.commit()  # 如果没有异常，提交事务
     except Exception:
         session.rollback()  # 出现异常时回滚
         raise
