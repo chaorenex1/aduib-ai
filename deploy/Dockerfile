@@ -18,6 +18,6 @@ COPY . .
 RUN  pip install uv \
     && uv venv \
     && uv sync --frozen --no-dev \
-    && uv add uvloop httptools \
+    && uv add uvloop httptools
 
-ENTRYPOINT ["uvicorn app.main:app --host 0.0.0.0 --port 5001 --workers 4  --loop uvloop --http httptools"]
+ENTRYPOINT ["uvicorn","app:app","--host", "0.0.0.0", "--port", "5001", "--workers", "4",  "--loop", "uvloop", "--http", "httptools"]
