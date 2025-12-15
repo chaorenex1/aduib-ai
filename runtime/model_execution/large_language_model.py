@@ -58,7 +58,12 @@ class LlMModel(AiModel):
 
         from ..transformation import get_llm_transformation
 
-        transformation = get_llm_transformation(self.credentials.get("sdk_type", "openai_like"))
+        provider_type = self.credentials.get("sdk_type", "openai_like")
+        orig_sdk_type = self.credentials.get("orig_sdk_type")
+        if provider_type != orig_sdk_type:
+            transformation = get_llm_transformation(orig_sdk_type)
+        else:
+            transformation = get_llm_transformation(provider_type)
 
         credentials = transformation.setup_environment(self.credentials, self.model_params)
         req = transformation.setup_model_parameters(credentials,self.model_params, req)

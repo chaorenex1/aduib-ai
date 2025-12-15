@@ -4,12 +4,14 @@ from runtime.transformation.deepseek.transformation import DeepseekTransformatio
 from runtime.transformation.github.transformation import GithubCopilotTransformation
 from runtime.transformation.openai_like.transformation import OpenAILikeTransformation
 from runtime.transformation.anthropic.transformation import AnthropicTransformation
+from runtime.transformation.openrouter.transformation import OpenRouterTransformation
 
 LLMTransformations: dict[ProviderSDKType, type[LLMTransformation]] = {
     ProviderSDKType.OPENAI_LIKE: OpenAILikeTransformation,
     ProviderSDKType.GITHUB_COPILOT: GithubCopilotTransformation,
     ProviderSDKType.DEEPSEEK: DeepseekTransformation,
     ProviderSDKType.ANTHROPIC: AnthropicTransformation,
+    ProviderSDKType.OPENROUTER: OpenRouterTransformation,
 }
 
 try:

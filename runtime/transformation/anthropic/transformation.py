@@ -173,15 +173,24 @@ class AnthropicTransformation(LLMTransformation):
 
         # Transform OpenAI-like request to Anthropic format
         anthropic_request={}
-        if not credentials["none_anthropic"]:
-            anthropic_request = cls._transform_to_anthropic_format(prompt_messages, model_params)
-            llm_http_handler = LLMHttpHandler("/messages", credentials, stream)
-        elif credentials["orig_sdk_type"] == ProviderSDKType.GITHUB_COPILOT:
-            anthropic_request = cls._transform_to_openai_format(prompt_messages, model_params)
-            llm_http_handler = LLMHttpHandler("/chat/completions", credentials, stream)
+        # api_path = "/v1/chat/completions"
+        # if not credentials["none_anthropic"]:
+        #     anthropic_request = cls.transform_to_anthropic_format(prompt_messages, model_params, {})
+        #     llm_http_handler = LLMHttpHandler("/messages", credentials, stream)
+        # elif credentials["orig_sdk_type"] == ProviderSDKType.GITHUB_COPILOT:
+        #     anthropic_request = cls.transform_to_openai_format(prompt_messages, model_params,credentials)
+        #     llm_http_handler = LLMHttpHandler("/chat/completions", credentials, stream)
+        # else:
+        #     anthropic_request= cls.transform_to_openai_format(prompt_messages, model_params,credentials)
+        #     llm_http_handler = LLMHttpHandler(api_path, credentials, stream)
+
+        if credentials["orig_sdk_type"] != ProviderSDKType.ANTHROPIC:
+            # Anthropic request is being sent to non-Anthropic endpoint
+            anthropic_request = cls.transform_to_openai_format(prompt_messages, model_params, credentials)
+            llm_http_handler = LLMHttpHandler("/v1/chat/completions" if credentials["orig_sdk_type"] != ProviderSDKType.GITHUB_COPILOT else "/chat/completions", credentials, stream)
         else:
-            anthropic_request= cls._transform_to_openai_format(prompt_messages, model_params)
-            llm_http_handler = LLMHttpHandler("/v1/chat/completions", credentials, stream)
+            anthropic_request = cls.transform_to_anthropic_format(prompt_messages, model_params, credentials)
+            llm_http_handler = LLMHttpHandler("/messages", credentials, stream)
 
         # Create HTTP handler and make request
         try:
@@ -219,7 +228,7 @@ class AnthropicTransformation(LLMTransformation):
             )
             # If we shouldn't retry, raise the error
             raise last_error
-        if not credentials["none_anthropic"]:
+        if credentials["orig_sdk_type"] == ProviderSDKType.ANTHROPIC:
             return cls.handle_anthropic_response(response, stream)
         else:
             return cls.handle_non_anthropic_response(response, stream)
@@ -564,8 +573,8 @@ class AnthropicTransformation(LLMTransformation):
             return ClaudeChatCompletionResponse(**anthropic_response)
 
     @classmethod
-    def _transform_to_anthropic_format(cls, prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-                                       model_params: dict) -> dict:
+    def transform_to_anthropic_format(cls, prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+                                       model_params: dict,credentials: dict,) -> dict:
         """
         Transform OpenAI-like request format to Anthropic format.
 
@@ -629,8 +638,8 @@ class AnthropicTransformation(LLMTransformation):
         return anthropic_request
 
     @classmethod
-    def _transform_to_openai_format(cls, prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-                                       model_params: dict)-> dict:
+    def transform_to_openai_format(cls, prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+                                       model_params: dict,credentials: dict)-> dict:
         """
         Transform Anthropic request format to OpenAI format.
         """

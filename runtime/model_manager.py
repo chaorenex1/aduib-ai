@@ -216,10 +216,15 @@ class ModelManager:
         model_params = json.loads(model.model_params)
         if 'max_tokens' not in model_params:
             model_params['max_tokens']=model.max_tokens
-        model_instance = self.provider.provider_factory.get_model_type_instance(
+        ai_model = self.provider.provider_factory.get_model_type_instance(
             provider_entity, model_params, ModelType.value_of(model.type)
         )
-        return ModelInstance(provider_entity, model_instance, model.name)
+        instance = ModelInstance(provider_entity, ai_model, model.name)
+        instance.model_instance.credentials[
+            "orig_sdk_type"] = instance.provider.provider_credential.sdk_type
+        instance.credentials["orig_sdk_type"] = instance.provider.provider_credential.sdk_type
+        instance.model_instance.credentials["none_anthropic"] = True
+        return instance
 
     def get_default_model_instance(self, model_type: str):
         from service import ModelService, ProviderService
@@ -238,14 +243,8 @@ class ModelManager:
 
     def get_anthropic_model_instance(self, model_name: str, provider_name: str = None) -> Optional[ModelInstance]:
         model_instance:ModelInstance=self.get_model_instance(model_name,provider_name)
-        if model_instance.provider.provider_credential.sdk_type!=ProviderSDKType.ANTHROPIC:
-            model_instance.model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
-            model_instance.model_instance.credentials["orig_sdk_type"]=model_instance.provider.provider_credential.sdk_type
-            model_instance.model_instance.credentials["none_anthropic"]=True
-            model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
-            model_instance.credentials["orig_sdk_type"]=model_instance.provider.provider_credential.sdk_type
-            model_instance.credentials["none_anthropic"]=True
-        else:
-            model_instance.model_instance.credentials["none_anthropic"]=False
-            model_instance.credentials["none_anthropic"]=False
+        model_instance.model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
+        model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
+        model_instance.model_instance.credentials["none_anthropic"]=False
+        model_instance.credentials["none_anthropic"]=False
         return model_instance

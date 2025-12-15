@@ -1,18 +1,12 @@
-import json
-from multiprocessing import AuthenticationError
 from typing import Union, Generator, List
 
-from starlette.requests import Request
-
 from runtime.clients.handler.llm_http_handler import LLMHttpHandler
-from runtime.entities import ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessage
+from runtime.entities import PromptMessage
 from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.transformation.base import LLMTransformation
 from runtime.transformation.github.Authenticator import Authenticator
-from runtime.transformation.github.error import GetAPIKeyError
-from utils import jsonable_encoder
 
 
 class GithubCopilotTransformation(LLMTransformation):

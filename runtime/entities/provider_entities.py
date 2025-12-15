@@ -17,6 +17,7 @@ class ProviderSDKType(Enum):
     GITHUB = "github"
     GITHUB_COPILOT = "github_copilot"
     ANTHROPIC = "anthropic"
+    OPENROUTER = "openrouter"
     OTHER = "other"
 
     @classmethod
