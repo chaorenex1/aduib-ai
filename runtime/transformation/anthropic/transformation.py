@@ -384,7 +384,7 @@ class AnthropicTransformation(LLMTransformation):
                     try:
                         chunk = json.loads(line)
                     except Exception as e:
-                        logger.error(f"Error parsing non-anthropic streaming line: {line}, error: {e}")
+                        logger.debug(f"Error parsing non-anthropic streaming line: {line}, error: {e}")
                         continue
 
                     # Extract meta
