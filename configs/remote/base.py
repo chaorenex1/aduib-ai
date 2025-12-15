@@ -1,4 +1,3 @@
-import asyncio
 import json
 from collections.abc import Mapping
 from typing import Any
@@ -19,23 +18,28 @@ class RemoteSettingsSource:
         return value
 
 
+
 class NacosSettingsSource(RemoteSettingsSource):
     """
     A settings source that retrieves configuration settings from Nacos
     """
+    client: NacosClient
+    data_id: str | None = None
+    configs: Mapping[str, Any]
 
-    def __init__(self, configs: Mapping[str, Any]):
+    def __init__(self, configs:Mapping[str, Any]):
         super().__init__(configs)
+        self.data_id = None
         self.configs = configs
         self.client = NacosClient(
             server_addr=configs["NACOS_SERVER_ADDR"],
             namespace=configs["NACOS_NAMESPACE"],
-            group=configs["NACOS_GROUP"] or configs["APP_NAME"],
+            group=configs["NACOS_GROUP"] or "DEFAULT_GROUP",
             user_name=configs["NACOS_USERNAME"],
             password=configs["NACOS_PASSWORD"],
         )
-        self.data_id = f".env.{self.configs.get('APP_NAME')}.{configs['DEPLOY_ENV']}"
-        asyncio.run(self.client.register_config_listener(self.data_id))
+        self.data_id = f".env.{self.configs.get('APP_NAME')}.{self.configs['DEPLOY_ENV']}"
+        # self.client.register_config_listener_sync(self.data_id)
 
     def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[Any, str, bool]:
         remote_configs = self.client.get_config_sync(self.data_id)
