@@ -15,8 +15,14 @@ from libs.cache import in_memory_llm_clients_cache
 from runtime.clients.httpx_client.aiohttp_transport import LLMAiohttpTransport
 
 # https://www.python-httpx.org/advanced/timeouts
-_DEFAULT_TIMEOUT = httpx.Timeout(timeout=5.0, connect=5.0)
-_DEFAULT_TTL_FOR_HTTPX_CLIENTS = 3600  # seconds
+# 更新默认超时配置，避免请求过早超时
+_DEFAULT_TIMEOUT = httpx.Timeout(
+    timeout=300.0,  # 总超时 5分钟
+    connect=10.0,    # 连接超时 10秒
+    read=300.0,      # 读取超时 5分钟
+    write=30.0       # 写入超时 30秒
+)
+_DEFAULT_TTL_FOR_HTTPX_CLIENTS = 1800  # 减少到30分钟，避免缓存过期连接
 
 VerifyTypes = Union[str, bool, ssl.SSLContext]
 
@@ -922,7 +928,16 @@ def get_async_httpx_client(
     if params is not None:
         _new_client = AsyncHTTPHandler(**params)
     else:
-        _new_client = AsyncHTTPHandler(timeout=httpx.Timeout(timeout=600.0, connect=5.0))
+        # 使用更合理的超时配置
+        _new_client = AsyncHTTPHandler(
+            timeout=httpx.Timeout(
+                timeout=600.0,  # 总超时 10分钟（LLM请求可能较长）
+                connect=10.0,    # 连接超时 10秒
+                read=600.0,      # 读取超时 10分钟
+                write=30.0       # 写入超时 30秒
+            ),
+            concurrent_limit=1000  # 限制并发连接数
+        )
 
     in_memory_llm_clients_cache.set_cache(
         key=_cache_key_name,
@@ -956,7 +971,16 @@ def get_httpx_client(params: Optional[dict] = None) -> HTTPHandler:
     if params is not None:
         _new_client = HTTPHandler(**params)
     else:
-        _new_client = HTTPHandler(timeout=httpx.Timeout(timeout=600.0, connect=5.0))
+        # 使用更合理的超时配置
+        _new_client = HTTPHandler(
+            timeout=httpx.Timeout(
+                timeout=600.0,  # 总超时 10分钟（LLM请求可能较长）
+                connect=10.0,    # 连接超时 10秒
+                read=600.0,      # 读取超时 10分钟
+                write=30.0       # 写入超时 30秒
+            ),
+            concurrent_limit=1000  # 限制并发连接数
+        )
 
     in_memory_llm_clients_cache.set_cache(
         key=_cache_key_name,

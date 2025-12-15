@@ -133,4 +133,34 @@ async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
     if event_manager:
         event_manager.start()
         log.info("Event manager started")
+
     yield None
+
+    # Shutdown logic
+    log.info("Application is shutting down, cleaning up resources...")
+
+    # Stop event manager
+    if event_manager:
+        try:
+            await event_manager.stop()
+            log.info("Event manager stopped")
+        except Exception as e:
+            log.error(f"Error stopping event manager: {e}")
+
+    # Close database connections
+    try:
+        from models.engine import engine
+        engine.dispose()
+        log.info("Database connections closed")
+    except Exception as e:
+        log.error(f"Error closing database connections: {e}")
+
+    # Clear HTTP client cache
+    try:
+        from libs.cache import in_memory_llm_clients_cache
+        in_memory_llm_clients_cache.clear()
+        log.info("HTTP client cache cleared")
+    except Exception as e:
+        log.error(f"Error clearing HTTP client cache: {e}")
+
+    log.info("Application shutdown complete")

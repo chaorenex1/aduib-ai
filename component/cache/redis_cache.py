@@ -75,6 +75,11 @@ def init_cache(app: AduibAIApp):
         "decode_responses": False,
         "protocol": resp_protocol,
         "cache_config": clientside_cache_config,
+        "socket_connect_timeout": 5,  # 连接超时（秒）
+        "socket_timeout": 5,  # socket读写超时（秒）
+        "socket_keepalive": True,  # 启用 TCP keepalive
+        "retry_on_timeout": True,  # 超时时重试
+        "health_check_interval": 30,  # 健康检查间隔（秒）
     }
 
     if config.REDIS_USE_SENTINEL:
