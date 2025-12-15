@@ -78,14 +78,14 @@ class ApiKeyContextMiddleware(BaseHTTPMiddleware):
         try:
             ApiKeyService.validate_api_key(api_key_value)
             api_key = ApiKeyService.get_by_hash_key(api_key_value)
-            logger.info(f"Using API Key: {api_key}")
-            api_key_context.set(api_key)
+            # logger.info(f"Using API Key: {api_key}")
+            # api_key_context.set(api_key)
         except Exception as e:
             logger.error(f"Invalid API Key: {api_key_value}")
             raise ApiNotCurrentlyAvailableError()
 
         response: Response = await call_next(request)
-        api_key_context.clear()
+        # api_key_context.clear()
         return response
 
 
