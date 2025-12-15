@@ -62,8 +62,8 @@ class OpenRouterTransformation(AnthropicTransformation):
                                 chunk = json.loads(line)
                                 yield ChatCompletionResponseChunk(**chunk)
                             except JSONDecodeError as e:
-                                logger.error(f"Error parsing line: {line}, error: {e}")
-                                raise e
+                                logger.debug(f"Error parsing line: {line}, error: {e}")
+                                # raise e
             return response_generator()
         else:
             return ChatCompletionResponse(**response.json())  # type: ignore
