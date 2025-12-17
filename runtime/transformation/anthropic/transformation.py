@@ -39,7 +39,7 @@ def normalize_content(content: Any) -> Optional[str]:
                 txt = item.get("text")
                 if isinstance(txt, str):
                     parts.append(txt)
-        return " ".join(parts) if parts else None
+        return " ".join(parts) if len(parts) > 0 else "..."
     return None
 
 def remove_uri_format(schema: Any) -> Any:
@@ -699,6 +699,8 @@ class AnthropicTransformation(LLMTransformation):
                 new_msg: Dict[str, Any] = {"role": role}
                 if len(msg_content_List) > 0:
                     new_msg["content"] = msg_content_List
+                else:
+                    new_msg["content"] = "..."
 
                 if tool_calls:
                     new_msg["tool_calls"] = tool_calls

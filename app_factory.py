@@ -158,10 +158,10 @@ async def run_service_register(app: AduibAIApp):
             aduib_ai_service.port = config.APP_PORT
 
         # Register services
-        service_registry.register_service(rpc_service_info)
+        await service_registry.register_service(rpc_service_info)
         log.info(f"Registered RPC service: {rpc_service_info.service_name} at {rpc_service_info.host}:{rpc_service_info.port}")
 
-        service_registry.register_service(aduib_ai_service)
+        await service_registry.register_service(aduib_ai_service)
         log.info(f"Registered AI app service: {aduib_ai_service.service_name} at {aduib_ai_service.host}:{aduib_ai_service.port}")
 
         # Run RPC server
