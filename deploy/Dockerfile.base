@@ -29,6 +29,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 安装 uv 包管理器并使用 uv 安装依赖（只安装非 dev 依赖）
 RUN pip install --no-cache-dir uv \
     && pip install playwright \
-    && playwright install
+    && playwright install chromium --with-deps
 
 CMD ["/bin/bash"]
