@@ -301,12 +301,23 @@ class AssistantPromptMessage(PromptMessage):
             Model class for assistant prompt message tool call function.
             """
 
-            name: Optional[str]=None
-            arguments: Optional[str]=None
+            name: Optional[str] = None
+            arguments: Optional[str] = None
 
-        id: Optional[str]=Field(default=None)
-        type: Optional[str]=Field(default=None)
-        function: Optional[ToolCallFunction]=None
+        index: Optional[int] = Field(default=None, description="the order of the tool call")
+        id: Optional[str] = Field(default=None)
+        type: Optional[str] = Field(default=None)
+        function: Optional[ToolCallFunction] = None
+
+        @field_validator("index", mode="before")
+        @classmethod
+        def transform_index_to_int(cls, value) -> Optional[int]:
+            if value is None or isinstance(value, int):
+                return value
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
 
         @field_validator("id", mode="before")
         @classmethod
