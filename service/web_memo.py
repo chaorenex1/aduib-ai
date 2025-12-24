@@ -92,7 +92,7 @@ class WebMemoService:
                     history.crawl_metadata = json.dumps(metadata).encode("utf-8").decode("unicode-escape")
                     session.add(history)
                     session.commit()
-                    if hit_rule == "it_blog" and crawl_text and len(crawl_text) > 0:
+                    if hit_rule != "default" and crawl_text and len(crawl_text) > 0:
                         # from service import KnowledgeBaseService
                         # await KnowledgeBaseService.paragraph_rag_from_web_memo(crawl_text,crawl_type)
 
