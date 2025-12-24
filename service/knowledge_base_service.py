@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from typing import Any
 
 from sqlalchemy import select, func, bindparam, desc
 
@@ -13,6 +14,16 @@ logger = logging.getLogger(__name__)
 
 
 class KnowledgeBaseService:
+    @staticmethod
+    def _contains_cjk(text: str) -> bool:
+        """
+        Lightweight detection to determine if the search query includes CJK characters.
+        Used to pick the correct tokenizer for browser history retrieval.
+        """
+        if not text:
+            return False
+        return any("\u4e00" <= char <= "\u9fff" for char in text)
+
     @classmethod
     def create_knowledge_base(cls, name: str, rag_type: str, default: int) -> KnowledgeBase:
         with get_db() as session:
@@ -210,6 +221,24 @@ class KnowledgeBaseService:
         """
         Retrieve relevant documents from the Browser History.
         """
+        use_cjk_tokenizer = cls._contains_cjk(query)
+        ts_vector = (
+            func.to_jieba_tsvector(BrowserHistory.crawl_content)
+            if use_cjk_tokenizer
+            else func.to_tsvector("simple", BrowserHistory.crawl_content)
+        )
+        ts_query = (
+            func.to_jieba_tsquery(bindparam("search_query"))
+            if use_cjk_tokenizer
+            else func.plainto_tsquery("simple", bindparam("search_query"))
+        )
+        base_rank = func.ts_rank(ts_vector, ts_query)
+        density_rank = func.ts_rank_cd(ts_vector, ts_query)
+        normalized_rank = func.coalesce(
+            base_rank / func.nullif(density_rank, 0),
+            base_rank,
+        ).label("rank")
+
         with get_db() as session:
             stmt = (
                 select(
@@ -217,17 +246,9 @@ class KnowledgeBaseService:
                     BrowserHistory.url,
                     BrowserHistory.crawl_content,
                     BrowserHistory.visit_time,
-                    (func.ts_rank(
-                        func.to_jieba_tsvector(BrowserHistory.crawl_content), func.to_jieba_tsquery(bindparam("query"))
-                    )/
-                    func.ts_rank_cd(func.to_jieba_tsvector(BrowserHistory.crawl_content),
-                                    func.to_jieba_tsquery(bindparam("query")))
-                     ).label("rank")
+                    normalized_rank,
                 )
-                .where(
-                    func.ts_rank(func.to_jieba_tsvector(BrowserHistory.crawl_content), func.to_jieba_tsquery(bindparam("query")))
-                    > 0
-                )
+                .where(base_rank > 0)
                 .order_by(desc("rank"))
             )
             if start_time:
@@ -236,7 +257,7 @@ class KnowledgeBaseService:
                 stmt = stmt.where(BrowserHistory.visit_time <= end_time)
             stmt = stmt.limit(20)
             logger.debug(stmt)
-            res = session.execute(stmt, {"query": query})
+            res = session.execute(stmt, {"search_query": query})
             results = [(row[0], row[1], row[2], row[3], row[4]) for row in res]
         docs = []
         for record in results:
@@ -295,3 +316,16 @@ class KnowledgeBaseService:
             except Exception as e:
                 logger.exception(f"Failed to clean knowledge documents: {e}")
                 session.rollback()
+
+    @classmethod
+    async def retrieve_With_doc_id(cls, doc_id)->dict[str, Any]:
+        """
+        Retrieve document by doc_id.
+        """
+        with get_db() as session:
+            doc = session.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_id).one_or_none()
+            if not doc:
+                return {"doc_id": doc_id, "error": "Document not found"}
+            return {
+                "doc_id": doc.id,
+                "doc_content": doc.content}

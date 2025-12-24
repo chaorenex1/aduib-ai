@@ -10,6 +10,7 @@ from component.storage.base_storage import storage_manager
 from models import KnowledgeBase, get_db, FileResource, KnowledgeEmbeddings
 from models.document import KnowledgeDocument, KnowledgeKeywords
 from runtime.entities.document_entities import Document
+from runtime.generator.generator import LLMGenerator
 from runtime.model_manager import ModelManager
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 from runtime.rag.extractor.entity.extraction_source_type import ExtractionSourceType
@@ -110,7 +111,7 @@ class RagManager:
             if _knowledge_doc:
                 # name, language = LLMGenerator.generate_conversation_name(doc_content)
                 # knowledge_doc.doc_language = language
-                _knowledge_doc.content = doc_content
+                _knowledge_doc.content = LLMGenerator.generate_doc_research(doc_content)
                 _knowledge_doc.rag_status = "extracting"
                 _knowledge_doc.word_count = sum(len(doc.content) for doc in text_docs)
                 _knowledge_doc.extracted_at = datetime.datetime.now()

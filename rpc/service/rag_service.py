@@ -24,6 +24,10 @@ class RagService:
         docs = await KnowledgeBaseService.retrieval_from_browser_history(query, start_time, end_time)
         return self._build_response(docs, "browser_history")
 
+    async def retrieval_from_file(self, doc_id: str) -> dict[str, Any]:
+        docs = await KnowledgeBaseService.retrieve_With_doc_id(doc_id)
+        return docs
+
     def _build_response(self, results: list, rag_type: RagType | str) -> dict[str, Any]:
         rag_value = rag_type.value if isinstance(rag_type, RagType) else rag_type
         contexts: list[dict[str, Any]] = []
