@@ -12,6 +12,7 @@ from .graph.neo4j.neo4j_config import Neo4jConfig
 from .id import IdConfig
 from .logging import LoggingConfig
 from .ops import OPSConfig
+from .ops.celery_config import CeleryConfig
 from .rag import RagConfig
 from .remote import RemoteSettingsSource, RemoteSettingsSourceName, RemoteSettingsSourceConfig, DiscoveryConfig
 from .remote.base import NacosSettingsSource
@@ -77,6 +78,7 @@ class AduibAiConfig(
     DiscoveryConfig,
     ServiceConfig,
     RagConfig,
+    CeleryConfig,
 ):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./aduib_ai/)

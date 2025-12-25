@@ -18,6 +18,7 @@ COPY . .
 RUN  pip install uv \
     && uv venv \
     && uv sync --frozen --no-dev \
-    && uv add uvloop httptools
+    && uv add uvloop httptools \
+    && chmod +x scripts/start_stack.py
 
-ENTRYPOINT ["uv","run","uvicorn","app:app","--host", "0.0.0.0", "--port", "5001", "--workers", "4",  "--loop", "uvloop", "--http", "httptools"]
+ENTRYPOINT ["uv","run","python","scripts/start_stack.py","--host","0.0.0.0","--port","5001","--workers","4"]

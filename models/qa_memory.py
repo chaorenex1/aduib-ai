@@ -1,0 +1,67 @@
+import datetime
+from enum import Enum
+from typing import Any
+
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+
+from models import Base
+from runtime.rag.rag_type import RagType
+
+
+class QaMemoryStatus(str, Enum):
+    CANDIDATE = "candidate"
+    ACTIVE = "active"
+    STALE = "stale"
+    DEPRECATED = "deprecated"
+    FROZEN = "frozen"
+
+
+class QaMemoryLevel(str, Enum):
+    L1 = "L1"
+    L2 = "L2"
+
+
+class QaMemoryRecord(Base):
+    __tablename__ = "qa_memory_record"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    project_id = Column(String(64), nullable=False, index=True, comment="Project or workspace identifier")
+    knowledge_base_id = Column(UUID(as_uuid=True), ForeignKey("knowledge_base.id"), nullable=False)
+    rag_type = Column(String(32), nullable=False, default=RagType.QA.value)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    summary = Column(Text, nullable=True)
+    tags = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    meta = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    status = Column(String(32), nullable=False, default=QaMemoryStatus.CANDIDATE.value)
+    level = Column(String(16), nullable=False, default=QaMemoryLevel.L1.value)
+    confidence = Column(Float, nullable=False, server_default=text("0.5"))
+    trust_score = Column(Float, nullable=False, server_default=text("0.5"))
+    success_count = Column(Integer, nullable=False, default=0)
+    failure_count = Column(Integer, nullable=False, default=0)
+    usage_count = Column(Integer, nullable=False, default=0)
+    strong_signal_count = Column(Integer, nullable=False, default=0)
+    ttl_expire_at = Column(DateTime, nullable=True)
+    last_used_at = Column(DateTime, nullable=True)
+    last_validated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.datetime.utcnow,
+        onupdate=datetime.datetime.utcnow,
+    )
+    source = Column(String(128), nullable=True)
+    author = Column(String(128), nullable=True)
+
+
+class QaMemoryEvent(Base):
+    __tablename__ = "qa_memory_event"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    qa_id = Column(UUID(as_uuid=True), ForeignKey("qa_memory_record.id"), index=True, nullable=False)
+    project_id = Column(String(64), nullable=False, index=True)
+    event_type = Column(String(32), nullable=False)
+    payload: Column[Any] = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)

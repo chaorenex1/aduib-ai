@@ -10,6 +10,7 @@ authors = [
     ]
 dependencies = [
     "bcrypt>=4.3.0",
+    "celery>=5.4.0",
     "boto3>=1.37.11",
     "fastapi>=0.116.1",
     "ffmpeg-python>=0.2.0",

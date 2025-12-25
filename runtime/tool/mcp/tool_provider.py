@@ -1,15 +1,14 @@
 import json
 
 from models import get_db, ToolInfo
-from runtime.mcp.base.fast_mcp import FastMCP
+from runtime.tool.mcp.fast_mcp_instance import fast_mcp
+import runtime.tool.mcp.qa_memory_tools  # noqa: F401
 from runtime.tool.base.tool import Tool
 from runtime.tool.base.tool_provider import ToolController
 from runtime.tool.entities import ToolEntity, ToolProviderType
 from runtime.tool.entities.tool_entities import CredentialType
 from runtime.tool.mcp.tool import McpTool
 from utils.async_utils import AsyncUtils
-
-fast_mcp = FastMCP()
 
 
 class McpToolController(ToolController):

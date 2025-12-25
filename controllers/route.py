@@ -39,3 +39,8 @@ api_router.include_router(knowledge.router)
 from .agent import agent
 
 api_router.include_router(agent.router)
+
+# qa memory
+from .qa_memory import qa_memory
+
+api_router.include_router(qa_memory.router)
