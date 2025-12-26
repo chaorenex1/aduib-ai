@@ -52,7 +52,8 @@ class LongTermEmbeddingsMemory(MemoryBase):
     def add_memory(self, message: Message) -> None:
         token_nums = GPTTokenizer.get_token_nums(message.assistant_message)
         logger.debug(f"Message ID: {message.id}, Token Count: {token_nums}")
-        message_timestamp = message.meta["timestamp"] if "timestamp" in message.meta else time.time()
+        meta = message.meta or {}
+        message_timestamp = meta.get("timestamp", time.time())
         documents = [
             Document(
                 content=message.assistant_message,

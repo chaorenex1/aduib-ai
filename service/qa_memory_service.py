@@ -44,7 +44,7 @@ class QAMemoryService:
             record = QaMemoryRecord(
                 project_id=project_id,
                 knowledge_base_id=kb.id,
-                rag_type=RagType.QA.value,
+                rag_type=RagType.QA,
                 question=question.strip(),
                 answer=answer.strip(),
                 summary=summary or "",

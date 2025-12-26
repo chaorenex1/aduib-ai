@@ -18,8 +18,9 @@ class LongTermGraphMemory(MemoryBase):
     def add_memory(self, message: Message) -> None:
         # 创建消息节点
         message_id = message.id
-        message_language = message.meta["language"] if "language" in message.meta else "zh"
-        message_timestamp = message.meta["timestamp"] if "timestamp" in message.meta else time.time()
+        meta = message.meta or {}
+        message_language = meta.get("language", "zh")
+        message_timestamp = meta.get("timestamp", time.time())
         self.graph_manager.create_node(
             "Message",
             {
@@ -56,7 +57,7 @@ class LongTermGraphMemory(MemoryBase):
 
     def get_memory(self, query: str) -> list[dict]:
         cypher = f"""
-        MATCH (m:Message {{id: '{query}' }})-[:NEXT*0..20]->->(related)
+        MATCH (m:Message {{id: '{query}' }})-[:NEXT*0..20]->(related)
     OPTIONAL MATCH (related)-[:HAS_TRIPLE]->(entity:Entity)
     OPTIONAL MATCH (subject)-[rel]->(object)
     WHERE (subject = entity OR object = entity)

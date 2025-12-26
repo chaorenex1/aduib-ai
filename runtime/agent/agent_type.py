@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, Field
 
 from models import Agent
 from runtime.tool.base.tool import Tool
@@ -32,8 +32,8 @@ class AgentTool(BaseModel):
 
 
 class AgentRuntimeConfig(BaseModel):
-    agent:Agent
-    tools: Optional[list[Tool]] = []
+    agent: Agent
+    tools: Optional[list[Tool]] = Field(default_factory=list)
 
     model_config = {"arbitrary_types_allowed": True}
 
