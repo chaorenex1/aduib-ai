@@ -154,7 +154,7 @@ async def run_service_register(app: AduibAIApp):
             aduib_ai_service.host = config.RPC_SERVICE_HOST
             aduib_ai_service.port = config.APP_PORT
         else:
-            aduib_ai_service.host = config.RPC_SERVICE_HOST
+            aduib_ai_service.host = ip
             aduib_ai_service.port = config.APP_PORT
 
         # Register services

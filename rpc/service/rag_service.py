@@ -5,6 +5,7 @@ from aduib_rpc.server.rpc_execution.service_call import service
 
 from runtime.rag.rag_type import RagType
 from service import KnowledgeBaseService
+from utils import jsonable_encoder
 
 
 @service(service_name="RagService")
@@ -44,11 +45,11 @@ class RagService:
                     }
                 )
         else:
-            contexts = results
+            contexts.append({})
 
         return {
             "rag_type": rag_value,
             "count": len(contexts),
             "documents": contexts,
-            "context": json.dumps(contexts, ensure_ascii=False, indent=2),
+            "context": json.dumps(jsonable_encoder(contexts), ensure_ascii=False, indent=2),
         }

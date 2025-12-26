@@ -39,8 +39,10 @@ class QAMemoryService:
         metadata = metadata or {}
         now = datetime.datetime.utcnow()
 
+        kb_id: str
         with get_db() as session:
             kb = cls._ensure_default_kb(session)
+            kb_id = str(kb.id)
             record = QaMemoryRecord(
                 project_id=project_id,
                 knowledge_base_id=kb.id,
@@ -64,17 +66,20 @@ class QAMemoryService:
             session.commit()
             session.refresh(record)
 
-        cls._upsert_vector_entry(record, kb)
+        # Important: don't pass ORM instances outside the session.
+        cls._upsert_vector_entry(record, kb_id)
         return record
 
     @classmethod
     def search(cls, project_id: str, query: str, limit: int = 6, min_score: float = 0.2) -> list[dict[str, Any]]:
         if not query.strip():
             return []
-        knowledge = cls._get_default_kb()
-        if knowledge is None:
+
+        kb_id = cls._get_default_kb_id()
+        if kb_id is None:
             return []
-        vector = Vector(knowledge)
+
+        vector = cls._vector_from_kb_id(kb_id)
         documents = vector.search_by_vector(query, top_k=limit * 2, score_threshold=min_score)
 
         qa_ids: set[str] = set()
@@ -244,9 +249,9 @@ class QAMemoryService:
             session.commit()
             session.refresh(record)
 
-        knowledge = cls._get_default_kb()
-        if knowledge:
-            cls._upsert_vector_entry(record, knowledge)
+        kb_id = cls._get_default_kb_id()
+        if kb_id:
+            cls._upsert_vector_entry(record, kb_id)
         return record
 
     @classmethod
@@ -293,8 +298,8 @@ class QAMemoryService:
         if not processed_ids:
             return 0
 
-        knowledge = cls._get_default_kb()
-        if knowledge:
+        kb_id = cls._get_default_kb_id()
+        if kb_id:
             with get_db() as session:
                 refreshed = (
                     session.execute(select(QaMemoryRecord).where(QaMemoryRecord.id.in_(processed_ids)))
@@ -302,7 +307,7 @@ class QAMemoryService:
                     .all()
                 )
             for record in refreshed:
-                cls._upsert_vector_entry(record, knowledge)
+                cls._upsert_vector_entry(record, kb_id)
         return processed
 
     @classmethod
@@ -348,26 +353,37 @@ class QAMemoryService:
         return kb
 
     @classmethod
-    def _get_default_kb(cls) -> KnowledgeBase | None:
+    def _get_default_kb_id(cls) -> str | None:
+        """Return the default QA KnowledgeBase id without leaking detached ORM instances."""
         with get_db() as session:
-            kb = (
+            return (
                 session.execute(
-                    select(KnowledgeBase)
+                    select(KnowledgeBase.id)
                     .where(KnowledgeBase.rag_type == RagType.QA.value)
                     .where(KnowledgeBase.default_base == 1)
                 )
                 .scalars()
                 .first()
             )
-            return kb
 
     @classmethod
-    def _upsert_vector_entry(cls, record: QaMemoryRecord, knowledge: KnowledgeBase):
+    def _vector_from_kb_id(cls, kb_id: str) -> Vector:
+        """Create a Vector using a KnowledgeBase loaded inside an active session."""
+        with get_db() as session:
+            kb = session.get(KnowledgeBase, kb_id)
+            if not kb:
+                raise RuntimeError(f"KnowledgeBase not found: {kb_id}")
+            # Make it explicit that we don't want this instance to be used for lazy loads later.
+            session.expunge(kb)
+        return Vector(kb)
+
+    @classmethod
+    def _upsert_vector_entry(cls, record: QaMemoryRecord, knowledge_base_id: str):
         document = Document(
             content=cls._compose_content(record),
             metadata=cls._build_metadata(record),
         )
-        vector = Vector(knowledge)
+        vector = cls._vector_from_kb_id(knowledge_base_id)
         vector.delete_by_ids([str(record.id)])
         vector.add_texts([document])
 
