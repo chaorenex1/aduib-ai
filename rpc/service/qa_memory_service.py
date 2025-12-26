@@ -161,14 +161,15 @@ class QaMemoryService:
             return {"status": "not_found", "qa_id": qa_id}
         return {"record": _serialize_record(record)}
 
-    @staticmethod
-    def _format_search_result(match: dict[str, Any]) -> dict[str, Any]:
+    def _format_search_result(self, match: dict[str, Any]) -> dict[str, Any]:
         metadata = match.get("metadata") or {}
         source_info: Dict[str, Any] = {}
         if match.get("source"):
             source_info["label"] = match["source"]
         if metadata.get("source"):
-            source_info.update(metadata.get("source"))
+            source_val = metadata.get("source")
+            if isinstance(source_val, dict):
+                source_info.update(source_val)
         return {
             "qa_id": match["qa_id"],
             "question": match.get("question") or "",
