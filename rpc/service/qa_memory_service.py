@@ -1,8 +1,11 @@
+import logging
 from typing import Any, Dict, List, Optional
 
 from aduib_rpc.server.rpc_execution.service_call import service
 
 from service import QAMemoryService
+
+logger=logging.getLogger(__name__)
 
 
 def _serialize_record(record) -> dict[str, Any]:
@@ -47,7 +50,8 @@ class QaMemoryService:
         filters: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         matches = QAMemoryService.search(project_id=namespace, query=query, limit=top_k, min_score=0.0)
-        results = [self._format_search_result(item=match) for match in matches]
+        logger.debug(f"matches={matches}")
+        results = [self._format_search_result(match) for match in matches]
 
         if results:
             references = [
@@ -158,24 +162,24 @@ class QaMemoryService:
         return {"record": _serialize_record(record)}
 
     @staticmethod
-    def _format_search_result(item: dict[str, Any]) -> dict[str, Any]:
-        metadata = item.get("metadata") or {}
+    def _format_search_result(match: dict[str, Any]) -> dict[str, Any]:
+        metadata = match.get("metadata") or {}
         source_info: Dict[str, Any] = {}
-        if item.get("source"):
-            source_info["label"] = item["source"]
+        if match.get("source"):
+            source_info["label"] = match["source"]
         if metadata.get("source"):
             source_info.update(metadata.get("source"))
         return {
-            "qa_id": item["qa_id"],
-            "question": item.get("question") or "",
-            "answer": item.get("answer") or "",
-            "validation_level": item.get("level"),
-            "confidence": item.get("confidence") or item.get("trust"),
+            "qa_id": match["qa_id"],
+            "question": match.get("question") or "",
+            "answer": match.get("answer") or "",
+            "validation_level": match.get("level"),
+            "confidence": match.get("confidence") or match.get("trust"),
             "scope": metadata.get("scope", {}),
-            "tags": item.get("tags") or [],
+            "tags": match.get("tags") or [],
             "source": source_info,
-            "expiry_at": item.get("expiry_at"),
-            "relevance_score": item.get("score"),
+            "expiry_at": match.get("expiry_at"),
+            "relevance_score": match.get("score"),
             "evidence_refs": metadata.get("evidence_refs", []),
             "resource_uri": metadata.get("resource_uri"),
         }
