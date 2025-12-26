@@ -1,4 +1,5 @@
 import datetime
+import json
 from typing import Any, Iterable, Sequence
 
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from models import (
     get_db,
 )
 from runtime.entities.document_entities import Document
+from runtime.generator.generator import LLMGenerator
 from runtime.rag.rag_type import RagType
 
 
@@ -40,6 +42,9 @@ class QAMemoryService:
         now = datetime.datetime.utcnow()
 
         kb_id: str
+        summary = summary if summary else LLMGenerator.generate_doc_research(f"Q: {question}\nA: {answer}")
+        if metadata["summary"] != summary:
+            metadata["summary"] = summary
         with get_db() as session:
             kb = cls._ensure_default_kb(session)
             kb_id = str(kb.id)
@@ -49,7 +54,7 @@ class QAMemoryService:
                 rag_type=RagType.QA,
                 question=question.strip(),
                 answer=answer.strip(),
-                summary=summary or "",
+                summary=summary,
                 tags=tags,
                 meta=metadata,
                 status=QaMemoryStatus.CANDIDATE.value,
