@@ -47,7 +47,7 @@ class QaMemoryService:
         filters: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         matches = QAMemoryService.search(project_id=namespace, query=query, limit=top_k, min_score=0.0)
-        results = [self._format_search_result(match) for match in matches]
+        results = [self._format_search_result(item=match) for match in matches]
 
         if results:
             references = [
