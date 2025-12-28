@@ -26,7 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="0.0.0.0", help="Uvicorn host (default: %(default)s)")
     parser.add_argument("--port", type=int, default=8000, help="Uvicorn port (default: %(default)s)")
     parser.add_argument("--reload", action="store_true", help="Enable Uvicorn reload")
-    parser.add_argument("--workers", type=int, default=4, help="Number of Uvicorn worker processes")
+    parser.add_argument("--workers", type=int, default=1, help="Number of Uvicorn worker processes")
     parser.add_argument("--celery-app", default=DEFAULT_CELERY_APP, help="Celery app path")
     parser.add_argument("--celery-loglevel", default="info", help="Celery log level (default: %(default)s)")
     parser.add_argument("--no-beat", action="store_true", help="Disable Celery beat (worker only)")

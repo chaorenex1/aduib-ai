@@ -20,12 +20,6 @@ from utils.port_utils import get_ip_and_free_port
 
 log = logging.getLogger(__name__)
 
-# RPC service singleton state
-_rpc_service_started = False
-_rpc_service_lock = asyncio.Lock()
-_rpc_service_task: Optional[asyncio.Task] = None
-
-
 def create_app_with_configs() -> AduibAIApp:
     def custom_generate_unique_id(route: APIRoute) -> str:
         return f"{route.tags[0]}-{route.name}"
@@ -87,16 +81,7 @@ async def run_service_register(app: AduibAIApp):
     Start RPC service registration and server.
     This function implements singleton pattern to ensure RPC service only starts once.
     """
-    global _rpc_service_started, _rpc_service_task
-
-    async with _rpc_service_lock:
-        if _rpc_service_started:
-            log.info("RPC service already started, skipping...")
-            return
-
-        log.info("Starting RPC service registration...")
-        _rpc_service_started = True
-
+    log.info("Starting RPC service registration...")
     try:
         registry_config = {
             "server_addresses": app.config.NACOS_SERVER_ADDR,
@@ -154,8 +139,8 @@ async def run_service_register(app: AduibAIApp):
             aduib_ai_service.host = config.RPC_SERVICE_HOST
             aduib_ai_service.port = config.APP_PORT
         else:
-            aduib_ai_service.host = ip
-            aduib_ai_service.port = config.APP_PORT
+            aduib_ai_service.host = config.RPC_SERVICE_HOST
+            aduib_ai_service.port = port
 
         # Register services
         await service_registry.register_service(rpc_service_info)
@@ -169,8 +154,7 @@ async def run_service_register(app: AduibAIApp):
 
     except Exception as e:
         log.error(f"Failed to start RPC service: {e}", exc_info=True)
-        async with _rpc_service_lock:
-            _rpc_service_started = False
+        _rpc_service_started = False
         raise
 
 
@@ -179,12 +163,9 @@ async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
     """
     Application lifespan manager - handles startup and shutdown logic.
     """
-    global _rpc_service_task
-
     log.info("Lifespan is starting")
 
-    # Start RPC service as a background task (singleton pattern ensures it only runs once)
-    _rpc_service_task = asyncio.create_task(run_service_register(app))
+    asyncio.create_task(run_service_register(app))
 
     from event.event_manager import EventManager
     event_manager: EventManager = app.extensions.get("event_manager")
@@ -196,20 +177,6 @@ async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
 
     # Shutdown logic
     log.info("Application is shutting down, cleaning up resources...")
-
-    # Cancel RPC service task if running
-    global _rpc_service_started
-    if _rpc_service_task and not _rpc_service_task.done():
-        try:
-            _rpc_service_task.cancel()
-            try:
-                await _rpc_service_task
-            except asyncio.CancelledError:
-                log.info("RPC service task cancelled")
-            async with _rpc_service_lock:
-                _rpc_service_started = False
-        except Exception as e:
-            log.error(f"Error cancelling RPC service task: {e}")
 
     # Stop event manager
     if event_manager:
@@ -226,13 +193,4 @@ async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
         log.info("Database connections closed")
     except Exception as e:
         log.error(f"Error closing database connections: {e}")
-
-    # Clear HTTP client cache
-    try:
-        from libs.cache import in_memory_llm_clients_cache
-        in_memory_llm_clients_cache.clear()
-        log.info("HTTP client cache cleared")
-    except Exception as e:
-        log.error(f"Error clearing HTTP client cache: {e}")
-
     log.info("Application shutdown complete")

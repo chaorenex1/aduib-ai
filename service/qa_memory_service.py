@@ -22,7 +22,24 @@ class QAMemoryService:
     """Service layer for QA memory lifecycle management."""
 
     BASE_TTL_DAYS = 14
+    MAX_TTL_DAYS = 180
+    STRONG_PASS_TTL_BONUS_DAYS = 30
+    STRONG_FAIL_MIN_TTL_DAYS = 7
     FRESHNESS_WINDOW_DAYS = 30
+    LEVEL_MIN_VALIDATIONS = {
+        1: 2,
+        2: 4,
+        3: 6,
+    }
+    LEVEL_MIN_STRONG_PASSES = {
+        2: 1,
+        3: 2,
+    }
+    LEVEL_TRUST_THRESHOLDS = {
+        1: 0.40,
+        2: 0.65,
+        3: 0.80,
+    }
 
     @classmethod
     def create_candidate(
@@ -40,10 +57,24 @@ class QAMemoryService:
         tags = list(tags or [])
         metadata = metadata or {}
         now = datetime.datetime.utcnow()
+        stats = cls._init_stats()
+        trust_score = cls._compute_trust_score(stats)
+        metadata.setdefault("stats", stats)
+        metadata.setdefault(
+            "score",
+            {
+                "trust_score": trust_score,
+                "validation_level": 0,
+            },
+        )
+        metadata.setdefault(
+            "ttl",
+            {"expires_at": (now + datetime.timedelta(days=cls.BASE_TTL_DAYS)).isoformat()},
+        )
 
         kb_id: str
         summary = summary if summary else LLMGenerator.generate_doc_research(f"Q: {question}\nA: {answer}")
-        if metadata["summary"] != summary:
+        if metadata.get("summary") != summary:
             metadata["summary"] = summary
         with get_db() as session:
             kb = cls._ensure_default_kb(session)
@@ -58,9 +89,9 @@ class QAMemoryService:
                 tags=tags,
                 meta=metadata,
                 status=QaMemoryStatus.CANDIDATE.value,
-                level=QaMemoryLevel.L1.value,
+                level=QaMemoryLevel.L0.value,
                 confidence=max(0.0, min(1.0, confidence)),
-                trust_score=max(0.0, min(1.0, confidence)),
+                trust_score=max(0.0, min(1.0, trust_score)),
                 ttl_expire_at=now + datetime.timedelta(days=cls.BASE_TTL_DAYS),
                 source=source,
                 author=author,
@@ -126,7 +157,9 @@ class QAMemoryService:
             relevance = cls._compute_relevance(raw_distance)
             trust = cls._compute_trust(record)
             freshness = cls._compute_freshness(record, now)
-            final_score = 0.55 * relevance + 0.30 * trust + 0.15 * freshness
+            level_value = cls._parse_level(record.level)
+            level_boost = min(0.08, 0.02 * level_value)
+            final_score = 0.55 * relevance + 0.30 * trust + 0.15 * freshness + level_boost
             matches.append(
                 {
                     "qa_id": str(record.id),
@@ -138,6 +171,7 @@ class QAMemoryService:
                     "relevance": relevance,
                     "trust": trust,
                     "freshness": freshness,
+                    "validation_level": level_value,
                     "level": record.level,
                     "status": record.status,
                     "metadata": record.meta,
@@ -147,6 +181,9 @@ class QAMemoryService:
                     "confidence": record.confidence,
                 }
             )
+
+        if any(match["validation_level"] > 0 for match in matches):
+            matches = [match for match in matches if match["validation_level"] > 0]
 
         matches.sort(key=lambda item: item["score"], reverse=True)
         return matches[:limit]
@@ -201,8 +238,8 @@ class QAMemoryService:
         cls,
         project_id: str,
         qa_id: str,
-        success: bool,
-        strong_signal: bool = False,
+        result: str,
+        signal_strength: str = "weak",
         payload: dict[str, Any] | None = None,
     ) -> QaMemoryRecord | None:
         payload = payload or {}
@@ -221,23 +258,26 @@ class QAMemoryService:
 
             now = datetime.datetime.utcnow()
             record.last_validated_at = now
-            if success:
-                record.success_count += 1
-                record.failure_count = 0
-                record.trust_score = min(1.0, record.trust_score + (0.1 if strong_signal else 0.05))
-                record.status = QaMemoryStatus.ACTIVE.value
-                record.ttl_expire_at = now + datetime.timedelta(days=cls.BASE_TTL_DAYS)
-                if strong_signal and record.level == QaMemoryLevel.L1.value:
-                    record.level = QaMemoryLevel.L2.value
-                if strong_signal:
-                    record.strong_signal_count += 1
+            stats = cls._get_stats(record)
+            normalized_result = "pass" if result == "pass" else "fail"
+            normalized_strength = cls._normalize_signal_strength(signal_strength)
+            ignored = cls._should_ignore_signal(stats, normalized_result, normalized_strength)
+            if not ignored:
+                cls._update_stats(stats, normalized_result, normalized_strength, now)
             else:
-                record.failure_count += 1
-                record.trust_score = max(0.0, record.trust_score - 0.1)
-                if record.failure_count >= 3:
-                    record.status = QaMemoryStatus.DEPRECATED.value
-                elif record.failure_count >= 2:
-                    record.status = QaMemoryStatus.STALE.value
+                stats["last_validated_at"] = now.isoformat()
+            cls._sync_counts(record, stats)
+            record.trust_score = cls._compute_trust_score(stats)
+            validation_level = cls._compute_validation_level(stats)
+            record.level = cls._format_level(validation_level)
+            if normalized_result == "pass":
+                record.status = QaMemoryStatus.ACTIVE.value
+            elif stats["consecutive_fail"] >= 3:
+                record.status = QaMemoryStatus.DEPRECATED.value
+            elif stats["consecutive_fail"] >= 2:
+                record.status = QaMemoryStatus.STALE.value
+            cls._adjust_ttl(record, normalized_result, normalized_strength, now)
+            cls._store_meta_stats(record, stats, validation_level)
 
             session.add(
                 QaMemoryEvent(
@@ -245,8 +285,9 @@ class QAMemoryService:
                     project_id=project_id,
                     event_type="validate",
                     payload={
-                        "success": success,
-                        "strong_signal": strong_signal,
+                        "result": normalized_result,
+                        "signal_strength": normalized_strength,
+                        "ignored": ignored,
                         **payload,
                     },
                 )
@@ -432,6 +473,159 @@ class QAMemoryService:
         age_days = (now - anchor).total_seconds() / 86400
         freshness = max(0.0, 1 - age_days / cls.FRESHNESS_WINDOW_DAYS)
         return min(1.0, freshness)
+
+    @classmethod
+    def _parse_level(cls, level: str | None) -> int:
+        if not level:
+            return 0
+        if level.startswith("L"):
+            try:
+                return int(level[1:])
+            except ValueError:
+                return 0
+        return 0
+
+    @classmethod
+    def _init_stats(cls) -> dict[str, Any]:
+        return {
+            "total_pass": 0,
+            "total_fail": 0,
+            "strong_pass": 0,
+            "strong_fail": 0,
+            "medium_pass": 0,
+            "medium_fail": 0,
+            "weak_pass": 0,
+            "weak_fail": 0,
+            "consecutive_fail": 0,
+            "last_result": None,
+            "last_validated_at": None,
+        }
+
+    @classmethod
+    def _get_stats(cls, record: QaMemoryRecord) -> dict[str, Any]:
+        meta = record.meta or {}
+        stats = meta.get("stats") or {}
+        defaults = cls._init_stats()
+        defaults.update({k: v for k, v in stats.items() if k in defaults})
+        return defaults
+
+    @classmethod
+    def _normalize_signal_strength(cls, signal_strength: str) -> str:
+        normalized = (signal_strength or "weak").lower()
+        if normalized not in {"strong", "medium", "weak"}:
+            return "weak"
+        return normalized
+
+    @classmethod
+    def _should_ignore_signal(cls, stats: dict[str, Any], result: str, strength: str) -> bool:
+        if strength != "weak" or result != "fail":
+            return False
+        strong_pass = int(stats.get("strong_pass", 0))
+        strong_fail = int(stats.get("strong_fail", 0))
+        return strong_pass >= 2 and strong_pass > strong_fail
+
+    @classmethod
+    def _update_stats(
+        cls,
+        stats: dict[str, Any],
+        result: str,
+        strength: str,
+        now: datetime.datetime,
+    ) -> None:
+        if result == "pass":
+            stats["total_pass"] += 1
+        else:
+            stats["total_fail"] += 1
+        key = f"{strength}_{result}"
+        stats[key] += 1
+        if result == "fail":
+            stats["consecutive_fail"] += 1
+        else:
+            stats["consecutive_fail"] = 0
+        stats["last_result"] = result
+        stats["last_validated_at"] = now.isoformat()
+
+    @classmethod
+    def _sync_counts(cls, record: QaMemoryRecord, stats: dict[str, Any]) -> None:
+        record.success_count = int(stats.get("total_pass", 0))
+        record.failure_count = int(stats.get("total_fail", 0))
+        record.strong_signal_count = int(stats.get("strong_pass", 0))
+
+    @classmethod
+    def _compute_trust_score(cls, stats: dict[str, Any]) -> float:
+        sp = stats.get("strong_pass", 0)
+        sf = stats.get("strong_fail", 0)
+        mp = stats.get("medium_pass", 0)
+        mf = stats.get("medium_fail", 0)
+        wp = stats.get("weak_pass", 0)
+        wf = stats.get("weak_fail", 0)
+        cf = stats.get("consecutive_fail", 0)
+        score = 0.0
+        score += 0.25 * sp
+        score -= 0.35 * sf
+        score += 0.10 * mp
+        score -= 0.15 * mf
+        score += 0.02 * wp
+        score -= 0.05 * wf
+        score -= 0.5 * min(cf, 3)
+        score = max(-2.0, min(score, 3.0))
+        return (score + 2.0) / 5.0
+
+    @classmethod
+    def _compute_validation_level(cls, stats: dict[str, Any]) -> int:
+        if int(stats.get("consecutive_fail", 0)) >= 3:
+            return 0
+        total = int(stats.get("total_pass", 0)) + int(stats.get("total_fail", 0))
+        trust_score = cls._compute_trust_score(stats)
+        strong_pass = int(stats.get("strong_pass", 0))
+        strong_fail = int(stats.get("strong_fail", 0))
+        if (
+            total >= cls.LEVEL_MIN_VALIDATIONS[3]
+            and trust_score >= cls.LEVEL_TRUST_THRESHOLDS[3]
+            and strong_pass >= cls.LEVEL_MIN_STRONG_PASSES[3]
+            and strong_fail == 0
+        ):
+            return 3
+        if (
+            total >= cls.LEVEL_MIN_VALIDATIONS[2]
+            and trust_score >= cls.LEVEL_TRUST_THRESHOLDS[2]
+            and strong_pass >= cls.LEVEL_MIN_STRONG_PASSES[2]
+        ):
+            return 2
+        if total >= cls.LEVEL_MIN_VALIDATIONS[1] and trust_score >= cls.LEVEL_TRUST_THRESHOLDS[1]:
+            return 1
+        return 0
+
+    @classmethod
+    def _format_level(cls, level: int) -> str:
+        return f"L{max(0, min(level, 3))}"
+
+    @classmethod
+    def _adjust_ttl(
+        cls,
+        record: QaMemoryRecord,
+        result: str,
+        strength: str,
+        now: datetime.datetime,
+    ) -> None:
+        if strength == "strong" and result == "pass":
+            base = record.ttl_expire_at if record.ttl_expire_at and record.ttl_expire_at > now else now
+            updated = base + datetime.timedelta(days=cls.STRONG_PASS_TTL_BONUS_DAYS)
+            cap = now + datetime.timedelta(days=cls.MAX_TTL_DAYS)
+            record.ttl_expire_at = min(updated, cap)
+            return
+        if strength == "strong" and result == "fail":
+            record.ttl_expire_at = now + datetime.timedelta(days=cls.STRONG_FAIL_MIN_TTL_DAYS)
+
+    @classmethod
+    def _store_meta_stats(cls, record: QaMemoryRecord, stats: dict[str, Any], level: int) -> None:
+        meta = dict(record.meta or {})
+        meta["stats"] = stats
+        meta["score"] = {"trust_score": record.trust_score, "validation_level": level}
+        meta["ttl"] = {
+            "expires_at": record.ttl_expire_at.isoformat() if record.ttl_expire_at else None,
+        }
+        record.meta = meta
 
     @classmethod
     def _log_event(cls, session, qa_id, project_id, event_type: str, payload: dict[str, Any] | None):

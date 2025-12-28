@@ -44,8 +44,14 @@ class QAHitsPayload(BaseModel):
 class QAValidationPayload(BaseModel):
     project_id: str
     qa_id: str
-    success: bool
+    result: str | None = None
+    signal_strength: str | None = None
+    success: bool | None = None
     strong_signal: bool = False
+    source: str | None = None
+    context: dict[str, Any] | None = None
+    client: dict[str, Any] | None = None
+    ts: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -54,6 +60,9 @@ class QAExpirePayload(BaseModel):
 
 
 def _serialize_record(record) -> dict[str, Any]:
+    level_value = 0
+    if record.level and record.level.startswith("L") and record.level[1:].isdigit():
+        level_value = int(record.level[1:])
     return {
         "qa_id": str(record.id),
         "project_id": record.project_id,
@@ -68,6 +77,7 @@ def _serialize_record(record) -> dict[str, Any]:
         "time_sensitivity": (record.meta or {}).get("time_sensitivity"),
         "status": record.status,
         "level": record.level,
+        "validation_level": level_value,
         "trust_score": record.trust_score,
         "confidence": record.confidence,
         "usage_count": record.usage_count,
@@ -121,12 +131,34 @@ async def qa_hit(payload: QAHitsPayload):
 @router.post("/qa/validate")
 @catch_exceptions
 async def qa_validate(payload: QAValidationPayload):
+    if payload.result:
+        result = payload.result
+    elif payload.success is not None:
+        result = "pass" if payload.success else "fail"
+    else:
+        return BaseResponse.error(400, "Missing validation result")
+
+    if payload.signal_strength:
+        signal_strength = payload.signal_strength
+    else:
+        signal_strength = "strong" if payload.strong_signal else "weak"
+
+    event_payload = dict(payload.payload or {})
+    if payload.source:
+        event_payload["source"] = payload.source
+    if payload.context:
+        event_payload["context"] = payload.context
+    if payload.client:
+        event_payload["client"] = payload.client
+    if payload.ts:
+        event_payload["ts"] = payload.ts
+
     record = QAMemoryService.record_validation(
         project_id=payload.project_id,
         qa_id=payload.qa_id,
-        success=payload.success,
-        strong_signal=payload.strong_signal,
-        payload=payload.payload,
+        result=result,
+        signal_strength=signal_strength,
+        payload=event_payload,
     )
     if not record:
         return BaseResponse.error(404, "QA memory not found")

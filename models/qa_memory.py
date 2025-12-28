@@ -18,8 +18,10 @@ class QaMemoryStatus(str, Enum):
 
 
 class QaMemoryLevel(str, Enum):
+    L0 = "L0"
     L1 = "L1"
     L2 = "L2"
+    L3 = "L3"
 
 
 class QaMemoryRecord(Base):
@@ -35,7 +37,7 @@ class QaMemoryRecord(Base):
     tags = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     meta = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     status = Column(String(32), nullable=False, default=QaMemoryStatus.CANDIDATE.value)
-    level = Column(String(16), nullable=False, default=QaMemoryLevel.L1.value)
+    level = Column(String(16), nullable=False, default=QaMemoryLevel.L0.value)
     confidence = Column(Float, nullable=False, server_default=text("0.5"))
     trust_score = Column(Float, nullable=False, server_default=text("0.5"))
     success_count = Column(Integer, nullable=False, default=0)

@@ -55,15 +55,29 @@ def qa_memory_hit(project_id: str, references: list[dict[str, Any]]):
 def qa_memory_validate(
     project_id: str,
     qa_id: str,
-    success: bool,
+    result: str | None = None,
+    signal_strength: str | None = None,
+    success: bool | None = None,
     strong_signal: bool = False,
     payload: dict[str, Any] | None = None,
 ):
+    if result:
+        normalized_result = result
+    elif success is not None:
+        normalized_result = "pass" if success else "fail"
+    else:
+        return {"status": "invalid_request", "message": "Missing validation result"}
+
+    if signal_strength:
+        normalized_strength = signal_strength
+    else:
+        normalized_strength = "strong" if strong_signal else "weak"
+
     record = QAMemoryService.record_validation(
         project_id=project_id,
         qa_id=qa_id,
-        success=success,
-        strong_signal=strong_signal,
+        result=normalized_result,
+        signal_strength=normalized_strength,
         payload=payload,
     )
     if not record:
@@ -72,5 +86,6 @@ def qa_memory_validate(
         "qa_id": str(record.id),
         "status": record.status,
         "level": record.level,
+        "validation_level": int(record.level[1:]) if record.level.startswith("L") else 0,
         "trust_score": record.trust_score,
     }
