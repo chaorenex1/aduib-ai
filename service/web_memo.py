@@ -71,6 +71,7 @@ class WebMemoService:
                 url = item.get("url", "")
                 crawl_text = item.get("crawl_text", "")
                 hit_rule = item.get("hit_rule", "")
+                crawl_type = item.get("crawl_type", "")
                 logger.info(f"Web memo crawl result: url={url}, hit_rule={hit_rule}, length={len(crawl_text)}")
                 if crawl_text != "\n" and crawl_text != "[]":
                     crawl_text = crawl_text.strip()
@@ -92,7 +93,7 @@ class WebMemoService:
                     history.crawl_metadata = json.dumps(metadata).encode("utf-8").decode("unicode-escape")
                     session.add(history)
                     session.commit()
-                    if hit_rule != "default" and crawl_text and len(crawl_text) > 0:
+                    if crawl_type == "markdown":
                         # from service import KnowledgeBaseService
                         # await KnowledgeBaseService.paragraph_rag_from_web_memo(crawl_text,crawl_type)
 

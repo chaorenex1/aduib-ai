@@ -18,6 +18,7 @@ from typing import List
 
 DEFAULT_APP = "app:app"
 DEFAULT_CELERY_APP = "runtime.tasks.celery_app.celery_app"
+DEFAULT_RPC_APP = "rpc_app.py"
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--celery-app", default=DEFAULT_CELERY_APP, help="Celery app path")
     parser.add_argument("--celery-loglevel", default="info", help="Celery log level (default: %(default)s)")
     parser.add_argument("--no-beat", action="store_true", help="Disable Celery beat (worker only)")
+
     return parser.parse_args()
 
 
@@ -62,9 +64,13 @@ def build_celery_cmd(args: argparse.Namespace) -> List[str]:
         "-l",
         args.celery_loglevel,
     ]
-    if not args.no_beat:
+    if not args.no_beat and sys.platform != "win32":
         cmd.append("-B")
     return cmd
+
+
+def build_rpc_cmd(args: argparse.Namespace) -> List[str]:
+    return [sys.executable, "-m", "rpc_app"]
 
 
 def terminate_process(proc: subprocess.Popen, name: str):
@@ -92,6 +98,12 @@ def main():
     celery_proc = subprocess.Popen(celery_cmd, env=env)
 
     processes = [("uvicorn", uvicorn_proc), ("celery", celery_proc)]
+
+    rpc_cmd = build_rpc_cmd(args)
+    print(f"[stack] Starting RPC app")
+    rpc_proc = subprocess.Popen(rpc_cmd, env=env)
+    processes.append(("rpc", rpc_proc))
+
     interrupted = False
     try:
         while True:

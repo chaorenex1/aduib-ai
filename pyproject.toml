@@ -17,7 +17,7 @@ dependencies = [
     "jieba3>=1.0.2",
     "langchain-text-splitters>=0.3.6",
     "nacos-sdk-python>=2.0.1",
-    "aduib-rpc>=1.0.10",
+    "aduib-rpc==1.0.12",
     "nacos-mcp-wrapper-python",
     "neomodel==5.4.5",
     "numpy==2.1.3",
