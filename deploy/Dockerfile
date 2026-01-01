@@ -21,4 +21,4 @@ RUN  pip install uv \
     && uv add uvloop httptools \
     && chmod +x scripts/start_stack.py
 
-ENTRYPOINT ["uv","run","python","scripts/start_stack.py","--host","0.0.0.0","--port","5001","--wokers","4"]
+ENTRYPOINT ["uv","run","python","scripts/start_stack.py","--host","0.0.0.0","--port","5001","--workers","4"]
