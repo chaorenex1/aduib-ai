@@ -75,7 +75,7 @@ class TaskGradeRecord(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
     prompt = Column(Text, nullable=False, server_default=text("''"))
-    prompt_hash = Column(String(32), nullable=False, server_default=text("''"))
+    prompt_hash = Column(String(150), nullable=False, server_default=text("''"))
     task_level = Column(String, nullable=False, index=True,server_default="'L1'")
     reason = Column(String(300), nullable=False,server_default=text("''"))
     recommended_model = Column(String(128), nullable=False,server_default=text("''"))
