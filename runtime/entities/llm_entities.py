@@ -393,3 +393,9 @@ class NumTokensResult(PriceInfo):
     """
 
     tokens: int
+
+# Backward compatibility:
+# Some older code/tests still import ChatMessage from this module.
+# The canonical representation is PromptMessage (and its subclasses).
+ChatMessage = PromptMessage
+

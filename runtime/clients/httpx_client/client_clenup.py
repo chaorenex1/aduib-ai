@@ -50,26 +50,33 @@ def register_async_client_cleanup():
     Register the async client cleanup function to run at exit.
 
     This ensures that all async HTTP clients are properly closed when the program exits.
+
+    Notes
+    - During interpreter shutdown (especially under pytest/Windows), creating a new event loop
+      can trigger noisy "I/O operation on closed file" logging errors.
+    - We therefore only attempt cleanup if we can obtain a usable, open loop.
     """
     import atexit
 
     def cleanup_wrapper():
         try:
-            loop = asyncio.get_event_loop()
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                # No loop set for this thread.
+                return
+
+            # If the loop is already closed, don't try to resurrect it.
+            if getattr(loop, "is_closed", lambda: True)():
+                return
+
             if loop.is_running():
-                # Schedule the cleanup coroutine
                 loop.create_task(close_async_clients())
             else:
-                # Run the cleanup coroutine
+                # Best-effort: run cleanup synchronously. If this fails, swallow.
                 loop.run_until_complete(close_async_clients())
         except Exception:
-            # If we can't get an event loop or it's already closed, try creating a new one
-            try:
-                loop = asyncio.new_event_loop()
-                loop.run_until_complete(close_async_clients())
-                loop.close()
-            except Exception:
-                # Silently ignore errors during cleanup
-                pass
+            # Silently ignore errors during cleanup
+            return
 
     atexit.register(cleanup_wrapper)

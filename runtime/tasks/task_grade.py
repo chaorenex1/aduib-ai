@@ -53,7 +53,7 @@ class TaskGrader:
             recommended_model_model_provider = parsed.get("recommended_model_provider")
             confidence = float(parsed.get("confidence"))
             temperature = float(parsed.get("temperature"))
-            top_P = float(parsed.get("top_p"))
+            top_p = float(parsed.get("top_p"))
             weight = float(parsed.get("weight"))
 
             result: Dict[str, Any] = {
@@ -62,7 +62,7 @@ class TaskGrader:
                 "recommended_model_provider": recommended_model_model_provider,
                 "confidence": confidence,
                 "temperature": temperature,
-                "top_p": top_P,
+                "top_p": top_p,
                 "weight": weight,
                 "raw_json": parsed,
                 "raw_text": answer_text,
@@ -76,11 +76,11 @@ class TaskGrader:
                     prompt_hash=hashlib.sha512(prompt.encode("utf-8")).hexdigest(),
                     task_level=task_level,
                     reason=reason,
-                    recommended_model=cast(str, recommended_model),
-                    recommended_model_provider=cast(str, recommended_model_model_provider),
+                    recommended_model=recommended_model,
+                    recommended_model_provider=recommended_model_model_provider,
                     confidence=confidence,
                     temperature=temperature,
-                    top_p=top_P,
+                    top_p=top_p,
                     weight=weight,
                     raw_json=parsed,
                     raw_text=answer_text,
