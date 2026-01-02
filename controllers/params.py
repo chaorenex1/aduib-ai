@@ -109,3 +109,64 @@ class AgentCreatePayload(BaseModel):
     prompt_template: Optional[str] = ""
     tools: Optional[list] = []
     agent_parameters: Optional[dict] = {}
+
+
+class QASearchPayload(BaseModel):
+    project_id: str = Field(..., description="Project/workspace identifier")
+    query: str
+    limit: int = Field(6, ge=1, le=20)
+    min_score: float = Field(0.2, ge=0.0, le=1.0)
+
+
+class QACandidatePayload(BaseModel):
+    project_id: str
+    question: str
+    answer: str
+    summary: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    source: str | None = None
+    author: str | None = None
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class QAReferencePayload(BaseModel):
+    qa_id: str
+    shown: bool = True
+    used: bool = False
+    message_id: str | None = None
+    context: str | None = None
+
+
+class QAHitsPayload(BaseModel):
+    project_id: str
+    references: list[QAReferencePayload] = Field(default_factory=list)
+
+
+class QAValidationPayload(BaseModel):
+    project_id: str
+    qa_id: str
+    result: str | None = None
+    signal_strength: str | None = None
+    success: bool | None = None
+    strong_signal: bool = False
+    source: str | None = None
+    context: dict[str, Any] | None = None
+    client: dict[str, Any] | None = None
+    ts: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class QAExpirePayload(BaseModel):
+    batch_size: int = Field(default=200, ge=1, le=1000)
+
+
+class TaskGradePayload(BaseModel):
+    prompt: str
+
+class TaskGradeResult(BaseModel):
+    task_level: str
+    reason: str
+    recommended_model: str
+    recommended_model_provider: str
+    confidence: float

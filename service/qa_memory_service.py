@@ -1,17 +1,19 @@
 import datetime
+import hashlib
 import json
 from typing import Any, Iterable, Sequence
 
 from sqlalchemy import select
 
 from component.vdb.vector_factory import Vector
+from controllers.params import TaskGradeResult
 from models import (
     KnowledgeBase,
     QaMemoryEvent,
     QaMemoryLevel,
     QaMemoryRecord,
     QaMemoryStatus,
-    get_db,
+    get_db, TaskGradeRecord,
 )
 from runtime.entities.document_entities import Document
 from runtime.generator.generator import LLMGenerator
@@ -637,3 +639,15 @@ class QAMemoryService:
                 payload=payload or {},
             )
         )
+
+    @classmethod
+    def grade_task(cls, prompt: str) -> TaskGradeResult:
+        from runtime.tasks.task_grade import TaskGrader
+        result: dict[str, Any] = TaskGrader.grade_task(prompt)
+        return TaskGradeResult(
+            task_level=result.get("task_level", "unknown"),
+            reason=result.get("reason", ""),
+            recommended_model=result.get("recommended_model", "default-model"),
+            recommended_model_provider=result.get("recommended_model_provider", "default-provider"),
+        )
+

@@ -1,0 +1,21 @@
+{
+  "L0": [
+    { "model": "gpt-5-mini","model_provider": "github_copilot", "temperature": 0.0, "top_p": 1.0, "weight": 0.8 },
+    { "model": "gpt-4.1","model_provider": "github_copilot", "temperature": 0.0, "top_p": 1.0, "weight": 0.2 }
+  ],
+  "L1": [
+    { "model": "gpt-4.1","model_provider": "github_copilot", "temperature": 0.3, "top_p": 0.9, "weight": 0.6 },
+    { "model": "deepseek-chat","model_provider": "deepseek", "temperature": 0.3, "top_p": 0.9, "weight": 0.4 }
+  ],
+  "L2": [
+    { "model": "gpt-5.2","model_provider": "github_copilot", "temperature": 0.2, "top_p": 0.9, "weight": 0.4 },
+    { "model": "gpt-5.1-codex","model_provider": "github_copilot", "temperature": 0.2, "top_p": 0.9, "weight": 0.2 },
+    { "model": "claude-sonnet-4.5","model_provider": "github_copilot", "temperature": 0.2, "top_p": 0.9, "weight": 0.2 },
+    { "model": "deepseek-reasoner","model_provider": "deepseek", "temperature": 0.2, "top_p": 0.9, "weight": 0.2 }
+  ],
+  "L3": [
+    { "model": "gpt-5.2","model_provider": "github_copilot", "temperature": 0.8, "top_p": 0.8, "weight": 0.4 },
+    { "model": "claude-opus-4.5","model_provider": "github_copilot", "temperature": 0.8, "top_p": 0.8, "weight": 0.4 },
+    { "model": "deepseek-reasoner","model_provider": "deepseek", "temperature": 0.8, "top_p": 0.8, "weight": 0.2 }
+  ]
+}

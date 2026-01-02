@@ -47,12 +47,12 @@ class QaMemoryRecord(Base):
     ttl_expire_at = Column(DateTime, nullable=True)
     last_used_at = Column(DateTime, nullable=True)
     last_validated_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.now())
     updated_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.datetime.utcnow,
-        onupdate=datetime.datetime.utcnow,
+        default=datetime.datetime.now(),
+        onupdate=datetime.datetime.now(),
     )
     source = Column(String(128), nullable=True)
     author = Column(String(128), nullable=True)
@@ -66,4 +66,30 @@ class QaMemoryEvent(Base):
     project_id = Column(String(64), nullable=False, index=True)
     event_type = Column(String(32), nullable=False)
     payload: Column[Any] = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
-    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.now())
+
+
+
+class TaskGradeRecord(Base):
+    __tablename__ = "task_grade_record"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
+    prompt = Column(Text, nullable=False, server_default=text("''"))
+    prompt_hash = Column(String(32), nullable=False, server_default=text("''"))
+    task_level = Column(String, nullable=False, index=True,server_default="'L1'")
+    reason = Column(String(300), nullable=False,server_default=text("''"))
+    recommended_model = Column(String(128), nullable=False,server_default=text("''"))
+    recommended_model_provider = Column(String(64), nullable=False,server_default=text("''"))
+    confidence = Column(Float, nullable=False, server_default=text("0.5"))
+    temperature = Column(Float, nullable=True, server_default=text("0.5"))
+    top_p = Column(Float, nullable=True, server_default=text("0.9"))
+    weight = Column(Float, nullable=True, server_default=text("0.5"))
+    raw_json = Column(JSONB, nullable=True, server_default=text("'{}'::jsonb"))
+    raw_text = Column(Text, nullable=True, server_default=text("''"))
+    created_at = Column(DateTime, nullable=True, default=datetime.datetime.now())
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.datetime.now(),
+        onupdate=datetime.datetime.now(),
+    )

@@ -18,7 +18,7 @@ from runtime.generator.prompts import (
     GENERATOR_QA_PROMPT,
     SYSTEM_STRUCTURED_OUTPUT_GENERATE,
     SUMMARY_PROMPT,
-    TRIPLES_PROMPT, ANSWER_INSTRUCTION_FROM_KNOWLEDGE, TOOL_CHiOCE_PROMPT,BLOG_TRANSFORM_PROMPT
+    TRIPLES_PROMPT, ANSWER_INSTRUCTION_FROM_KNOWLEDGE, TOOL_CHiOCE_PROMPT, BLOG_TRANSFORM_PROMPT, TASK_GRADE_PROMPT
 )
 from runtime.model_manager import ModelManager
 from runtime.tool.base.tool import Tool
@@ -308,6 +308,28 @@ class LLMGenerator:
             model=model_instance.model,
             messages=prompts,
             temperature=0.01,
+            stream=False,
+        )
+        response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
+        answer = cast(str, response.message.content)
+        return answer
+
+    @classmethod
+    def grade_task(cls, prompt: str) -> str:
+        from configs import config
+        model_list = config.grade_model_list
+        system_prompt = TASK_GRADE_PROMPT.format(model_list=json.dumps(model_list))
+        model_manager = ModelManager()
+        model_instance = model_manager.get_default_model_instance(
+            model_type=ModelType.LLM.to_model_type(),
+        )
+        prompts = [SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=system_prompt),
+                   UserPromptMessage(role=PromptMessageRole.USER, content=prompt)]
+        request = ChatCompletionRequest(
+            model=model_instance.model,
+            messages=prompts,
+            temperature=0.1,
+            top_p=0.9,
             stream=False,
         )
         response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)

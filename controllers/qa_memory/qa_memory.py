@@ -1,62 +1,12 @@
 from typing import Any
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, Field
 
 from controllers.common.base import BaseResponse, catch_exceptions
+from controllers.params import QASearchPayload, QACandidatePayload, QAHitsPayload, QAValidationPayload, QAExpirePayload, TaskGradePayload, TaskGradeResult
 from service import QAMemoryService
 
 router = APIRouter(tags=["qa_memory"])
-
-
-class QASearchPayload(BaseModel):
-    project_id: str = Field(..., description="Project/workspace identifier")
-    query: str
-    limit: int = Field(6, ge=1, le=20)
-    min_score: float = Field(0.2, ge=0.0, le=1.0)
-
-
-class QACandidatePayload(BaseModel):
-    project_id: str
-    question: str
-    answer: str
-    summary: str | None = None
-    tags: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    source: str | None = None
-    author: str | None = None
-    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
-
-
-class QAReferencePayload(BaseModel):
-    qa_id: str
-    shown: bool = True
-    used: bool = False
-    message_id: str | None = None
-    context: str | None = None
-
-
-class QAHitsPayload(BaseModel):
-    project_id: str
-    references: list[QAReferencePayload] = Field(default_factory=list)
-
-
-class QAValidationPayload(BaseModel):
-    project_id: str
-    qa_id: str
-    result: str | None = None
-    signal_strength: str | None = None
-    success: bool | None = None
-    strong_signal: bool = False
-    source: str | None = None
-    context: dict[str, Any] | None = None
-    client: dict[str, Any] | None = None
-    ts: str | None = None
-    payload: dict[str, Any] = Field(default_factory=dict)
-
-
-class QAExpirePayload(BaseModel):
-    batch_size: int = Field(default=200, ge=1, le=1000)
 
 
 def _serialize_record(record) -> dict[str, Any]:
@@ -179,3 +129,9 @@ async def qa_detail(qa_id: str, project_id: str = Query(...)):
     if not record:
         return BaseResponse.error(404, "QA memory not found")
     return BaseResponse.ok({"record": _serialize_record(record)})
+
+
+@router.post("/task/grade", response_model=TaskGradeResult)
+@catch_exceptions
+async def task_grade(payload: TaskGradePayload):
+    return QAMemoryService.grade_task(prompt=payload.prompt)

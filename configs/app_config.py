@@ -18,11 +18,11 @@ from .remote import RemoteSettingsSource, RemoteSettingsSourceName, RemoteSettin
 from .remote.base import NacosSettingsSource
 from .storage import StorageConfig
 from .storage.s3_storage_config import S3StorageConfig
+from .task_grade.task_grade import TaskGradeConfig
 from .vdb import VectorStoreConfig
 from .vdb.milvus.milvus_config import MilvusConfig
 
 logger = logging.getLogger(__name__)
-
 
 class RemoteSettingsSourceFactory(PydanticBaseSettingsSource):
     config_source: RemoteSettingsSource
@@ -79,6 +79,7 @@ class AduibAiConfig(
     ServiceConfig,
     RagConfig,
     CeleryConfig,
+    TaskGradeConfig
 ):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./aduib_ai/)
