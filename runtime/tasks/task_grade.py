@@ -68,7 +68,8 @@ class TaskGrader:
                 "raw_text": answer_text,
                 "done": True,
             }
-            with config.db_session() as session:
+            from models import get_db
+            with get_db() as session:
                 from models import TaskGradeRecord
 
                 record = TaskGradeRecord(

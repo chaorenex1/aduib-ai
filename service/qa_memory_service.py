@@ -649,5 +649,6 @@ class QAMemoryService:
             reason=result.get("reason", ""),
             recommended_model=result.get("recommended_model", "default-model"),
             recommended_model_provider=result.get("recommended_model_provider", "default-provider"),
+            confidence=result.get("confidence"),
         )
 

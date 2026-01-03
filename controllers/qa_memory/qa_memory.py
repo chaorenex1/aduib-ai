@@ -51,7 +51,7 @@ async def qa_search(payload: QASearchPayload):
         limit=payload.limit,
         min_score=payload.min_score,
     )
-    return BaseResponse.ok({"items": matches})
+    return matches
 
 
 @router.post("/qa/candidates")
@@ -131,7 +131,7 @@ async def qa_detail(qa_id: str, project_id: str = Query(...)):
     return BaseResponse.ok({"record": _serialize_record(record)})
 
 
-@router.post("/task/grade", response_model=TaskGradeResult)
+@router.post("/task/grade")
 @catch_exceptions
 async def task_grade(payload: TaskGradePayload):
     return QAMemoryService.grade_task(prompt=payload.prompt)

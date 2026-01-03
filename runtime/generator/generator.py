@@ -318,7 +318,7 @@ class LLMGenerator:
     def grade_task(cls, prompt: str) -> str:
         from configs import config
         model_list = config.grade_model_list
-        system_prompt = TASK_GRADE_PROMPT.format(model_list=json.dumps(model_list))
+        system_prompt = TASK_GRADE_PROMPT.replace("{model_list}",json.dumps(model_list, ensure_ascii=False, indent=2))
         model_manager = ModelManager()
         model_instance = model_manager.get_default_model_instance(
             model_type=ModelType.LLM.to_model_type(),
