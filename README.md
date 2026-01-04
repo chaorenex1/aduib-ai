@@ -462,20 +462,6 @@ uv run alembic -c alembic/alembic.ini upgrade head
 
 ---
 
-## 🗺️ Roadmap
-
-- [ ] **WebSocket Support** - Real-time streaming
-- [ ] **Multi-tenancy** - Tenant isolation and management
-- [ ] **Plugin System** - Dynamic plugin loading
-- [ ] **Advanced Analytics** - Usage analytics dashboard
-- [ ] **GraphQL API** - Alternative API interface
-- [ ] **Kubernetes Deployment** - K8s manifests and Helm charts
-- [ ] **Prompt Templates** - Template management system
-- [ ] **A/B Testing** - Experiment framework
-- [ ] **Fine-tuning Pipeline** - Model fine-tuning support
-
----
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:
