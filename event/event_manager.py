@@ -2,11 +2,10 @@ import asyncio
 import inspect
 from typing import Callable, Dict, List, Any
 from concurrent.futures import ThreadPoolExecutor
-from contextvars import ContextVar
 
-from libs.contextVar_wrapper import ContextVarWrappers
+from libs.contextVar_wrapper_enhanced import ContextVarWrapper
 
-event_manager_context: ContextVarWrappers["EventManager"] = ContextVarWrappers(ContextVar("event_manager"))
+event_manager_context = ContextVarWrapper.create("event_manager")
 
 
 class EventManager:

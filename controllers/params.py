@@ -1,9 +1,9 @@
 import time
 import uuid
 from decimal import Decimal
-from typing import Optional, Any
+from typing import Optional, Any, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from utils import random_uuid
 
@@ -170,3 +170,63 @@ class TaskGradeResult(BaseModel):
     recommended_model: str
     recommended_model_provider: str
     confidence: float
+
+
+# Request/Response Models
+class TaskDataRequest(BaseModel):
+    """Request model for saving task results"""
+    request: str = Field(..., min_length=1, max_length=10000, description="Original request content")
+    mode: str = Field(..., min_length=1, max_length=32, description="Execution mode: command/agent/prompt/skill/backend")
+    backend: str = Field(..., min_length=1, max_length=32, description="Backend type: claude/gemini/codex")
+    success: bool = Field(..., description="Whether execution succeeded")
+    output: str = Field(..., description="Task output content")
+    error: Optional[str] = Field(None, max_length=5000, description="Error message if failed")
+    run_id: Optional[str] = Field(None, max_length=64, description="Memex-CLI run ID")
+    duration_seconds: Optional[float] = Field(None, ge=0, le=3600, description="Execution duration in seconds")
+
+    @field_validator('mode')
+    @classmethod
+    def validate_mode(cls, v: str) -> str:
+        valid_modes = ['command', 'agent', 'prompt', 'skill', 'backend']
+        if v not in valid_modes:
+            raise ValueError(f"Mode must be one of {valid_modes}, got: {v}")
+        return v
+
+    @field_validator('backend')
+    @classmethod
+    def validate_backend(cls, v: str) -> str:
+        valid_backends = ['claude', 'gemini', 'codex', 'openai', 'deepseek', 'other']
+        if v not in valid_backends:
+            raise ValueError(f"Backend must be one of {valid_backends}, got: {v}")
+        return v
+
+
+class BatchTaskDataRequest(BaseModel):
+    """Request model for batch saving tasks"""
+    tasks: List[TaskDataRequest] = Field(..., min_length=1, max_length=100, description="List of tasks to save")
+
+
+class CachedResultResponse(BaseModel):
+    """Response model for cached results"""
+    task_id: int = Field(..., description="Task cache ID")
+    output: str = Field(..., description="Cached output content")
+    success: bool = Field(..., description="Execution status")
+    created_at: str = Field(..., description="Cache creation time")
+    hit_count: int = Field(..., description="Cache hit count")
+
+
+class TaskHistoryResponse(BaseModel):
+    """Response model for task history item"""
+    id: int
+    request: str
+    request_hash: str
+    mode: str
+    backend: str
+    success: bool
+    output: str
+    error: Optional[str]
+    run_id: Optional[str]
+    duration_seconds: Optional[float]
+    hit_count: int
+    created_at: str
+    updated_at: str

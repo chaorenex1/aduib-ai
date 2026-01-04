@@ -12,6 +12,7 @@ from .resource import FileResource
 from .document import KnowledgeBase, KnowledgeEmbeddings, KnowledgeDocument
 from .agent import Agent, AgentSession
 from .qa_memory import QaMemoryRecord, QaMemoryEvent, QaMemoryStatus, QaMemoryLevel,TaskGradeRecord
+from .task_cache import TaskCache
 
 __all__ = [
     "get_db",
@@ -38,4 +39,5 @@ __all__ = [
     "QaMemoryStatus",
     "QaMemoryLevel",
     "TaskGradeRecord",
+    "TaskCache",
 ]

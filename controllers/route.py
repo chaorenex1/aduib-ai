@@ -44,3 +44,13 @@ api_router.include_router(agent.router)
 from .qa_memory import qa_memory
 
 api_router.include_router(qa_memory.router)
+
+# task cache (Orchestrator integration)
+from .task_cache import task_cache
+
+api_router.include_router(task_cache.router)
+
+# health check
+from .common import health
+
+api_router.include_router(health.router)

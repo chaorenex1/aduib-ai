@@ -14,7 +14,7 @@ from component.log.app_logging import init_logging
 from component.storage.base_storage import init_storage
 from configs import config
 from controllers.route import api_router
-from libs.context import LoggingMiddleware, TraceIdContextMiddleware, ApiKeyContextMiddleware
+from libs.context import LoggingMiddleware, TraceIdContextMiddleware, ApiKeyContextMiddleware,PerformanceMetricsMiddleware
 from utils.snowflake_id import init_idGenerator
 from utils.port_utils import get_ip_and_free_port
 
@@ -39,8 +39,9 @@ def create_app_with_configs() -> AduibAIApp:
     if config.DEBUG:
         log.warning("Running in debug mode, this is not recommended for production use.")
         app.add_middleware(LoggingMiddleware)
-    # app.add_middleware(TraceIdContextMiddleware)
+    app.add_middleware(TraceIdContextMiddleware)
     app.add_middleware(ApiKeyContextMiddleware)
+    app.add_middleware(PerformanceMetricsMiddleware)
     return app
 
 
