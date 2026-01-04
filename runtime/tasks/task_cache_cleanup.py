@@ -45,6 +45,9 @@ class TaskCacheCleanupScheduler:
         """
         now = datetime.now()
 
+
+
+
         # Run at specified hour
         if now.hour != current_hour:
             return False
