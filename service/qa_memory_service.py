@@ -122,7 +122,16 @@ class QAMemoryService:
         if len(documents) == 0:
             documents=vector.search_by_full_text(query, top_k=limit * 2, score_threshold=min_score)
         else:
-            documents.extend(vector.search_by_full_text(query, top_k=limit * 2, score_threshold=min_score))
+            new_documents=vector.search_by_full_text(query, top_k=limit * 2, score_threshold=min_score)
+            if len(new_documents) > 0:
+                documents.extend(new_documents)
+                # deduplicate documents by id
+                doc_map = {}
+                for doc in documents:
+                    doc_id = (doc.metadata or {}).get("doc_id")
+                    if doc_id and doc_id not in doc_map:
+                        doc_map[doc_id] = doc
+                documents = list(doc_map.values())
 
         qa_ids: set[str] = set()
         doc_map = {}
