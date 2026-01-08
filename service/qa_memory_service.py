@@ -119,6 +119,10 @@ class QAMemoryService:
 
         vector = cls._vector_from_kb_id(kb_id)
         documents = vector.search_by_vector(query, top_k=limit * 2, score_threshold=min_score)
+        if len(documents) == 0:
+            documents=vector.search_by_full_text(query, top_k=limit * 2, score_threshold=min_score)
+        else:
+            documents.extend(vector.search_by_full_text(query, top_k=limit * 2, score_threshold=min_score))
 
         qa_ids: set[str] = set()
         doc_map = {}
