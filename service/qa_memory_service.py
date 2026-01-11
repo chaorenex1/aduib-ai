@@ -169,7 +169,7 @@ class QAMemoryService:
             if not doc:
                 continue
             raw_distance = float((doc.metadata or {}).get("score", 0.0))
-            relevance = cls._compute_relevance(raw_distance)
+            relevance = raw_distance
             trust = cls._compute_trust(record)
             freshness = cls._compute_freshness(record, now)
             level_value = cls._parse_level(record.level)
