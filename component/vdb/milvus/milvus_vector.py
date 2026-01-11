@@ -1,3 +1,4 @@
+import math
 from typing import Any
 
 from pydantic import BaseModel
@@ -194,13 +195,28 @@ class MilvusVector(BaseVector):
         docs = []
         for result in results[0]:
             metadata = result["entity"].get(output_fields[1], {})
-            metadata["score"] = result["distance"]
+            metadata["score"] = self.normalize_score(result["distance"])
 
             if result["distance"] > score_threshold:
                 doc = Document(content=result["entity"].get(output_fields[0], ""), metadata=metadata)
                 docs.append(doc)
 
         return docs
+
+    def normalize_score(self,score: float, k: float = 0.5, offset: float = 0.0) -> float:
+          """
+          Sigmoid 归一化单个分数到 [0, 1]
+
+          Args:
+              score: 2.949
+              k: 陡峭度 (推荐 0.3-0.7)
+              offset: 中心点偏移
+          Returns:
+              0.813
+          """
+          if score < 1.0:
+              return score
+          return 1 / (1 + math.exp(-k * (score - offset)))
 
 
 class MilvusVectorFactory(AbstractVectorFactory):
