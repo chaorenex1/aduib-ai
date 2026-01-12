@@ -75,7 +75,8 @@ class QAMemoryService:
         )
 
         kb_id: str
-        summary = summary if summary else LLMGenerator.generate_doc_research(f"Q: {question}\nA: {answer}")
+        # 暂时不生成摘要
+        summary = summary if summary else ""
         if metadata.get("summary") != summary:
             metadata["summary"] = summary
         tags = tags if tags else LLMGenerator.generate_tags(f"Q: {question}\nA: {answer}")
