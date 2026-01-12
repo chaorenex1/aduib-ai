@@ -57,18 +57,24 @@ async def qa_search(payload: QASearchPayload):
 @router.post("/qa/candidates")
 @catch_exceptions
 async def qa_candidate(payload: QACandidatePayload):
-    record = QAMemoryService.create_candidate(
+    from runtime.tasks.qa_memory_tasks import create_candidate_task
+
+    task = create_candidate_task.delay(
         project_id=payload.project_id,
         question=payload.question,
         answer=payload.answer,
         summary=payload.summary,
-        tags=payload.tags,
-        metadata=payload.metadata,
+        tags=payload.tags if payload.tags else None,
+        metadata=payload.metadata if payload.metadata else None,
         source=payload.source,
         author=payload.author,
         confidence=payload.confidence,
     )
-    return BaseResponse.ok({"record": _serialize_record(record)})
+    return BaseResponse.ok({
+        "task_id": task.id,
+        "status": "pending",
+        "message": "QA candidate creation queued in background",
+    })
 
 
 @router.post("/qa/hit")
