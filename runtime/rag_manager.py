@@ -111,7 +111,7 @@ class RagManager:
             if _knowledge_doc:
                 # name, language = LLMGenerator.generate_conversation_name(doc_content)
                 # knowledge_doc.doc_language = language
-                _knowledge_doc.content = LLMGenerator.generate_doc_research(doc_content)
+                _knowledge_doc.content = LLMGenerator.generate_blog_transform(doc_content)
                 _knowledge_doc.rag_status = "extracting"
                 _knowledge_doc.word_count = sum(len(doc.content) for doc in text_docs)
                 _knowledge_doc.extracted_at = datetime.datetime.now()

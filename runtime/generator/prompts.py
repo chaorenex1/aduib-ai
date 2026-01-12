@@ -679,3 +679,16 @@ JSON Schema:
     "weight": 0
 }
 """
+
+TAG_STRUCTURED_OUTPUT_PROMPT = """You’re a helpful AI assistant. You could extract tags from the given text and output in JSON format.
+constraints:
+    - You must output in JSON format.
+    - The output must be an array.
+    - Each element in the array must be a string.
+    - no markdown formatting.
+eg:
+    Here is the text:
+    Python is a programming language that lets you work quickly and integrate systems more effectively.
+    output:
+    ["programming", "language", "systems", "Python"]
+"""

@@ -18,7 +18,8 @@ from runtime.generator.prompts import (
     GENERATOR_QA_PROMPT,
     SYSTEM_STRUCTURED_OUTPUT_GENERATE,
     SUMMARY_PROMPT,
-    TRIPLES_PROMPT, ANSWER_INSTRUCTION_FROM_KNOWLEDGE, TOOL_CHiOCE_PROMPT, BLOG_TRANSFORM_PROMPT, TASK_GRADE_PROMPT
+    TRIPLES_PROMPT, ANSWER_INSTRUCTION_FROM_KNOWLEDGE, TOOL_CHiOCE_PROMPT, BLOG_TRANSFORM_PROMPT, TASK_GRADE_PROMPT,
+    TAG_STRUCTURED_OUTPUT_PROMPT, BLOG_RESEARCH_PROMPT
 )
 from runtime.model_manager import ModelManager
 from runtime.tool.base.tool import Tool
@@ -298,6 +299,24 @@ class LLMGenerator:
 
     @classmethod
     def generate_doc_research(cls, raw_content:str) -> str:
+        prompt = BLOG_RESEARCH_PROMPT.format(raw_content=raw_content)
+        model_manager = ModelManager()
+        model_instance = model_manager.get_default_model_instance(
+            model_type=ModelType.LLM.to_model_type(),
+        )
+        prompts = [UserPromptMessage(role=PromptMessageRole.USER, content=prompt)]
+        request = ChatCompletionRequest(
+            model=model_instance.model,
+            messages=prompts,
+            temperature=0.01,
+            stream=False,
+        )
+        response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
+        answer = cast(str, response.message.content)
+        return answer
+
+    @classmethod
+    def generate_blog_transform(cls, raw_content: str) -> str:
         prompt = BLOG_TRANSFORM_PROMPT.format(raw_content=raw_content)
         model_manager = ModelManager()
         model_instance = model_manager.get_default_model_instance(
@@ -335,3 +354,27 @@ class LLMGenerator:
         response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
         answer = cast(str, response.message.content)
         return answer
+
+    @classmethod
+    def generate_tags(cls, prompt: str) -> list[str]:
+        system_prompt = TAG_STRUCTURED_OUTPUT_PROMPT
+        model_manager = ModelManager()
+        model_instance = model_manager.get_default_model_instance(
+            model_type=ModelType.LLM.to_model_type(),
+        )
+        prompts = [SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=system_prompt),
+                   UserPromptMessage(role=PromptMessageRole.USER, content=prompt)]
+        request = ChatCompletionRequest(
+            model=model_instance.model,
+            messages=prompts,
+            temperature=0.1,
+            top_p=0.9,
+            stream=False,
+        )
+        response: ChatCompletionResponse = model_instance.invoke_llm(prompt_messages=request)
+        answer = cast(str, response.message.content)
+        try:
+            return json.loads(answer)
+        except json.JSONDecodeError:
+            logger.exception("Failed to generate tags, return empty list")
+        return []

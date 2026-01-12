@@ -78,6 +78,7 @@ class QAMemoryService:
         summary = summary if summary else LLMGenerator.generate_doc_research(f"Q: {question}\nA: {answer}")
         if metadata.get("summary") != summary:
             metadata["summary"] = summary
+        tags = tags if tags else LLMGenerator.generate_tags(f"Q: {question}\nA: {answer}")
         with get_db() as session:
             kb = cls._ensure_default_kb(session)
             kb_id = str(kb.id)
