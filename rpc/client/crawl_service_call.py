@@ -3,7 +3,7 @@ from typing import Any
 from aduib_rpc.server.rpc_execution.service_call import client
 
 
-@client("aduib_mcp_server-jsonrpc", stream=True)
+@client("aduib_mcp_server", stream=True)
 class CrawlService:
     """Crawl Service for handling crawl requests."""
 
