@@ -166,7 +166,7 @@ async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
     """
     log.info("Lifespan is starting")
 
-    # asyncio.create_task(run_service_register(app))
+    asyncio.create_task(run_service_register(app))
 
     from event.event_manager import EventManager
     event_manager: EventManager = app.extensions.get("event_manager")
