@@ -99,6 +99,8 @@ class QAMemoryService:
                 ttl_expire_at=now + datetime.timedelta(days=cls.BASE_TTL_DAYS),
                 source=source,
                 author=author,
+                created_at=now,
+                updated_at=now,
             )
             session.add(record)
             session.flush()
