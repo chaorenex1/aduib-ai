@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-009
+  current_story: STORY-009b
   current_sprint: 3
 
 changes:
   total: 57
-  completed: 14
+  completed: 15
   by_priority:
     P0: 9
     P1: 25
@@ -121,7 +121,7 @@ changes:
     - id: STORY-009b
       type: ADD
       title: "实现图索引预计算"
-      status: pending
+      status: completed
       priority: P1
       sprint: 3
     - id: STORY-009c
@@ -485,7 +485,7 @@ milestones:
 
 metrics:
   files_changed: 42
-  tests_added: 173
+  tests_added: 188
   coverage_delta: "+15%"
 
 baseline:
