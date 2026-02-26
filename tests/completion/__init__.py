@@ -204,30 +204,6 @@ def test_completion_tool_call():
     print(data)
 
 
-def test_completion_tool_call2():
-    response = client.post(
-        "/v1/chat/completions",
-        json={
-            "model": "modelscope.cn/unsloth/Qwen3-30B-A3B-GGUF:latest",
-            "messages": [
-                {"role": "user", "content": "What is the weather like in Boston today? and what time is it there?"},
-                {"role": "tool", "tool_call_id":"call_3emhlkob","content":"The weather in Boston is 75 degrees Fahrenheit with clear skies. What time is it there now?"},
-                {"role": "assistant", "tool_calls": [{"id":"call_3emhlkob","type":"function","function":{"name":"current_weather","arguments":"{\"location\":\"Boston, MA\"}"}}]},
-            ],
-            "tools": [],
-            "tool_choice": "auto",
-            "temperature": 1,
-            "top_p": 1,
-            "stream": "true",
-            "stream_options": {"include_usage": "false"},
-        },
-        headers={"X-API-Key": "$2b$12$WkC3a0N8gnrq9ipqxzrEn.S8oqxA8J7wU6KZnYAK66Nhy1448/8ka"},
-    )
-    assert response.status_code == 200
-    data = response.text
-    print(data)
-
-
 def test_rerank_ollama():
     response = requests.post(
         "http://127.0.0.1:5001/v1/rerank",

@@ -12,16 +12,16 @@ def test_add_model():
     response = client.post(
         "v1/models/add",
         json={
-            "model_name": "deepseek-chat-anthropic",
-            "provider_name": "deepseek_anthropic",
+            "model_name": "Qwen/Qwen3-235B-A22B-Thinking-2507",
+            "provider_name": "siliconflow",
             "model_type": "llm",
-            "max_tokens": 8192,
-            "model_configs": {"temperature": 0.6, "top_k": 20, "top_p": 0.8, "presence_penalty": 1.5},
-            "model_feature": ["thinking", "streaming", "structured_outputs"],
-            "input_price": 4 / 1000000,
-            "output_price": 12 / 1000000,
+            "max_tokens": 32*1024,
+            "model_configs": {"temperature": 0.7, "top_k": 50, "top_p": 0.7,"order_providers":["openai"]},
+            "model_feature": ["thinking","tool", "streaming", "structured_outputs"],
+            "input_price": 2.5 / 1000000,
+            "output_price": 10 / 1000000,
         },
-        headers={"X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"}
+        headers={"X-API-Key": "$2b$12$WkC3a0N8gnrq9ipqxzrEn.S8oqxA8J7wU6KZnYAK66Nhy1448/8ka"}
     )
     assert response.status_code == 200
 
@@ -47,12 +47,12 @@ def test_add_provider():
     response = client.post(
         "v1/providers/add",
         json={
-            "provider_name": "deepseek_anthropic",
+            "provider_name": "x-ai",
             "supported_model_types": ["llm", "tts", "asr", "embedding", "reranker"],
-            "provider_type": "anthropic",
-            "provider_config": {"api_key": "testkey", "api_base": "https://api.deepseek.com/anthropic"},
+            "provider_type": "openai_like",
+            "provider_config": {"api_key": "xai-ORRouR7qSzhgd671Tn8hG7dvE1VQM3nVDf6iTUbnUsoJstamzPvbaHdfAGeNx2I1p4f2kMwZCT48ZJy9", "api_base": "https://api.x.ai"},
         },
-        headers={"X-API-Key": "$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6"}
+        headers={"X-API-Key": "$2b$12$WkC3a0N8gnrq9ipqxzrEn.S8oqxA8J7wU6KZnYAK66Nhy1448/8ka"}
     )
     assert response.status_code == 200
     data = response.json()
