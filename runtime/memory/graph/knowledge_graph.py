@@ -14,7 +14,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 from runtime.memory.storage.graph_store import GraphStore
-from runtime.memory.types.base import Entity, Relation, EntityType
+from runtime.memory.types.base import Entity, EntityType, Relation
 
 
 class MemoryRef(BaseModel):
@@ -221,16 +221,17 @@ class KnowledgeGraphLayer:
             # 内存模式
             relations = []
             for relation in self._relations:
-                include_relation = False
+                # Check if relation matches direction filter
+                matches_direction = (
+                    (direction == "outgoing" and relation.source_id == entity_id) or
+                    (direction == "incoming" and relation.target_id == entity_id) or
+                    (direction == "both" and (relation.source_id == entity_id or relation.target_id == entity_id))
+                )
 
-                if direction == "outgoing" and relation.source_id == entity_id:
-                    include_relation = True
-                elif direction == "incoming" and relation.target_id == entity_id:
-                    include_relation = True
-                elif direction == "both" and (relation.source_id == entity_id or relation.target_id == entity_id):
-                    include_relation = True
+                # Check if relation matches type filter
+                matches_type = relation_type is None or relation.type == relation_type
 
-                if include_relation and (relation_type is None or relation.type == relation_type):
+                if matches_direction and matches_type:
                     relations.append(relation)
 
             return relations
