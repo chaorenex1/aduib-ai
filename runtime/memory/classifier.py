@@ -65,12 +65,18 @@ TECH_PATTERNS: list[str] = [
 class MemoryClassifier:
     """基于轻量规则的分类器，可选结合LLM补充推理。"""
 
-    def __init__(self, llm_generator: Optional[Any] = None) -> None:
+    def __init__(self, llm_generator: Optional[Any] = None, config_manager=None) -> None:
         """初始化分类器，llm_generator 可为异步/同步可调用对象。"""
 
         self._llm_generator = llm_generator
+        self._config_manager = config_manager  # ClassificationConfigManager instance
         self._project_patterns: dict[str, str] = {}
         self._module_patterns: dict[str, str] = {}
+
+        # Load initial patterns from config if available
+        if self._config_manager:
+            self._project_patterns.update(self._config_manager.get_project_patterns())
+            self._module_patterns.update(self._config_manager.get_module_patterns())
 
     async def classify(
         self, content: str, source: MemorySource, context: Optional[dict] = None
@@ -121,10 +127,17 @@ class MemoryClassifier:
         if tech_stack:
             tags = list(dict.fromkeys(tags + tech_stack))
 
+        project = self._match_project(content, ctx)
+        module = self._match_module(content, ctx)
+
+        # Auto-learning: Look for potential project/module patterns
+        if self._config_manager and domain == MemoryDomain.WORK:
+            self._auto_learn_patterns(content, project, module)
+
         domain_hierarchy = DomainHierarchy(
             domain=domain,
-            project=self._match_project(content, ctx),
-            module=self._match_module(content, ctx),
+            project=project,
+            module=module,
             topic=ctx.get("topic"),
             task_type=ctx.get("task_type"),
             tags=tags,
@@ -390,3 +403,79 @@ class MemoryClassifier:
         for match in re.findall(r"@([\w-]{2,40})", content):
             entities.append(match)
         return list(dict.fromkeys(entities))
+
+    def _auto_learn_patterns(self, content: str, current_project: Optional[str], current_module: Optional[str]) -> None:
+        """Auto-learn potential project/module patterns from content."""
+        if not self._config_manager:
+            return
+
+        # Extract potential project names from content
+        potential_projects = self._extract_potential_projects(content)
+        potential_modules = self._extract_potential_modules(content)
+
+        # Learn project patterns
+        for candidate in potential_projects:
+            if not current_project or candidate.lower() != current_project.lower():
+                self._config_manager.add_candidate_pattern(
+                    pattern=candidate.lower(),
+                    project=candidate,
+                    content_sample=content
+                )
+
+        # Learn module patterns
+        for candidate in potential_modules:
+            if not current_module or candidate.lower() != current_module.lower():
+                self._config_manager.add_candidate_pattern(
+                    pattern=candidate.lower(),
+                    module=candidate,
+                    content_sample=content
+                )
+
+    def _extract_potential_projects(self, content: str) -> list[str]:
+        """Extract potential project names from content."""
+        candidates = []
+
+        # Look for project-like patterns
+        patterns = [
+            r'([a-z]+[-_][a-z]+(?:[-_][a-z]+)*)',  # multi-word with separators
+            r'(\b[A-Z][a-z]+[A-Z][a-z]+\b)',      # CamelCase
+            r'([a-z]+ (?:project|platform|system|service|app|application))',  # explicit project words
+        ]
+
+        for pattern in patterns:
+            matches = re.findall(pattern, content.lower())
+            for match in matches:
+                if isinstance(match, tuple):
+                    match = match[0]
+                if len(match) >= 3 and match not in ['the', 'and', 'for', 'with']:
+                    candidates.append(match.strip())
+
+        return list(set(candidates))[:5]  # Limit to top 5
+
+    def _extract_potential_modules(self, content: str) -> list[str]:
+        """Extract potential module names from content."""
+        candidates = []
+
+        # Look for module-like patterns
+        patterns = [
+            r'([a-z]+/[a-z]+(?:/[a-z]+)*)',       # path-like modules
+            r'(runtime/[a-z]+)',                   # runtime modules
+            r'(controllers?/[a-z]+)',              # controller modules
+            r'(services?/[a-z]+)',                 # service modules
+        ]
+
+        for pattern in patterns:
+            matches = re.findall(pattern, content.lower())
+            for match in matches:
+                if isinstance(match, tuple):
+                    match = match[0]
+                if len(match) >= 3:
+                    candidates.append(match.strip())
+
+        return list(set(candidates))[:5]  # Limit to top 5
+
+    def reload_patterns_from_config(self) -> None:
+        """Reload patterns from configuration manager."""
+        if self._config_manager:
+            self._project_patterns = self._config_manager.get_project_patterns()
+            self._module_patterns = self._config_manager.get_module_patterns()

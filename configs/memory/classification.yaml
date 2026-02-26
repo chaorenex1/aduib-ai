@@ -1,0 +1,77 @@
+# Memory Classification Configuration
+# This file configures the memory classification system patterns and settings
+
+version: "1.0"
+updated_at: "2025-02-26T21:30:00"
+
+# Project name patterns - map content patterns to project names
+project_patterns:
+  - pattern: "llm-platform"
+    project: "LLM Platform"
+    confidence: 1.0
+    source: "manual"
+    created_at: "2025-02-26T21:30:00"
+    updated_at: "2025-02-26T21:30:00"
+
+  - pattern: "mobile-app"
+    project: "Mobile Application"
+    confidence: 1.0
+    source: "manual"
+    created_at: "2025-02-26T21:30:00"
+    updated_at: "2025-02-26T21:30:00"
+
+  - pattern: "data-pipeline"
+    project: "Data Pipeline"
+    confidence: 1.0
+    source: "manual"
+    created_at: "2025-02-26T21:30:00"
+    updated_at: "2025-02-26T21:30:00"
+
+# Module name patterns - map content patterns to module names
+module_patterns:
+  - pattern: "runtime/memory"
+    module: "memory"
+    confidence: 1.0
+    source: "manual"
+    created_at: "2025-02-26T21:30:00"
+    updated_at: "2025-02-26T21:30:00"
+
+  - pattern: "runtime/agent"
+    module: "agent"
+    confidence: 1.0
+    source: "manual"
+    created_at: "2025-02-26T21:30:00"
+    updated_at: "2025-02-26T21:30:00"
+
+  - pattern: "runtime/rag"
+    module: "rag"
+    confidence: 1.0
+    source: "manual"
+    created_at: "2025-02-26T21:30:00"
+    updated_at: "2025-02-26T21:30:00"
+
+  - pattern: "controllers/api"
+    module: "api"
+    confidence: 1.0
+    source: "manual"
+    created_at: "2025-02-26T21:30:00"
+    updated_at: "2025-02-26T21:30:00"
+
+  - pattern: "service/"
+    module: "service"
+    confidence: 1.0
+    source: "manual"
+    created_at: "2025-02-26T21:30:00"
+    updated_at: "2025-02-26T21:30:00"
+
+# Candidate patterns for auto-learning (will be populated automatically)
+candidate_patterns: []
+
+# Auto-learning settings
+auto_learning: true
+confidence_threshold: 0.8
+frequency_threshold: 3
+max_candidates: 100
+
+# Hot-reload settings
+hot_reload: true
