@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-009c
+  current_story: STORY-009d
   current_sprint: 3
 
 changes:
   total: 57
-  completed: 16
+  completed: 17
   by_priority:
     P0: 9
     P1: 25
@@ -133,7 +133,7 @@ changes:
     - id: STORY-009d
       type: ADD
       title: "实现 RRF 融合重排"
-      status: pending
+      status: completed
       priority: P1
       sprint: 3
     - id: STORY-030
@@ -485,7 +485,7 @@ milestones:
 
 metrics:
   files_changed: 42
-  tests_added: 205
+  tests_added: 215
   coverage_delta: "+15%"
 
 baseline:
