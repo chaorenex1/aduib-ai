@@ -1,6 +1,14 @@
 import json
 import logging
 import time
+import warnings
+
+# 添加废弃警告
+warnings.warn(
+    "LongTermGraphMemory is deprecated. Use runtime.memory.graph.KnowledgeGraphLayer instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from component.graph.base_graph import GraphManager
 from runtime.agent.agent_type import Message
