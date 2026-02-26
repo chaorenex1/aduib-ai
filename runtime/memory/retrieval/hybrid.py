@@ -30,25 +30,14 @@ def rrf_fuse(
     Returns:
         Fused list of (memory_id, fused_score) sorted descending.
     """
-    if not source_results:
-        return []
+    from runtime.memory.retrieval.fusion import RRFFusion
 
-    scores: dict[str, float] = defaultdict(float)
-    sources: dict[str, set[str]] = defaultdict(set)
+    # Delegate to new RRFFusion class for consistency
+    fusion = RRFFusion(k=RRF_K)
+    fused_results = fusion.fuse(source_results)
 
-    for source, results in source_results.items():
-        for rank, (memory_id, _original_score) in enumerate(results, 1):
-            scores[memory_id] += 1 / (RRF_K + rank)
-            sources[memory_id].add(source)
-
-    # Multi-hit bonus: items found in 2+ sources get a boost
-    for memory_id in scores:
-        source_count = len(sources[memory_id])
-        if source_count >= 2:
-            scores[memory_id] *= 1 + 0.1 * source_count
-
-    sorted_items = sorted(scores.items(), key=lambda x: -x[1])
-    return sorted_items
+    # Convert back to original format for backward compatibility
+    return [(result.memory_id, result.score) for result in fused_results]
 
 
 class HybridRetrievalEngine(RetrievalEngine):
