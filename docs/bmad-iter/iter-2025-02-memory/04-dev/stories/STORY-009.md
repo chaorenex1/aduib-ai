@@ -1,0 +1,131 @@
+# STORY-009: 实现 HybridRetrievalEngine
+
+## Story Info
+- **Iteration**: iter-2025-02-memory
+- **Change Reference**: CHG-009
+- **Type**: ADD
+- **Status**: completed
+- **Started**: 2025-02-26 23:00:00
+- **Completed**: 2025-02-26 23:30:00
+
+---
+
+## Implementation Plan
+
+### From Impact Analysis
+**Files to create:**
+- `runtime/memory/retrieval/hybrid.py` - HybridRetrievalEngine 具体实现
+- `tests/memory/test_hybrid_retrieval.py` - 单元测试
+
+**Files to modify:**
+- `runtime/memory/retrieval/__init__.py` - 导出新类
+
+**Dependencies:**
+- `runtime/memory/retrieval/engine.py` - RetrievalEngine ABC
+- `runtime/memory/storage/milvus_store.py` - Milvus 向量存储
+- `runtime/memory/graph/knowledge_graph.py` - 图谱查询
+
+### Implementation Order
+1. Write failing tests for HybridRetrievalEngine
+2. Implement vector recall path
+3. Implement entity-based graph recall path
+4. Implement parallel multi-path recall
+5. Implement RRF score fusion
+6. Implement search_by_embedding and search_by_entities
+7. Run tests and verify all pass
+
+### Acceptance Criteria
+- [x] AC1: HybridRetrievalEngine implements RetrievalEngine ABC
+- [x] AC2: Vector recall via Milvus search
+- [x] AC3: Entity-based graph recall via KnowledgeGraphLayer
+- [x] AC4: Parallel execution of recall paths
+- [x] AC5: RRF score fusion for result merging
+- [x] AC6: All three abstract methods implemented (search, search_by_embedding, search_by_entities)
+- [x] AC7: Backwards compatible with existing UnifiedMemoryManager
+
+---
+
+## Development Log
+
+### Step 1: Research Existing Code
+**Started**: 2025-02-26 23:00:00
+
+**Actions**:
+- Explored runtime/memory/ directory structure
+- Found RetrievalEngine ABC with 3 abstract methods (search, search_by_embedding, search_by_entities)
+- Found RetrievalResult dataclass
+- Confirmed no concrete implementation exists
+- Mapped Milvus, GraphStore, RedisStore backends
+
+**Status**: Complete
+
+### Step 2: Write Tests (TDD RED)
+**Started**: 2025-02-26 23:05:00
+
+**Actions**:
+- Created test_hybrid_retrieval.py with 15 test cases
+- TestHybridRetrievalEngine: 11 tests covering ABC inheritance, search, filtering, limits, sorting
+- TestRRFFusion: 4 tests covering basic fusion, empty input, single source, multi-hit bonus
+- All tests use mocks for Milvus and graph layer
+
+**Files Changed**:
+- `tests/memory/test_hybrid_retrieval.py` - Complete test suite
+
+**Status**: Complete
+
+### Step 3: Implement HybridRetrievalEngine (TDD GREEN)
+**Started**: 2025-02-26 23:15:00
+
+**Actions**:
+- Created HybridRetrievalEngine implementing RetrievalEngine ABC
+- Implemented vector recall via MilvusStore.vector_search()
+- Implemented graph recall via KnowledgeGraphLayer
+- Implemented parallel multi-path recall with asyncio.gather()
+- Implemented RRF score fusion with multi-hit bonus
+- Implemented all 3 ABC methods: search(), search_by_embedding(), search_by_entities()
+- Added filtering by memory_type, scope, time_range, min_score
+
+**Files Changed**:
+- `runtime/memory/retrieval/hybrid.py` - HybridRetrievalEngine implementation
+- `runtime/memory/retrieval/__init__.py` - Updated exports
+
+**Status**: Complete
+
+### Step 4: Verify All Tests Pass
+**Started**: 2025-02-26 23:25:00
+
+**Results**:
+- 15/15 hybrid retrieval tests passed
+- 173/173 total memory tests passed (excluding pre-existing watchdog failures)
+- Zero regressions
+
+**Status**: Complete
+
+---
+
+## Test Results
+
+### Unit Tests
+```
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_inherits_retrieval_engine PASSED
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_instantiation PASSED
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_search_returns_retrieval_results PASSED
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_search_with_memory_type_filter PASSED
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_search_with_scope_filter PASSED
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_search_by_embedding PASSED
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_search_by_entities PASSED
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_search_empty_query PASSED
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_search_respects_min_score PASSED
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_search_respects_limit PASSED
+tests/memory/test_hybrid_retrieval.py::TestHybridRetrievalEngine::test_results_sorted_by_score_descending PASSED
+tests/memory/test_hybrid_retrieval.py::TestRRFFusion::test_rrf_fusion_basic PASSED
+tests/memory/test_hybrid_retrieval.py::TestRRFFusion::test_rrf_fusion_empty_input PASSED
+tests/memory/test_hybrid_retrieval.py::TestRRFFusion::test_rrf_fusion_single_source PASSED
+tests/memory/test_hybrid_retrieval.py::TestRRFFusion::test_rrf_multi_hit_bonus PASSED
+
+======================== 15 passed in 0.46s ========================
+```
+
+---
+
+Generated by BMAD Iteration Workflow - Phase 4: Development

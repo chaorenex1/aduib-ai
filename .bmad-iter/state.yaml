@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-001d
-  current_sprint: 2
+  current_story: STORY-009
+  current_sprint: 3
 
 changes:
   total: 57
-  completed: 12
+  completed: 14
   by_priority:
     P0: 9
     P1: 25
@@ -107,7 +107,7 @@ changes:
     - id: STORY-001d
       type: ADD
       title: "用户自定义标签"
-      status: pending
+      status: completed
       priority: P1
       sprint: 2
 
@@ -115,7 +115,7 @@ changes:
     - id: STORY-009
       type: ADD
       title: "实现 HybridRetrievalEngine"
-      status: pending
+      status: completed
       priority: P0
       sprint: 3
     - id: STORY-009b
@@ -419,7 +419,7 @@ sprints:
   2:
     name: "记忆类型"
     stories: 6
-    status: pending
+    status: completed
   3:
     name: "检索系统"
     stories: 5
@@ -453,7 +453,7 @@ milestones:
   M1:
     name: "基础可用"
     sprints: [1, 2]
-    status: pending
+    status: completed
   M2:
     name: "检索完备"
     sprints: [3]
@@ -484,9 +484,9 @@ milestones:
     status: pending
 
 metrics:
-  files_changed: 31
-  tests_added: 149
-  coverage_delta: "+11%"
+  files_changed: 42
+  tests_added: 173
+  coverage_delta: "+15%"
 
 baseline:
   prd_path: null
