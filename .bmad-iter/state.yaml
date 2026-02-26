@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-007
+  current_story: STORY-001d
   current_sprint: 2
 
 changes:
   total: 57
-  completed: 9
+  completed: 12
   by_priority:
     P0: 9
     P1: 25
@@ -89,19 +89,19 @@ changes:
     - id: STORY-007
       type: ADD
       title: "实现 KnowledgeGraphLayer"
-      status: pending
+      status: completed
       priority: P1
       sprint: 2
     - id: STORY-008
       type: MODIFY
       title: "集成现有 GraphMemory"
-      status: pending
+      status: completed
       priority: P1
       sprint: 2
     - id: STORY-001c
       type: ADD
       title: "分类配置管理"
-      status: pending
+      status: completed
       priority: P1
       sprint: 2
     - id: STORY-001d
@@ -484,8 +484,8 @@ milestones:
     status: pending
 
 metrics:
-  files_changed: 24
-  tests_added: 120
+  files_changed: 31
+  tests_added: 149
   coverage_delta: "+11%"
 
 baseline:
