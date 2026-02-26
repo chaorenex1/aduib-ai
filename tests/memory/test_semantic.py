@@ -57,7 +57,8 @@ class MockStorageAdapter(StorageAdapter):
         """按会话列出记忆。"""
         self.list_calls.append(session_id)
         return [
-            memory for memory in self.memories.values()
+            memory
+            for memory in self.memories.values()
             if memory.metadata.session_id == session_id and memory.type == MemoryType.SEMANTIC
         ]
 
@@ -115,23 +116,15 @@ def _make_knowledge(
     session_id: str = "session-1",
     knowledge_type: str = "fact",
     tags: Optional[list[str]] = None,
-    embedding: Optional[list[float]] = None
+    embedding: Optional[list[float]] = None,
 ) -> Memory:
     """创建一个测试用的知识记忆。"""
     memory_id = knowledge_id or str(uuid4())
     metadata = MemoryMetadata(
-        session_id=session_id,
-        user_id="user-123",
-        tags=tags or [],
-        extra={"knowledge_type": knowledge_type}
+        session_id=session_id, user_id="user-123", tags=tags or [], extra={"knowledge_type": knowledge_type}
     )
     return Memory(
-        id=memory_id,
-        type=MemoryType.SEMANTIC,
-        content=content,
-        metadata=metadata,
-        embedding=embedding,
-        importance=0.7
+        id=memory_id, type=MemoryType.SEMANTIC, content=content, metadata=metadata, embedding=embedding, importance=0.7
     )
 
 
@@ -145,10 +138,7 @@ async def test_add_knowledge_basic() -> None:
     session_id = "sess-1"
 
     knowledge_id = await semantic.add_knowledge(
-        content=content,
-        session_id=session_id,
-        user_id="user-456",
-        importance=0.8
+        content=content, session_id=session_id, user_id="user-456", importance=0.8
     )
 
     # 验证保存调用
@@ -174,11 +164,9 @@ async def test_add_knowledge_with_tags_and_entities() -> None:
     tags = ["web", "python", "framework"]
     entities = [
         Entity(id="django", name="Django", type=EntityType.CONCEPT),
-        Entity(id="python", name="Python", type=EntityType.CONCEPT)
+        Entity(id="python", name="Python", type=EntityType.CONCEPT),
     ]
-    relations = [
-        Relation(source_id="django", target_id="python", type="implemented_in")
-    ]
+    relations = [Relation(source_id="django", target_id="python", type="implemented_in")]
 
     knowledge_id = await semantic.add_knowledge(
         content=content,
@@ -186,7 +174,7 @@ async def test_add_knowledge_with_tags_and_entities() -> None:
         tags=tags,
         entities=entities,
         relations=relations,
-        knowledge_type="concept"
+        knowledge_type="concept",
     )
 
     saved_memory = adapter.save_calls[0]
@@ -207,12 +195,7 @@ async def test_add_knowledge_with_embedding() -> None:
     content = "机器学习是人工智能的一个分支"
     embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
 
-    await semantic.add_knowledge(
-        content=content,
-        session_id="sess-3",
-        embedding=embedding,
-        knowledge_type="fact"
-    )
+    await semantic.add_knowledge(content=content, session_id="sess-3", embedding=embedding, knowledge_type="fact")
 
     saved_memory = adapter.save_calls[0]
     assert saved_memory.embedding == embedding
@@ -232,11 +215,7 @@ async def test_query_knowledge_with_retrieval_engine() -> None:
     retrieval_engine.set_mock_results(mock_results)
 
     query = "Python 编程"
-    results = await semantic.query_knowledge(
-        query=query,
-        limit=5,
-        min_score=0.7
-    )
+    results = await semantic.query_knowledge(query=query, limit=5, min_score=0.7)
 
     # 验证调用了检索引擎
     assert len(retrieval_engine.search_calls) == 1
@@ -298,11 +277,7 @@ async def test_update_knowledge() -> None:
     original_knowledge = _make_knowledge("k1", "原始内容")
     adapter.memories[original_knowledge.id] = original_knowledge
 
-    updated = await semantic.update_knowledge(
-        "k1",
-        content="更新后的内容",
-        importance=0.9
-    )
+    updated = await semantic.update_knowledge("k1", content="更新后的内容", importance=0.9)
 
     assert updated is not None
     assert len(adapter.update_calls) == 1
@@ -349,11 +324,7 @@ async def test_search_similar_with_engine() -> None:
     retrieval_engine.set_mock_results(mock_results)
 
     embedding = [0.1, 0.2, 0.3]
-    results = await semantic.search_similar(
-        embedding=embedding,
-        limit=3,
-        min_score=0.8
-    )
+    results = await semantic.search_similar(embedding=embedding, limit=3, min_score=0.8)
 
     # 验证调用了向量检索
     assert len(retrieval_engine.embedding_calls) == 1
@@ -390,15 +361,12 @@ async def test_knowledge_type_filtering() -> None:
 
     mock_results = [
         RetrievalResult(memory=fact_memory, score=0.9, source="search"),
-        RetrievalResult(memory=concept_memory, score=0.8, source="search")
+        RetrievalResult(memory=concept_memory, score=0.8, source="search"),
     ]
     retrieval_engine.set_mock_results(mock_results)
 
     # 查询特定类型的知识
-    results = await semantic.query_knowledge(
-        query="知识",
-        knowledge_type="fact"
-    )
+    results = await semantic.query_knowledge(query="知识", knowledge_type="fact")
 
     # 验证返回的是正确类型的知识
     assert len(results) == 2  # 返回所有结果，类型过滤在实际实现中进行

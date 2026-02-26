@@ -1,0 +1,119 @@
+{
+  "anthropic_provider_example": {
+    "name": "anthropic",
+    "provider_type": "anthropic",
+    "support_model_type": ["LLM"],
+    "provider_config": {
+      "api_key": "sk-ant-your-api-key-here",
+      "api_base": "https://api.anthropic.com/v1"
+    }
+  },
+  "claude_models_examples": {
+    "claude_3_5_sonnet": {
+      "name": "claude-3-5-sonnet-20241022",
+      "type": "LLM",
+      "provider_name": "anthropic",
+      "max_tokens": 4096,
+      "input_price": 0.003,
+      "output_price": 0.015,
+      "currency": "USD",
+      "feature": "Latest Claude 3.5 Sonnet model with advanced reasoning capabilities",
+      "model_params": {
+        "temperature": 0.7,
+        "max_tokens": 4096,
+        "top_p": 0.9
+      },
+      "description": "Claude 3.5 Sonnet - Advanced reasoning model"
+    },
+    "claude_3_5_haiku": {
+      "name": "claude-3-5-haiku-20241022",
+      "type": "LLM",
+      "provider_name": "anthropic",
+      "max_tokens": 4096,
+      "input_price": 0.00025,
+      "output_price": 0.00125,
+      "currency": "USD",
+      "feature": "Fast and efficient Claude 3.5 Haiku model",
+      "model_params": {
+        "temperature": 0.7,
+        "max_tokens": 4096,
+        "top_p": 0.9
+      },
+      "description": "Claude 3.5 Haiku - Fast and efficient model"
+    },
+    "claude_3_opus": {
+      "name": "claude-3-opus-20240229",
+      "type": "LLM",
+      "provider_name": "anthropic",
+      "max_tokens": 4096,
+      "input_price": 0.015,
+      "output_price": 0.075,
+      "currency": "USD",
+      "feature": "Most powerful Claude 3 Opus model",
+      "model_params": {
+        "temperature": 0.7,
+        "max_tokens": 4096,
+        "top_p": 0.9
+      },
+      "description": "Claude 3 Opus - Most powerful model for complex tasks"
+    }
+  },
+  "usage_examples": {
+    "basic_chat": {
+      "model": "claude-3-5-sonnet-20241022",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a helpful AI assistant."
+        },
+        {
+          "role": "user",
+          "content": "Hello, can you help me with a programming question?"
+        }
+      ],
+      "max_tokens": 1000,
+      "temperature": 0.7
+    },
+    "advanced_conversation": {
+      "model": "claude-3-opus-20240229",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are an expert in machine learning and artificial intelligence. Provide detailed, technical explanations."
+        },
+        {
+          "role": "user",
+          "content": "Explain the transformer architecture in detail, including attention mechanisms and positional encoding."
+        }
+      ],
+      "max_tokens": 2000,
+      "temperature": 0.3
+    }
+  },
+  "error_handling_examples": {
+    "authentication_error": {
+      "status_code": 401,
+      "response": {
+        "type": "authentication_error",
+        "message": "Invalid API key"
+      },
+      "handling": "Check API key validity and provider configuration"
+    },
+    "rate_limit_error": {
+      "status_code": 429,
+      "response": {
+        "type": "rate_limit_error",
+        "message": "Rate limit exceeded"
+      },
+      "handling": "Implement exponential backoff retry strategy"
+    },
+    "model_not_found": {
+      "status_code": 404,
+      "response": {
+        "type": "model_not_found",
+        "message": "Model not found"
+      },
+      "handling": "Verify model name and provider configuration"
+    }
+  }
+}

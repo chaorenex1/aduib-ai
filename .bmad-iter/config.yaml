@@ -1,0 +1,24 @@
+version: "1.0"
+
+iteration:
+  default_type: sprint
+  naming_pattern: "iter-{year}-{month}-{feature}"
+
+phases:
+  skip_impact_for_small: false
+  auto_release: false
+
+paths:
+  baseline_prd: null
+  baseline_arch: null
+  iterations: "docs/bmad-iter"
+
+preferences:
+  auto_commit: true
+  require_review: false
+  feature_flags: true
+
+storage:
+  primary: "redis"       # Short-term memory
+  vector: "milvus"       # Long-term embeddings
+  graph: "neo4j"         # Knowledge graph (optional)

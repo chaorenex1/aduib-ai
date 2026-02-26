@@ -60,10 +60,7 @@ class SemanticMemory:
         """
         # 构建语义记忆元数据
         metadata = MemoryMetadata(
-            session_id=session_id,
-            user_id=user_id,
-            tags=tags or [],
-            extra={"knowledge_type": knowledge_type}
+            session_id=session_id, user_id=user_id, tags=tags or [], extra={"knowledge_type": knowledge_type}
         )
 
         # 创建记忆对象
@@ -74,15 +71,12 @@ class SemanticMemory:
             embedding=embedding,
             entities=entities or [],
             relations=relations or [],
-            importance=importance
+            importance=importance,
         )
 
         # 保存到存储
         memory_id = await self.storage.save(memory)
-        logger.debug(
-            "Added semantic memory: session=%s, type=%s, tags=%s",
-            session_id, knowledge_type, tags
-        )
+        logger.debug("Added semantic memory: session=%s, type=%s, tags=%s", session_id, knowledge_type, tags)
 
         return memory_id
 
@@ -116,16 +110,10 @@ class SemanticMemory:
         # 使用检索引擎进行搜索
         # TODO: 实现 tags 和 knowledge_type 过滤
         results = await self.retrieval_engine.search(
-            query=query,
-            memory_types=[MemoryType.SEMANTIC],
-            limit=limit,
-            min_score=min_score
+            query=query, memory_types=[MemoryType.SEMANTIC], limit=limit, min_score=min_score
         )
 
-        logger.debug(
-            "Query knowledge returned %d results for query: %s",
-            len(results), query[:50]
-        )
+        logger.debug("Query knowledge returned %d results for query: %s", len(results), query[:50])
 
         return results
 
@@ -140,12 +128,7 @@ class SemanticMemory:
         """
         return await self.storage.get(knowledge_id)
 
-    async def update_knowledge(
-        self,
-        knowledge_id: str,
-        content: Optional[str] = None,
-        **updates
-    ) -> Optional[Memory]:
+    async def update_knowledge(self, knowledge_id: str, content: Optional[str] = None, **updates) -> Optional[Memory]:
         """更新知识记忆。
 
         Args:
@@ -179,10 +162,9 @@ class SemanticMemory:
 
         # 简化实现：假设我们能获取所有语义记忆
         # 实际应该有专门的标签索引接口
-        if hasattr(self.storage, 'memories'):
+        if hasattr(self.storage, "memories"):
             for memory in self.storage.memories.values():
-                if (memory.type == MemoryType.SEMANTIC and
-                    any(tag in memory.metadata.tags for tag in tags)):
+                if memory.type == MemoryType.SEMANTIC and any(tag in memory.metadata.tags for tag in tags):
                     all_memories.append(memory)
 
         return all_memories[:limit]
@@ -210,10 +192,6 @@ class SemanticMemory:
             raise NotImplementedError("向量相似度搜索需要配置检索引擎")
 
         # 使用检索引擎进行向量搜索
-        results = await self.retrieval_engine.search_by_embedding(
-            embedding=embedding,
-            limit=limit,
-            min_score=min_score
-        )
+        results = await self.retrieval_engine.search_by_embedding(embedding=embedding, limit=limit, min_score=min_score)
 
         return results

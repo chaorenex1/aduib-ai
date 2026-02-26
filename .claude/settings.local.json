@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(python -m unittest:*)",
+      "Bash(python:*)",
+      "Bash(move:*)",
+      "Skill(codeagent)",
+      "Skill(aduib-code-dev-workflows:code-interface)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

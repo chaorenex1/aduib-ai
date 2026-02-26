@@ -1,0 +1,92 @@
+2025-08-31 19:54:53,282.282 INFO [MainThread] [app_logging.py:45] - Logging initialized
+2025-08-31 19:54:53,282.282 INFO [MainThread] [app_factory.py:57] - Initializing middlewares
+2025-08-31 19:54:53,282.282 INFO [MainThread] [snowflake_id.py:101] - Snowflake IDGenerator initialized with machine_id=1, datacenter_id=1
+2025-08-31 19:54:53,282.282 INFO [MainThread] [redis_cache.py:122] - Redis initialized successfully
+2025-08-31 19:54:53,282.282 INFO [MainThread] [app_factory.py:60] - middlewares initialized successfully
+2025-08-31 19:54:53,282.282 INFO [MainThread] [app_factory.py:48] - Finished create_app (74.98 ms)
+2025-08-31 19:54:53,284.284 DEBUG [MainThread] [proactor_events.py:634] - Using proactor: IocpProactor
+2025-08-31 19:55:31,867.867 DEBUG [MainThread] [refreshable.py:27] - Shutting down executor...
+2025-08-31 19:55:34,439.439 INFO [MainThread] [app_logging.py:45] - Logging initialized
+2025-08-31 19:55:34,439.439 INFO [MainThread] [app_factory.py:45] - App home directory: C:\Users\zarag\PycharmProjects\llm\aduib_ai
+2025-08-31 19:55:34,439.439 INFO [MainThread] [app_factory.py:57] - Initializing middlewares
+2025-08-31 19:55:34,440.440 INFO [MainThread] [snowflake_id.py:101] - Snowflake IDGenerator initialized with machine_id=1, datacenter_id=1
+2025-08-31 19:55:34,440.440 INFO [MainThread] [redis_cache.py:122] - Redis initialized successfully
+2025-08-31 19:55:34,440.440 INFO [MainThread] [app_factory.py:60] - middlewares initialized successfully
+2025-08-31 19:55:34,440.440 INFO [MainThread] [app_factory.py:48] - Finished create_app (32.42 ms)
+2025-08-31 19:55:34,441.441 DEBUG [MainThread] [proactor_events.py:634] - Using proactor: IocpProactor
+2025-08-31 19:55:56,941.941 INFO [MainThread] [context.py:107] - Request: GET http://127.0.0.1:5001/v1/models
+2025-08-31 19:55:56,941.941 INFO [MainThread] [context.py:108] - Headers: {'host': '127.0.0.1:5001', 'connection': 'keep-alive', 'sec-ch-ua-platform': '"Windows"', 'authorization': 'Bearer $2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6', 'sec-ch-ua': '"Not)A;Brand";v="8", "Chromium";v="138"', 'x-stainless-retry-count': '0', 'x-api-key': '$2b$12$ynT6V44Pz9kwSq6nwgbqxOdTPl/GGpc2YkRaJkHn0ps5kvQo6uyF6', 'sec-ch-ua-mobile': '?0', 'x-title': 'Cherry Studio', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) CherryStudio/1.5.7 Chrome/138.0.7204.100 Electron/37.2.3 Safari/537.36', 'accept': 'application/json', 'http-referer': 'https://cherry-ai.com', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty', 'accept-encoding': 'gzip, deflate, br, zstd', 'accept-language': 'zh-CN'}
+2025-08-31 19:55:56,941.941 INFO [MainThread] [context.py:109] - Body: 
+2025-08-31 19:55:56,954.954 INFO [MainThread] [context.py:69] - Using API Key: <models.api_key.ApiKey object at 0x0000027C12037380>
+2025-08-31 19:55:56,954.954 INFO [MainThread] [context.py:84] - Using Trace ID: trace-738106c5690545729beb2d148e7c09eb
+2025-08-31 19:55:57,144.144 INFO [MainThread] [context.py:115] - Response status: 200
+2025-08-31 19:55:57,144.144 INFO [MainThread] [context.py:116] - Process time: 203.90 ms
+2025-08-31 19:56:11,733.733 DEBUG [MainThread] [refreshable.py:27] - Shutting down executor...
+2025-09-07 14:29:20,188.188 INFO [MainThread] [app_logging.py:46] - Logging initialized
+2025-09-07 14:29:20,188.188 INFO [MainThread] [app_factory.py:45] - App home directory: C:\Users\zarag\PycharmProjects\llm\aduib_ai
+2025-09-07 14:29:20,188.188 INFO [MainThread] [app_factory.py:57] - Initializing middlewares
+2025-09-07 14:29:20,188.188 INFO [MainThread] [snowflake_id.py:101] - Snowflake IDGenerator initialized with machine_id=1, datacenter_id=1
+2025-09-07 14:29:20,188.188 INFO [MainThread] [redis_cache.py:122] - Redis initialized successfully
+2025-09-07 14:29:20,188.188 INFO [MainThread] [app_factory.py:60] - middlewares initialized successfully
+2025-09-07 14:29:20,188.188 INFO [MainThread] [app_factory.py:48] - Finished create_app (37.95 ms)
+2025-09-07 14:29:20,191.191 DEBUG [MainThread] [proactor_events.py:634] - Using proactor: IocpProactor
+2025-09-07 14:31:11,074.074 DEBUG [MainThread] [refreshable.py:27] - Shutting down executor...
+2025-09-07 14:31:29,715.715 INFO [MainThread] [app_logging.py:46] - Logging initialized
+2025-09-07 14:31:29,715.715 INFO [MainThread] [app_factory.py:45] - App home directory: C:\Users\zarag\PycharmProjects\llm\aduib_ai
+2025-09-07 14:31:29,715.715 INFO [MainThread] [app_factory.py:57] - Initializing middlewares
+2025-09-07 14:31:29,715.715 INFO [MainThread] [snowflake_id.py:101] - Snowflake IDGenerator initialized with machine_id=1, datacenter_id=1
+2025-09-07 14:31:29,715.715 INFO [MainThread] [redis_cache.py:122] - Redis initialized successfully
+2025-09-07 14:31:29,715.715 INFO [MainThread] [app_factory.py:60] - middlewares initialized successfully
+2025-09-07 14:31:29,716.716 INFO [MainThread] [app_factory.py:48] - Finished create_app (178.26 ms)
+2025-09-07 14:31:53,805.805 DEBUG [MainThread] [refreshable.py:27] - Shutting down executor...
+2025-09-07 14:31:53,873.873 ERROR [MainThread] [base_events.py:1833] - Task exception was never retrieved
+future: <Task finished name='Task-1' coro=<Server.serve() done, defined at C:\Users\zarag\PycharmProjects\llm\aduib_ai\.venv\Lib\site-packages\uvicorn\server.py:68> exception=KeyboardInterrupt()>
+Traceback (most recent call last):
+  File "C:\Users\zarag\PycharmProjects\llm\aduib_ai\.venv\Lib\site-packages\uvicorn\main.py", line 580, in run
+    server.run()
+  File "C:\Users\zarag\PycharmProjects\llm\aduib_ai\.venv\Lib\site-packages\uvicorn\server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zarag\AppData\Local\Programs\PyCharm Professional\plugins\python\helpers-pro\pydevd_asyncio\pydevd_nest_asyncio.py", line 138, in run
+    return loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zarag\AppData\Local\Programs\PyCharm Professional\plugins\python\helpers-pro\pydevd_asyncio\pydevd_nest_asyncio.py", line 234, in run_until_complete
+    self._run_once()
+  File "C:\Users\zarag\AppData\Local\Programs\PyCharm Professional\plugins\python\helpers-pro\pydevd_asyncio\pydevd_nest_asyncio.py", line 286, in _run_once
+    handle._run()
+  File "C:\Users\zarag\miniconda3\Lib\asyncio\events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\zarag\miniconda3\Lib\asyncio\tasks.py", line 396, in __wakeup
+    self.__step()
+  File "C:\Users\zarag\AppData\Local\Programs\PyCharm Professional\plugins\python\helpers-pro\pydevd_asyncio\pydevd_nest_asyncio.py", line 394, in step
+    step_orig(task, exc)
+  File "C:\Users\zarag\miniconda3\Lib\asyncio\tasks.py", line 303, in __step
+    self.__step_run_and_handle_result(exc)
+  File "C:\Users\zarag\miniconda3\Lib\asyncio\tasks.py", line 314, in __step_run_and_handle_result
+    result = coro.send(None)
+             ^^^^^^^^^^^^^^^
+  File "C:\Users\zarag\PycharmProjects\llm\aduib_ai\.venv\Lib\site-packages\uvicorn\server.py", line 69, in serve
+    with self.capture_signals():
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zarag\miniconda3\Lib\contextlib.py", line 144, in __exit__
+    next(self.gen)
+  File "C:\Users\zarag\PycharmProjects\llm\aduib_ai\.venv\Lib\site-packages\uvicorn\server.py", line 330, in capture_signals
+    signal.raise_signal(captured_signal)
+KeyboardInterrupt
+2025-09-07 14:52:06,929.929 INFO [MainThread] [app_logging.py:46] - Logging initialized
+2025-09-07 14:52:06,929.929 INFO [MainThread] [app_factory.py:45] - App home directory: C:\Users\zarag\PycharmProjects\llm\aduib_ai
+2025-09-07 14:52:06,929.929 INFO [MainThread] [app_factory.py:57] - Initializing middlewares
+2025-09-07 14:52:06,929.929 INFO [MainThread] [snowflake_id.py:101] - Snowflake IDGenerator initialized with machine_id=1, datacenter_id=1
+2025-09-07 14:52:06,929.929 INFO [MainThread] [redis_cache.py:122] - Redis initialized successfully
+2025-09-07 14:52:06,929.929 INFO [MainThread] [app_factory.py:60] - middlewares initialized successfully
+2025-09-07 14:52:06,929.929 INFO [MainThread] [app_factory.py:48] - Finished create_app (39.7 ms)
+2025-09-07 14:52:06,930.930 DEBUG [MainThread] [proactor_events.py:634] - Using proactor: IocpProactor
+2025-09-07 14:54:54,775.775 DEBUG [MainThread] [refreshable.py:27] - Shutting down executor...
+2025-09-07 14:55:48,262.262 INFO [MainThread] [app_logging.py:46] - Logging initialized
+2025-09-07 14:55:48,262.262 INFO [MainThread] [app_factory.py:45] - App home directory: C:\Users\zarag\PycharmProjects\llm\aduib_ai
+2025-09-07 14:55:48,262.262 INFO [MainThread] [app_factory.py:57] - Initializing middlewares
+2025-09-07 14:55:48,262.262 INFO [MainThread] [snowflake_id.py:101] - Snowflake IDGenerator initialized with machine_id=1, datacenter_id=1
+2025-09-07 14:55:48,262.262 INFO [MainThread] [redis_cache.py:122] - Redis initialized successfully
+2025-09-07 14:55:48,262.262 INFO [MainThread] [app_factory.py:60] - middlewares initialized successfully
+2025-09-07 14:55:48,262.262 INFO [MainThread] [app_factory.py:48] - Finished create_app (186.03 ms)
+2025-09-07 14:56:49,570.570 DEBUG [MainThread] [refreshable.py:27] - Shutting down executor...
