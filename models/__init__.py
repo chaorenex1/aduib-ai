@@ -13,6 +13,7 @@ from .document import KnowledgeBase, KnowledgeEmbeddings, KnowledgeDocument
 from .agent import Agent, AgentSession
 from .qa_memory import QaMemoryRecord, QaMemoryEvent, QaMemoryStatus, QaMemoryLevel,TaskGradeRecord
 from .task_cache import TaskCache
+from .memory_tags import UserCustomTag, MemoryTagAssociation
 
 __all__ = [
     "get_db",
@@ -40,4 +41,6 @@ __all__ = [
     "QaMemoryLevel",
     "TaskGradeRecord",
     "TaskCache",
+    "UserCustomTag",
+    "MemoryTagAssociation",
 ]
