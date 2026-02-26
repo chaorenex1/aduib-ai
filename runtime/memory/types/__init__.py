@@ -20,6 +20,7 @@ from runtime.memory.types.base import (
     TimeSensitivity,
 )
 from runtime.memory.types.episodic import EpisodicMemory
+from runtime.memory.types.semantic import SemanticMemory
 from runtime.memory.types.working import WorkingMemory
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "MemoryType",
     "QAClassification",
     "Relation",
+    "SemanticMemory",
     "SourceMetadata",
     "TimeSensitivity",
     "WorkingMemory",
