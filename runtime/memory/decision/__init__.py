@@ -28,6 +28,12 @@ from .models import (
     TimelineEvent,
     TimelineEventType,
 )
+from .recognizer import (
+    DecisionRecognizer,
+    RecognitionResult,
+    SignalMatch,
+    SignalType,
+)
 
 __all__ = [
     "Alternative",
@@ -42,6 +48,7 @@ __all__ = [
     "DecisionContextInjector",
     "DecisionIsolation",
     "DecisionPriority",
+    "DecisionRecognizer",
     "DecisionScope",
     "DecisionStatus",
     "DecisionTimeline",
@@ -50,6 +57,9 @@ __all__ = [
     "InjectedDecision",
     "InjectionRule",
     "IsolationLayer",
+    "RecognitionResult",
+    "SignalMatch",
+    "SignalType",
     "TimelineEvent",
     "TimelineEventType",
 ]
