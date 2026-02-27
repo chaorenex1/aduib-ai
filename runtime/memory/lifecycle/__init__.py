@@ -28,6 +28,13 @@ from .forgetting import (
     ForgettingProtection,
     ForgettingResult,
 )
+from .scheduler import (
+    ScheduleType,
+    TaskType,
+    ScheduledTask,
+    TaskExecutionResult,
+    MemoryLifecycleScheduler,
+)
 
 __all__ = [
     "Consolidation",
@@ -50,4 +57,9 @@ __all__ = [
     "Forgetting",
     "ForgettingProtection",
     "ForgettingResult",
+    "ScheduleType",
+    "TaskType",
+    "ScheduledTask",
+    "TaskExecutionResult",
+    "MemoryLifecycleScheduler",
 ]
