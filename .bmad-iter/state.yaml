@@ -229,7 +229,7 @@ changes:
     - id: STORY-012
       type: MODIFY
       title: "重构 QA Memory 集成"
-      status: pending
+      status: completed
       priority: P2
       sprint: 6
     - id: STORY-013
@@ -241,7 +241,7 @@ changes:
     - id: STORY-014
       type: ADD
       title: "编写单元测试"
-      status: pending
+      status: completed
       priority: P2
       sprint: 6
     - id: STORY-015
