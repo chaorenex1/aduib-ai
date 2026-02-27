@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-010b
+  current_story: STORY-010c
   current_sprint: 4
 
 changes:
   total: 57
-  completed: 19
+  completed: 20
   by_priority:
     P0: 9
     P1: 25

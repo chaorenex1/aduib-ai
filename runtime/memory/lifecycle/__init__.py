@@ -14,6 +14,13 @@ from .attention import (
     AttentionScorer,
     SIGNAL_WEIGHTS,
 )
+from .promotion import (
+    PromotionRule,
+    PromotionEvent,
+    PromotionResult,
+    MemoryPromotion,
+    PROMOTION_RULES,
+)
 
 __all__ = [
     "Consolidation",
@@ -26,4 +33,9 @@ __all__ = [
     "AttentionScore",
     "AttentionScorer",
     "SIGNAL_WEIGHTS",
+    "PromotionRule",
+    "PromotionEvent",
+    "PromotionResult",
+    "MemoryPromotion",
+    "PROMOTION_RULES",
 ]
