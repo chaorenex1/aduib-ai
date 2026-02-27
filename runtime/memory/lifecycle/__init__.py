@@ -21,6 +21,13 @@ from .promotion import (
     MemoryPromotion,
     PROMOTION_RULES,
 )
+from .forgetting import (
+    ForgettingReason,
+    ForgettingCurve,
+    Forgetting,
+    ForgettingProtection,
+    ForgettingResult,
+)
 
 __all__ = [
     "Consolidation",
@@ -38,4 +45,9 @@ __all__ = [
     "PromotionResult",
     "MemoryPromotion",
     "PROMOTION_RULES",
+    "ForgettingReason",
+    "ForgettingCurve",
+    "Forgetting",
+    "ForgettingProtection",
+    "ForgettingResult",
 ]

@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-010c
+  current_story: STORY-011
   current_sprint: 4
 
 changes:
   total: 57
-  completed: 20
+  completed: 21
   by_priority:
     P0: 9
     P1: 25
@@ -159,7 +159,7 @@ changes:
     - id: STORY-010c
       type: ADD
       title: "实现记忆升级服务"
-      status: pending
+      status: completed
       priority: P1
       sprint: 4
     - id: STORY-011
