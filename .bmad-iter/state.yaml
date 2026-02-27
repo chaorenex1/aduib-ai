@@ -165,7 +165,7 @@ changes:
     - id: STORY-011
       type: ADD
       title: "实现遗忘机制"
-      status: pending
+      status: completed
       priority: P2
       sprint: 4
     - id: STORY-011c
