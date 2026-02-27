@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-023
+  current_story: STORY-026
   current_sprint: 5
 
 changes:
   total: 57
-  completed: 26
+  completed: 31
   by_priority:
     P0: 9
     P1: 25
@@ -197,31 +197,31 @@ changes:
     - id: STORY-018
       type: ADD
       title: "决策识别器"
-      status: pending
+      status: completed
       priority: P1
       sprint: 5
     - id: STORY-024
       type: ADD
       title: "用户确认流程"
-      status: pending
+      status: completed
       priority: P1
       sprint: 5
     - id: STORY-025
       type: ADD
       title: "冲突检测与解决"
-      status: pending
+      status: completed
       priority: P1
       sprint: 5
     - id: STORY-019
       type: ADD
       title: "证据收集与验证"
-      status: pending
+      status: completed
       priority: P2
       sprint: 5
     - id: STORY-026
       type: ADD
       title: "决策撤回机制"
-      status: pending
+      status: completed
       priority: P2
       sprint: 5
 
@@ -235,7 +235,7 @@ changes:
     - id: STORY-013
       type: MODIFY
       title: "AgentManager 集成"
-      status: pending
+      status: completed
       priority: P2
       sprint: 6
     - id: STORY-014
@@ -431,7 +431,7 @@ sprints:
   5:
     name: "决策记忆"
     stories: 8
-    status: in_progress
+    status: completed
   6:
     name: "集成测试"
     stories: 4
@@ -465,7 +465,7 @@ milestones:
   M4:
     name: "决策记忆"
     sprints: [5]
-    status: pending
+    status: completed
   M5:
     name: "生产就绪"
     sprints: [6]
@@ -484,9 +484,9 @@ milestones:
     status: pending
 
 metrics:
-  files_changed: 42
-  tests_added: 227
-  coverage_delta: "+15%"
+  files_changed: 50
+  tests_added: 314
+  coverage_delta: "+20%"
 
 baseline:
   prd_path: null
