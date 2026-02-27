@@ -110,7 +110,7 @@ class AttentionScorer:
         self._signals: dict[str, list[SignalRecord]] = {}
 
     async def record_signal(
-        self, memory_id: str, signal_type: AttentionSignalType, payload: dict[str, Any] = None
+        self, memory_id: str, signal_type: AttentionSignalType, payload: dict[str, Any] | None = None
     ) -> None:
         """记录注意力信号。
 
@@ -135,7 +135,8 @@ class AttentionScorer:
         self._signals[memory_id].append(signal)
 
         logger.debug(
-            f"记录注意力信号: memory_id={memory_id}, signal_type={signal_type}, payload={payload}"
+            "记录注意力信号: memory_id=%s, signal_type=%s, payload=%s",
+            memory_id, signal_type, payload
         )
 
     async def compute_score(self, memory_id: str) -> AttentionScore:
