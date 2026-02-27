@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-011
+  current_story: STORY-011c
   current_sprint: 4
 
 changes:
   total: 57
-  completed: 21
+  completed: 22
   by_priority:
     P0: 9
     P1: 25
@@ -171,7 +171,7 @@ changes:
     - id: STORY-011c
       type: ADD
       title: "生命周期调度任务"
-      status: pending
+      status: completed
       priority: P2
       sprint: 4
 
