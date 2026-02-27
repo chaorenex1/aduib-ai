@@ -10,9 +10,9 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from runtime.memory.types.base import Memory, MemoryLifecycle
+from runtime.memory.lifecycle.attention import AttentionScorer
 from runtime.memory.storage.adapter import StorageAdapter
-from runtime.memory.lifecycle.attention import AttentionScorer, AttentionScore
+from runtime.memory.types.base import Memory, MemoryLifecycle
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +67,10 @@ class ForgettingCurve:
 
     # 基础强度配置（小时）- 表示记忆的半衰期
     BASE_STRENGTH: dict[MemoryLifecycle, float] = {
-        MemoryLifecycle.TRANSIENT: 2,        # 2小时半衰期
-        MemoryLifecycle.SHORT: 168,          # 7天
-        MemoryLifecycle.LONG: 2160,          # 90天
-        MemoryLifecycle.PERMANENT: float('inf'),  # 永不衰减
+        MemoryLifecycle.TRANSIENT: 2,  # 2小时半衰期
+        MemoryLifecycle.SHORT: 168,  # 7天
+        MemoryLifecycle.LONG: 2160,  # 90天
+        MemoryLifecycle.PERMANENT: float("inf"),  # 永不衰减
     }
 
     # 注意力对强度的最大加成比例
@@ -94,7 +94,7 @@ class ForgettingCurve:
         strength = self.compute_strength(memory, attention_score)
 
         # 永久记忆不衰减
-        if strength == float('inf'):
+        if strength == float("inf"):
             return 1.0
 
         # 应用艾宾浩斯曲线: retention = e^(-t/S)
@@ -118,7 +118,7 @@ class ForgettingCurve:
         base_strength = self.BASE_STRENGTH.get(lifecycle, self.BASE_STRENGTH[MemoryLifecycle.SHORT])
 
         # 永久记忆始终返回无穷大
-        if base_strength == float('inf'):
+        if base_strength == float("inf"):
             return base_strength
 
         # 应用注意力加成
@@ -148,9 +148,9 @@ class Forgetting:
     """
 
     # 遗忘阈值常量
-    RETENTION_THRESHOLD = 0.2    # 保留率低于20%时触发遗忘
-    ATTENTION_THRESHOLD = 0.1    # 注意力低于10%时触发遗忘
-    ATTENTION_INACTIVE_DAYS = 30 # 注意力信号不活跃天数阈值
+    RETENTION_THRESHOLD = 0.2  # 保留率低于20%时触发遗忘
+    ATTENTION_THRESHOLD = 0.1  # 注意力低于10%时触发遗忘
+    ATTENTION_INACTIVE_DAYS = 30  # 注意力信号不活跃天数阈值
 
     def __init__(self, storage: StorageAdapter, scorer: AttentionScorer):
         """初始化遗忘服务。
@@ -220,10 +220,7 @@ class Forgetting:
         # 更新存储
         await self.storage.update(memory.id, updates)
 
-        logger.info(
-            "记忆已归档: memory_id=%s, reason=%s",
-            memory.id, reason
-        )
+        logger.info("记忆已归档: memory_id=%s, reason=%s", memory.id, reason)
 
     async def run_forgetting_batch(self, memories: list[Memory]) -> ForgettingResult:
         """批量执行遗忘评估和操作。
@@ -309,10 +306,7 @@ class ForgettingProtection:
 
         await self.storage.update(memory_id, updates)
 
-        logger.info(
-            "记忆已保护: memory_id=%s, duration_days=%s",
-            memory_id, duration_days
-        )
+        logger.info("记忆已保护: memory_id=%s, duration_days=%s", memory_id, duration_days)
 
     async def unprotect_memory(self, memory_id: str) -> None:
         """取消记忆保护。
@@ -348,9 +342,10 @@ class ForgettingProtection:
         protected_until_str = memory.metadata.extra.get("protected_until")
         if protected_until_str:
             try:
-                protected_until = datetime.fromisoformat(protected_until_str.replace('Z', '+00:00'))
+                protected_until = datetime.fromisoformat(protected_until_str)
                 # 移除时区信息进行比较
-                protected_until = protected_until.replace(tzinfo=None)
+                if protected_until.tzinfo is not None:
+                    protected_until = protected_until.replace(tzinfo=None)
                 return datetime.now() < protected_until
             except (ValueError, TypeError):
                 pass
