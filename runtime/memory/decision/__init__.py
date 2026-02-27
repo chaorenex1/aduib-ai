@@ -6,6 +6,13 @@ from .certainty import (
     CertaintyResult,
     DecisionContext,
 )
+from .isolation import (
+    DecisionContextInjector,
+    DecisionIsolation,
+    InjectedDecision,
+    InjectionRule,
+    IsolationLayer,
+)
 from .models import (
     Alternative,
     ConflictType,
@@ -32,12 +39,17 @@ __all__ = [
     "DecisionCategory",
     "DecisionCertainty",
     "DecisionContext",
+    "DecisionContextInjector",
+    "DecisionIsolation",
     "DecisionPriority",
     "DecisionScope",
     "DecisionStatus",
     "DecisionTimeline",
     "Evidence",
     "EvidenceType",
+    "InjectedDecision",
+    "InjectionRule",
+    "IsolationLayer",
     "TimelineEvent",
     "TimelineEventType",
 ]
