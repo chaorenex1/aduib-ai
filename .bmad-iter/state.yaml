@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-009d
-  current_sprint: 3
+  current_story: STORY-010
+  current_sprint: 4
 
 changes:
   total: 57
-  completed: 17
+  completed: 18
   by_priority:
     P0: 9
     P1: 25
@@ -139,7 +139,7 @@ changes:
     - id: STORY-030
       type: ADD
       title: "实现安全检索策略"
-      status: pending
+      status: completed
       priority: P1
       sprint: 3
 
@@ -423,11 +423,11 @@ sprints:
   3:
     name: "检索系统"
     stories: 5
-    status: pending
+    status: completed
   4:
     name: "生命周期"
     stories: 5
-    status: pending
+    status: in_progress
   5:
     name: "决策记忆"
     stories: 8
@@ -457,7 +457,7 @@ milestones:
   M2:
     name: "检索完备"
     sprints: [3]
-    status: pending
+    status: completed
   M3:
     name: "生命周期"
     sprints: [4]
@@ -485,7 +485,7 @@ milestones:
 
 metrics:
   files_changed: 42
-  tests_added: 215
+  tests_added: 227
   coverage_delta: "+15%"
 
 baseline:
