@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-022
+  current_story: STORY-023
   current_sprint: 5
 
 changes:
   total: 57
-  completed: 25
+  completed: 26
   by_priority:
     P0: 9
     P1: 25
@@ -191,7 +191,7 @@ changes:
     - id: STORY-023
       type: ADD
       title: "决策隔离分层"
-      status: pending
+      status: completed
       priority: P0
       sprint: 5
     - id: STORY-018
