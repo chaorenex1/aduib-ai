@@ -1,5 +1,11 @@
 """Decision memory module."""
 
+from .certainty import (
+    CertaintyAssessor,
+    CertaintyFactor,
+    CertaintyResult,
+    DecisionContext,
+)
 from .models import (
     Alternative,
     ConflictType,
@@ -18,10 +24,14 @@ from .models import (
 
 __all__ = [
     "Alternative",
+    "CertaintyAssessor",
+    "CertaintyFactor",
+    "CertaintyResult",
     "ConflictType",
     "Decision",
     "DecisionCategory",
     "DecisionCertainty",
+    "DecisionContext",
     "DecisionPriority",
     "DecisionScope",
     "DecisionStatus",

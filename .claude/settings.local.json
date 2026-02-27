@@ -6,7 +6,8 @@
       "Bash(python:*)",
       "Bash(move:*)",
       "Skill(codeagent)",
-      "Skill(aduib-code-dev-workflows:code-interface)"
+      "Skill(aduib-code-dev-workflows:code-interface)",
+      "Bash(uv run:*)"
     ],
     "deny": [],
     "ask": []

@@ -22,7 +22,7 @@ workflow:
 
 changes:
   total: 57
-  completed: 24
+  completed: 25
   by_priority:
     P0: 9
     P1: 25
@@ -185,7 +185,7 @@ changes:
     - id: STORY-022
       type: ADD
       title: "决策确定性评估"
-      status: pending
+      status: completed
       priority: P0
       sprint: 5
     - id: STORY-023
