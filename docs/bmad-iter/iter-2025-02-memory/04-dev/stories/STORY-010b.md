@@ -179,4 +179,5 @@
 
 | Hash | Message |
 |------|---------|
-| [待提交] | feat(iter-2025-02-memory): implement AttentionScorer for memory attention tracking - STORY-010b |
+| 7570e0c | feat(iter-2025-02-memory): implement AttentionScorer for memory attention tracking - STORY-010b |
+| f95cf96 | fix(iter-2025-02-memory): address code quality issues in attention scorer - STORY-010b |

@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-010
+  current_story: STORY-010b
   current_sprint: 4
 
 changes:
   total: 57
-  completed: 18
+  completed: 19
   by_priority:
     P0: 9
     P1: 25
@@ -147,13 +147,13 @@ changes:
     - id: STORY-010
       type: ADD
       title: "实现记忆整合机制"
-      status: pending
+      status: completed
       priority: P1
       sprint: 4
     - id: STORY-010b
       type: ADD
       title: "实现注意力评分系统"
-      status: pending
+      status: completed
       priority: P1
       sprint: 4
     - id: STORY-010c
