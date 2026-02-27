@@ -7,6 +7,13 @@ from .consolidation import (
     ConsolidationAction,
     ConsolidationResult,
 )
+from .attention import (
+    AttentionSignalType,
+    SignalRecord,
+    AttentionScore,
+    AttentionScorer,
+    SIGNAL_WEIGHTS,
+)
 
 __all__ = [
     "Consolidation",
@@ -14,4 +21,9 @@ __all__ = [
     "ConsolidationStrategy",
     "ConsolidationAction",
     "ConsolidationResult",
+    "AttentionSignalType",
+    "SignalRecord",
+    "AttentionScore",
+    "AttentionScorer",
+    "SIGNAL_WEIGHTS",
 ]
