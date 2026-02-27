@@ -17,12 +17,12 @@ workflow:
     4: in_progress    # dev
     5: pending        # test
     6: pending        # release
-  current_story: STORY-011c
-  current_sprint: 4
+  current_story: STORY-022
+  current_sprint: 5
 
 changes:
   total: 57
-  completed: 22
+  completed: 24
   by_priority:
     P0: 9
     P1: 25
@@ -179,7 +179,7 @@ changes:
     - id: STORY-017
       type: ADD
       title: "决策数据模型"
-      status: pending
+      status: completed
       priority: P1
       sprint: 5
     - id: STORY-022
@@ -427,11 +427,11 @@ sprints:
   4:
     name: "生命周期"
     stories: 5
-    status: in_progress
+    status: completed
   5:
     name: "决策记忆"
     stories: 8
-    status: pending
+    status: in_progress
   6:
     name: "集成测试"
     stories: 4
@@ -461,7 +461,7 @@ milestones:
   M3:
     name: "生命周期"
     sprints: [4]
-    status: pending
+    status: completed
   M4:
     name: "决策记忆"
     sprints: [5]
