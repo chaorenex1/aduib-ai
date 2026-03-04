@@ -1,0 +1,21 @@
+name: assign_memory_tags
+description: Assign 1-5 hierarchical tags to a memory, from broadest to most specific.
+parameters:
+  type: object
+  properties:
+    memory_id:
+      type: string
+      description: The memory ID to tag
+    tags:
+      type: array
+      items:
+        type: string
+      maxItems: 5
+      description: "Tags ordered broad to specific, e.g. ['technology', 'programming', 'python']"
+  required: ["memory_id", "tags"]
+configs: {}
+icon: "🏷️"
+provider: builtin_provider
+type: builtin
+credentials: none
+side_effect: true

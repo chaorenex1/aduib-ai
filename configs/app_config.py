@@ -2,8 +2,9 @@ import logging
 from typing import Any
 
 from pydantic.fields import FieldInfo
-from pydantic_settings import SettingsConfigDict, BaseSettings, PydanticBaseSettingsSource
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
+from .auth import AuthConfig
 from .cache.redis_config import RedisConfig
 from .db import DBConfig
 from .deploy import DeploymentConfig, ServiceConfig
@@ -11,18 +12,21 @@ from .graph import GraphConfig
 from .graph.neo4j.neo4j_config import Neo4jConfig
 from .id import IdConfig
 from .logging import LoggingConfig
+from .memory.memory_settings import MemorySettingsConfig
 from .ops import OPSConfig
 from .ops.celery_config import CeleryConfig
 from .rag import RagConfig
-from .remote import RemoteSettingsSource, RemoteSettingsSourceName, RemoteSettingsSourceConfig, DiscoveryConfig
+from .remote import DiscoveryConfig, RemoteSettingsSource, RemoteSettingsSourceConfig, RemoteSettingsSourceName
 from .remote.base import NacosSettingsSource
 from .storage import StorageConfig
 from .storage.s3_storage_config import S3StorageConfig
 from .task_grade.task_grade import TaskGradeConfig
+from .speculation import SpeculationConfig
 from .vdb import VectorStoreConfig
 from .vdb.milvus.milvus_config import MilvusConfig
 
 logger = logging.getLogger(__name__)
+
 
 class RemoteSettingsSourceFactory(PydanticBaseSettingsSource):
     config_source: RemoteSettingsSource
@@ -79,7 +83,10 @@ class AduibAiConfig(
     ServiceConfig,
     RagConfig,
     CeleryConfig,
-    TaskGradeConfig
+    MemorySettingsConfig,
+    AuthConfig,
+    TaskGradeConfig,
+    SpeculationConfig,
 ):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./aduib_ai/)

@@ -1,0 +1,22 @@
+name: query_memory_topic
+description: Query memory topics (MemoryTopic records). Supports filtering by user_id, domain, and fuzzy name search.
+parameters:
+  type: object
+  properties:
+    user_id:
+      type: string
+      description: The user ID to query memory topics for
+    query:
+      type: string
+      description: Fuzzy search by topic name (ilike match)
+    domain:
+      type: string
+      enum: ["preference", "event", "relationship", "behavior", "knowledge"]
+      description: "Optional domain filter: preference (likes/habits), event (activities), relationship (people/teams), behavior (workflows), knowledge (facts/concepts)"
+  required: ["user_id"]
+configs: {}
+icon: "\U0001F50D"
+provider: builtin_provider
+type: builtin
+credentials: none
+side_effect: false

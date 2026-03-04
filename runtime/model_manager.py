@@ -214,14 +214,13 @@ class ModelManager:
         model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
         provider_entity = self.provider.get_provider_entity(provider, model_list)
         model_params = json.loads(model.model_params)
-        if 'max_tokens' not in model_params:
-            model_params['max_tokens']=model.max_tokens
+        if "max_tokens" not in model_params:
+            model_params["max_tokens"] = model.max_tokens
         ai_model = self.provider.provider_factory.get_model_type_instance(
             provider_entity, model_params, ModelType.value_of(model.type)
         )
         instance = ModelInstance(provider_entity, ai_model, model.name)
-        instance.model_instance.credentials[
-            "orig_sdk_type"] = instance.provider.provider_credential.sdk_type
+        instance.model_instance.credentials["orig_sdk_type"] = instance.provider.provider_credential.sdk_type
         instance.credentials["orig_sdk_type"] = instance.provider.provider_credential.sdk_type
         instance.model_instance.credentials["none_anthropic"] = True
         return instance
@@ -240,11 +239,23 @@ class ModelManager:
         )
         return ModelInstance(provider_entity, model_instance, model.name)
 
-
     def get_anthropic_model_instance(self, model_name: str, provider_name: str = None) -> Optional[ModelInstance]:
-        model_instance:ModelInstance=self.get_model_instance(model_name,provider_name)
-        model_instance.model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
-        model_instance.credentials["sdk_type"]=ProviderSDKType.ANTHROPIC
-        model_instance.model_instance.credentials["none_anthropic"]=False
-        model_instance.credentials["none_anthropic"]=False
+        model_instance: ModelInstance = self.get_model_instance(model_name, provider_name)
+        model_instance.model_instance.credentials["sdk_type"] = ProviderSDKType.ANTHROPIC
+        model_instance.credentials["sdk_type"] = ProviderSDKType.ANTHROPIC
+        model_instance.model_instance.credentials["none_anthropic"] = False
+        model_instance.credentials["none_anthropic"] = False
         return model_instance
+
+    def get_planner_model_instance(self) -> Optional[ModelInstance]:
+        from configs import config
+
+        model_name = getattr(config, "SPECULATION_PLANNER_MODEL", "")
+        provider_name = getattr(config, "SPECULATION_PLANNER_PROVIDER", "")
+        if not model_name:
+            return None
+        try:
+            return self.get_model_instance(model_name, provider_name or None)
+        except Exception as e:
+            logger.warning("Failed to get planner model instance: %s", e)
+            return None

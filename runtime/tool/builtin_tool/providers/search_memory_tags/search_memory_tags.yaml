@@ -1,0 +1,19 @@
+name: search_memory_tags
+description: Search existing memory tags by keyword. Returns matching tags with hierarchy.
+parameters:
+  type: object
+  properties:
+    query:
+      type: string
+      description: Search keyword for tags
+    domain:
+      type: string
+      enum: ["preference", "event", "relationship", "behavior", "knowledge"]
+      description: Filter by memory domain
+  required: ["query"]
+configs: {}
+icon: "🏷️"
+provider: builtin_provider
+type: builtin
+credentials: none
+side_effect: false

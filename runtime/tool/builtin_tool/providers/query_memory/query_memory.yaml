@@ -1,0 +1,29 @@
+name: query_memory
+description: "Query memory records (MemoryRecord). Supports multi-dimensional filtering by memory_base_id, topic_id, domain, type. Returns memory details including associated KnowledgeDocument content."
+parameters:
+  type: object
+  properties:
+    memory_base_id:
+      type: string
+      description: Filter by memory base ID
+    topic_id:
+      type: string
+      description: Filter by topic ID
+    domain:
+      type: string
+      enum: ["preference", "event", "relationship", "behavior", "knowledge"]
+      description: Domain filter
+    type:
+      type: string
+      enum: ["perceptual", "episodic", "semantic", "procedural"]
+      description: Memory type filter
+    limit:
+      type: integer
+      description: "Maximum number of results to return (max 100, default 20)"
+  required: []
+configs: {}
+icon: "\U0001F9E0"
+provider: builtin_provider
+type: builtin
+credentials: none
+side_effect: false

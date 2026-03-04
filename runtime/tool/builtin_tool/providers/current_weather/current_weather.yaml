@@ -16,3 +16,4 @@ icon: "🌤️"
 provider: builtin_provider
 type: builtin
 credentials: none
+side_effect: false

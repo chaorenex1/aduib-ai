@@ -102,6 +102,7 @@ class ToolEntity(BaseModel):
     provider: str = ""
     type: ToolProviderType = ToolProviderType.BUILTIN
     credentials: CredentialType = CredentialType.NONE
+    side_effect: bool = True  # True = mutation, False = read-only safe to speculate
 
     def is_local(self) -> bool:
         return self.type == ToolProviderType.local
@@ -113,7 +114,6 @@ class ToolInvokeResult(BaseModel):
     success: bool = True
     error: Optional[str] = None
     meta: Optional[dict] = None
-
 
     def to_normal(self) -> str | None:
         if isinstance(self.data, dict):
@@ -131,9 +131,9 @@ class ToolInvokeResult(BaseModel):
         elif isinstance(self.data, ImageContent):
             return self.data.data
         elif isinstance(self.data, EmbeddedResource):
-            if isinstance(self.data.resource,BlobResourceContents):
+            if isinstance(self.data.resource, BlobResourceContents):
                 return self.data.resource.blob
-            elif isinstance(self.data.resource,TextResourceContents):
+            elif isinstance(self.data.resource, TextResourceContents):
                 return self.data.resource.text
         elif isinstance(self.data, str):
             return self.data
