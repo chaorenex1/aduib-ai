@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class CompletionService:
     @classmethod
-    def create_completion(cls, req: Union[ChatCompletionRequest, CompletionRequest]) -> Optional[Any]:
+    async def create_completion(cls, req: Union[ChatCompletionRequest, CompletionRequest]) -> Optional[Any]:
         """
         Create a completion based on the request and raw request.
         :param req: The request object containing parameters for completion.
@@ -25,7 +25,8 @@ class CompletionService:
         request_id = rate_limit.gen_request_key()
         try:
             rate_limit.enter(request_id)
-            return rate_limit.generate(cls.convert_to_stream(cls._completion(req), req), request_id)
+            response = await cls._completion(req)
+            return rate_limit.generate(await cls.convert_to_stream(response, req), request_id)
         except Exception:
             rate_limit.exit(request_id)
             raise
@@ -34,7 +35,7 @@ class CompletionService:
                 rate_limit.exit(request_id)
 
     @classmethod
-    def _completion(cls, req):
+    async def _completion(cls, req):
         """
         Internal method to handle the completion logic.
         :param raw_request: The raw request object, typically from FastAPI.
@@ -47,10 +48,10 @@ class CompletionService:
 
         model_manager = ModelManager()
         model_instance = model_manager.get_model_instance(model_name=req.model)
-        return model_instance.invoke_llm(prompt_messages=req, callbacks=[MessageRecordCallback()])
+        return await model_instance.invoke_llm(prompt_messages=req, callbacks=[MessageRecordCallback()])
 
     @classmethod
-    def convert_to_stream(
+    async def convert_to_stream(
         cls, response: Union[CompletionResponse, Generator[CompletionResponse, None, None]], req: Union[ChatCompletionRequest, CompletionRequest]
     ) -> Any:
         """
