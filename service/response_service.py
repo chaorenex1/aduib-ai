@@ -8,7 +8,15 @@ from starlette.responses import StreamingResponse
 from configs import config
 from models import get_db
 from models.stored_response import StoredResponse
-from runtime.entities.response_entities import ResponseInputItem, ResponseOutput, ResponseOutputItem, ResponseRequest
+from runtime.entities.response_entities import (
+    ResponseDoneEvent,
+    ResponseInputItem,
+    ResponseOutput,
+    ResponseOutputMessage,
+    ResponseRequest,
+    ResponseTextDeltaEvent,
+    TextContentBlock,
+)
 from utils import RateLimit
 
 logger = logging.getLogger(__name__)
@@ -129,7 +137,10 @@ class ResponseService:
         if req.store is False:
             return
         try:
-            output_item = ResponseOutputItem(role="assistant", content=accumulated_text)
+            output_item = ResponseOutputMessage(
+                role="assistant",
+                content=[TextContentBlock(type="text", text=accumulated_text)],
+            )
             stored = StoredResponse(
                 id=response_id,
                 model=model or req.model,
@@ -179,17 +190,22 @@ class ResponseService:
                 accumulated_text = ""
                 last_model = req.model
                 for chunk in response:
-                    if chunk.done:
+                    if isinstance(chunk, ResponseDoneEvent):
                         if response_id and full_input is not None:
-                            cls._store_streaming_response(req, response_id, full_input, accumulated_text, last_model)
-                        yield "data: [DONE]\n\n"
-                    else:
-                        if hasattr(chunk, "model") and chunk.model:
-                            last_model = chunk.model
-                        if hasattr(chunk, "delta") and chunk.delta:
-                            delta_content = getattr(chunk.delta.message, "content", "") or ""
-                            accumulated_text += delta_content or ""
+                            cls._store_response(req, response_id, full_input, chunk.response)
+                        last_model = chunk.response.model or last_model
                         yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
+                        continue
+
+                    if hasattr(chunk, "response") and getattr(chunk.response, "model", None):
+                        last_model = chunk.response.model
+                    elif hasattr(chunk, "model") and chunk.model:
+                        last_model = chunk.model
+
+                    if isinstance(chunk, ResponseTextDeltaEvent):
+                        accumulated_text += chunk.delta or ""
+
+                    yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
 
             return StreamingResponse(handle(), media_type="text/event-stream")
         else:

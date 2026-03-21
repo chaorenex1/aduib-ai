@@ -1,12 +1,11 @@
 import logging
-from typing import Optional, Any, Union, Generator
+from collections.abc import Generator
+from typing import Any, Optional, Union
 
-from fastapi import Request
 from starlette.responses import StreamingResponse
 
 from configs import config
-from runtime.entities import ChatCompletionResponse
-from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
+from runtime.entities.llm_entities import CompletionResponse, LLMRequest
 from utils import RateLimit
 
 logger = logging.getLogger(__name__)
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class CompletionService:
     @classmethod
-    async def create_completion(cls, req: Union[ChatCompletionRequest, CompletionRequest]) -> Optional[Any]:
+    async def create_completion(cls, req: LLMRequest) -> Optional[Any]:
         """
         Create a completion based on the request and raw request.
         :param req: The request object containing parameters for completion.
@@ -35,24 +34,27 @@ class CompletionService:
                 rate_limit.exit(request_id)
 
     @classmethod
-    async def _completion(cls, req):
+    async def _completion(cls, req: LLMRequest):
         """
         Internal method to handle the completion logic.
         :param raw_request: The raw request object, typically from FastAPI.
         :param req: The request object containing parameters for completion.
         :return: A response object containing the completion result.
         """
-
-        from runtime.model_manager import ModelManager
+        from libs import get_current_user_id
         from runtime.callbacks.message_record_callback import MessageRecordCallback
+        from runtime.model_manager import ModelManager
 
         model_manager = ModelManager()
         model_instance = model_manager.get_model_instance(model_name=req.model)
-        return await model_instance.invoke_llm(prompt_messages=req, callbacks=[MessageRecordCallback()])
+        model_instance.model_instance.user_id = get_current_user_id()
+        return await model_instance.invoke_llm(
+            prompt_messages=req, source="completion", callbacks=[MessageRecordCallback()]
+        )
 
     @classmethod
     async def convert_to_stream(
-        cls, response: Union[CompletionResponse, Generator[CompletionResponse, None, None]], req: Union[ChatCompletionRequest, CompletionRequest]
+        cls, response: Union[CompletionResponse, Generator[CompletionResponse, None, None]], req: LLMRequest
     ) -> Any:
         """
         Convert the response to a streaming response if the request requires it.
@@ -65,7 +67,7 @@ class CompletionService:
             def handle() -> Generator[bytes, None, None]:
                 for chunk in response:
                     if chunk.done:
-                        yield f"data: [DONE]\n\n"
+                        yield "data: [DONE]\n\n"
                     else:
                         yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
 

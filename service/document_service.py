@@ -1,6 +1,6 @@
 import os
 
-from runtime.entities.rerank_entities import RerankRequest, RerankResponse, RerankResult, RerankDocument, RerankUsage
+from runtime.entities.rerank_entities import RerankDocument, RerankRequest, RerankResponse, RerankResult, RerankUsage
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 
 
@@ -38,10 +38,11 @@ class DocumentService:
         """Rerank documents based on the request."""
         from configs import config
         from runtime.rag.retrieve.retrieve import RerankMode
+
         if config.rerank_method == RerankMode.WEIGHTED_SCORE:
             from runtime.rag.retrieve.cosine_rerank import CosineWeightRerankRunner
-
             from runtime.rag.retrieve.retrieve import CosineWeight
+
             weights = CosineWeight(
                 vector_weight=config.vector_weight,
                 keyword_weight=config.keyword_weight,
@@ -50,14 +51,20 @@ class DocumentService:
             )
             rerank_runner = CosineWeightRerankRunner(weights=weights)
             from runtime.entities.document_entities import Document
-            documents:list[Document] = [Document(content=doc,metadata={"doc_id":i}) for i,doc in enumerate(query.documents)]
-            _docs = rerank_runner.run(query=query.query, documents=documents, score_threshold=config.score_threshold,
-                                    top_n=config.top_n)
+
+            documents: list[Document] = [
+                Document(content=doc, metadata={"doc_id": i}) for i, doc in enumerate(query.documents)
+            ]
+            _docs = rerank_runner.run(
+                query=query.query, documents=documents, score_threshold=config.score_threshold, top_n=config.top_n
+            )
             results = []
             for i, doc in enumerate(_docs):
                 # Find original document index
                 results.append(
-                    RerankResult(index=i, document=RerankDocument(text=doc.content), relevance_score=doc.metadata["score"])
+                    RerankResult(
+                        index=i, document=RerankDocument(text=doc.content), relevance_score=doc.metadata["score"]
+                    )
                 )
             return RerankResponse(
                 id="rerank-" + os.urandom(8).hex(),

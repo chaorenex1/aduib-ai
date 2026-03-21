@@ -1,10 +1,10 @@
 import base64
 import hashlib
 import os
-from configs import config
 
 from component.storage.base_storage import storage_manager
-from models import get_db, FileResource
+from configs import config
+from models import FileResource, get_db
 
 
 class FileService:

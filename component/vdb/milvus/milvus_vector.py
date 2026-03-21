@@ -1,22 +1,20 @@
+import logging
 import math
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel
-from pymilvus import MilvusClient, DataType, Function, FunctionType
+from pymilvus import DataType, Function, FunctionType, MilvusClient
 from pymilvus.orm.types import infer_dtype_bydata
-from typing_extensions import Optional
 
 from component.vdb.base_vector import BaseVector
 from component.vdb.fields import Field
 from component.vdb.vector_factory import AbstractVectorFactory
 from component.vdb.vector_type import VectorType
+from configs import config
 from models import KnowledgeBase
 from runtime.entities.document_entities import Document
 from runtime.rag.embeddings.embeddings import Embeddings
-from configs import config
 
-
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -89,10 +87,19 @@ class MilvusVector(BaseVector):
 
     def search_by_vector(self, vector: list[float], **kwargs) -> list[Document]:
         knowledge_ids_filter = kwargs.get("knowledge_ids_filter")
+        user_id = kwargs.get("user_id")
+        agent_id = kwargs.get("agent_id")
+        project_id = kwargs.get("project_id")
         filter = ""
         if knowledge_ids_filter:
             knowledge_ids = ", ".join(f'"{id}"' for id in knowledge_ids_filter)
             filter = f'metadata["knowledge_id"] in [{knowledge_ids}]'
+        if user_id:
+            filter += f' and metadata["user_id"] == "{user_id}"'
+        if agent_id:
+            filter += f' and metadata["agent_id"] == "{agent_id}"'
+        if project_id:
+            filter += f' and metadata["project_id"] == "{project_id}"'
         results = self.client.search(
             collection_name=self.collection_name,
             data=[vector],
@@ -115,10 +122,19 @@ class MilvusVector(BaseVector):
             )
             return []
         knowledge_ids_filter = kwargs.get("knowledge_ids_filter")
+        user_id = kwargs.get("user_id")
+        agent_id = kwargs.get("agent_id")
+        project_id = kwargs.get("project_id")
         filter = ""
         if knowledge_ids_filter:
             knowledge_ids = ", ".join(f"'{id}'" for id in knowledge_ids_filter)
             filter = f'metadata["knowledge_id"] in [{knowledge_ids}]'
+        if user_id:
+            filter += f' and metadata["user_id"] == "{user_id}"'
+        if agent_id:
+            filter += f' and metadata["agent_id"] == "{agent_id}"'
+        if project_id:
+            filter += f' and metadata["project_id"] == "{project_id}"'
 
         results = self.client.search(
             collection_name=self.collection_name,
@@ -203,20 +219,20 @@ class MilvusVector(BaseVector):
 
         return docs
 
-    def normalize_score(self,score: float, k: float = 0.5, offset: float = 0.0) -> float:
-          """
-          Sigmoid 归一化单个分数到 [0, 1]
+    def normalize_score(self, score: float, k: float = 0.5, offset: float = 0.0) -> float:
+        """
+        Sigmoid 归一化单个分数到 [0, 1]
 
-          Args:
-              score: 2.949
-              k: 陡峭度 (推荐 0.3-0.7)
-              offset: 中心点偏移
-          Returns:
-              0.813
-          """
-          if score < 1.0:
-              return score
-          return 1 / (1 + math.exp(-k * (score - offset)))
+        Args:
+            score: 2.949
+            k: 陡峭度 (推荐 0.3-0.7)
+            offset: 中心点偏移
+        Returns:
+            0.813
+        """
+        if score < 1.0:
+            return score
+        return 1 / (1 + math.exp(-k * (score - offset)))
 
 
 class MilvusVectorFactory(AbstractVectorFactory):

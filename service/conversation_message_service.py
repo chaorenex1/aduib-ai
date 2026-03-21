@@ -35,6 +35,10 @@ class ConversationMessageService:
                         completion_unit_price=llm_usage.completion_unit_price,
                         completion_price=llm_usage.completion_price,
                         total_price=llm_usage.total_price,
+                        cached_prompt_tokens=llm_usage.cached_tokens,
+                        cache_price=llm_usage.cache_price,
+                        thinking_tokens=llm_usage.thinking_tokens,
+                        thinking_price=llm_usage.thinking_price,
                     )
                     session2.add(usage)
                     session2.commit()
@@ -64,13 +68,13 @@ class ConversationMessageService:
     @classmethod
     def get_context_length(cls, agent_id, session_id):
         with get_db() as session:
-            messages = (
+            message = (
                 session.query(MessageTokenUsage)
                 .filter(MessageTokenUsage.agent_id == agent_id, MessageTokenUsage.agent_session_id == session_id)
-                .all()
+                .order_by(MessageTokenUsage.created_at.desc())
+                .first()
             )
-            total_tokens = sum(message.prompt_tokens for message in messages)
-            return total_tokens
+            return message.total_tokens if message else 0
 
     @classmethod
     def get_prev_message_id(cls, agent_id, session_id, message_id):

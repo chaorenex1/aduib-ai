@@ -2,14 +2,13 @@ import json
 import logging
 from typing import Any
 
-from pgvecto_rs.sqlalchemy import VECTOR  # type: ignore
-from sqlalchemy import Float, select, func, bindparam, desc
+from sqlalchemy import Float, bindparam, desc, func, select
 from sqlalchemy import text as sql_text
 
 from component.vdb.base_vector import BaseVector
 from component.vdb.vector_factory import AbstractVectorFactory
 from component.vdb.vector_type import VectorType
-from models import get_db, KnowledgeEmbeddings, KnowledgeBase
+from models import KnowledgeBase, KnowledgeEmbeddings, get_db
 from runtime.entities.document_entities import Document
 from runtime.rag.embeddings.embeddings import Embeddings
 
@@ -30,7 +29,7 @@ class PGVectoRS(BaseVector):
     def save(self, texts: list[Document], embeddings: list[list[float]], **kwargs):
         # Get dimension from first embedding, handling Vector objects
         first_embedding = embeddings[0]
-        if hasattr(first_embedding, '__len__'):
+        if hasattr(first_embedding, "__len__"):
             dimension = len(first_embedding)
         else:
             # Handle Vector objects by converting to string and parsing
@@ -38,7 +37,7 @@ class PGVectoRS(BaseVector):
             if embedding_str.startswith("Vector(") and embedding_str.endswith(")"):
                 # Extract array from "Vector([...])" and count elements
                 array_str = embedding_str[8:-2]  # Remove "Vector([" and "])"
-                dimension = len(array_str.split(','))
+                dimension = len(array_str.split(","))
             else:
                 # Fallback to default dimension
                 dimension = self.dim
@@ -79,7 +78,7 @@ class PGVectoRS(BaseVector):
                     elif isinstance(embedding, str):
                         # Already a string, use as-is if it's in correct format
                         vector_str = embedding if embedding.startswith("[") else f"[{embedding}]"
-                    elif hasattr(embedding, '__iter__'):
+                    elif hasattr(embedding, "__iter__"):
                         # It's an iterable (list, numpy array, etc.)
                         try:
                             vector_str = f"[{','.join(map(str, embedding))}]"
@@ -168,8 +167,17 @@ class PGVectoRS(BaseVector):
                 .order_by("distance")
             )
             knowledge_ids_filter = kwargs.get("knowledge_ids_filter")
+            user_id = kwargs.get("user_id")
+            agent_id = kwargs.get("agent_id")
+            project_id = kwargs.get("project_id")
             if knowledge_ids_filter:
                 stmt = stmt.where(self._table.meta["knowledge_id"].in_(knowledge_ids_filter))
+            if user_id:
+                stmt = stmt.where(self._table.meta["user_id"].astext == user_id)
+            if agent_id:
+                stmt = stmt.where(self._table.meta["agent_id"].astext == agent_id)
+            if project_id:
+                stmt = stmt.where(self._table.meta["project_id"].astext == project_id)
             res = session.execute(stmt)
             results = [(row[0], row[1]) for row in res]
 
@@ -190,13 +198,14 @@ class PGVectoRS(BaseVector):
             stmt = (
                 select(
                     self._table,
-                    (func.ts_rank(
-                        func.to_jieba_tsvector(self._table.content), func.to_jieba_tsquery(bindparam("query"))
-                    )
-                    /
-                    func.ts_rank_cd(func.to_jieba_tsvector(self._table.content),
-                                    func.to_jieba_tsquery(bindparam("query")))
-                     ).label("rank")
+                    (
+                        func.ts_rank(
+                            func.to_jieba_tsvector(self._table.content), func.to_jieba_tsquery(bindparam("query"))
+                        )
+                        / func.ts_rank_cd(
+                            func.to_jieba_tsvector(self._table.content), func.to_jieba_tsquery(bindparam("query"))
+                        )
+                    ).label("rank"),
                 )
                 .where(
                     func.ts_rank(func.to_jieba_tsvector(self._table.content), func.to_jieba_tsquery(bindparam("query")))
@@ -207,8 +216,17 @@ class PGVectoRS(BaseVector):
             )
 
             knowledge_ids_filter = kwargs.get("knowledge_ids_filter")
+            user_id = kwargs.get("user_id")
+            agent_id = kwargs.get("agent_id")
+            project_id = kwargs.get("project_id")
             if knowledge_ids_filter:
                 stmt = stmt.where(self._table.meta["knowledge_id"].astext.in_(knowledge_ids_filter))
+            if user_id:
+                stmt = stmt.where(self._table.meta["user_id"].astext == user_id)
+            if agent_id:
+                stmt = stmt.where(self._table.meta["agent_id"].astext == agent_id)
+            if project_id:
+                stmt = stmt.where(self._table.meta["project_id"].astext == project_id)
             # stmt = (
             #     select(
             #         self._table,
@@ -223,8 +241,8 @@ class PGVectoRS(BaseVector):
             #     stmt = stmt.where(self._table.meta["knowledge_id"].in_(knowledge_ids_filter))
             res = session.execute(stmt, {"query": query})
             results = [(row[0], row[1]) for row in res]
-            docs=[]
-            for res,rank in results:
+            docs = []
+            for res, rank in results:
                 meta = res.meta
                 meta["score"] = rank
                 score_threshold = float(kwargs.get("score_threshold") or 0.0)

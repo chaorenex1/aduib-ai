@@ -1,8 +1,8 @@
 import datetime
 
-from sqlalchemy import Column, String, UUID, text, DateTime, Integer, Text, Index, func, Float, DECIMAL
+from sqlalchemy import DECIMAL, UUID, Column, DateTime, Index, Integer, String, Text, func, text
 
-from models import Base
+from models.base import Base
 
 
 class ConversationMessage(Base):
@@ -18,7 +18,9 @@ class ConversationMessage(Base):
     message_id = Column(String, nullable=False, comment="conversation id")
     model_name = Column(String, nullable=False, comment="model name used for this message", index=True)
     provider_name = Column(String, nullable=False, comment="provider name used for this message", index=True)
-    model_parameters = Column(Text, nullable=True, comment="model parameters in json format", server_default=text("'{}'"))
+    model_parameters = Column(
+        Text, nullable=True, comment="model parameters in json format", server_default=text("'{}'")
+    )
     system_prompt = Column(Text, nullable=True, comment="system prompt for the conversation", server_default=text("''"))
     content = Column(Text, nullable=False, comment="message content", server_default=text("''"))
     role = Column(String, nullable=False, comment="message role (user/assistant)")
@@ -28,6 +30,7 @@ class ConversationMessage(Base):
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
     deleted = Column(Integer, default=0, comment="delete flag")
+    user_id = Column(String(100), nullable=True, comment="user id", index=True, server_default=text("''"))
     # jieba_cfg
     __table_args__ = (
         Index("ix_content", func.to_tsvector(text("'jieba_cfg'"), content), postgresql_using="gin"),
@@ -48,8 +51,15 @@ class MessageTokenUsage(Base):
     model_name = Column(String, nullable=False, comment="model name", index=True)
     provider_name = Column(String, nullable=False, comment="provider name", index=True)
     prompt_tokens = Column(Integer, nullable=False, server_default=text("'0'"), comment="number of prompt tokens")
+    cached_prompt_tokens = Column(
+        Integer, nullable=False, server_default=text("'0'"), comment="number of cached prompt tokens"
+    )
     completion_tokens = Column(
         Integer, nullable=False, server_default=text("'0'"), comment="number of completion tokens"
+    )
+    thinking_tokens = Column(Integer, nullable=False, server_default=text("'0'"), comment="number of thinking tokens")
+    thinking_price = Column(
+        DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="thinking price"
     )
     total_tokens = Column(Integer, nullable=False, server_default=text("'0'"), comment="total number of tokens")
     prompt_unit_price = Column(
@@ -62,6 +72,7 @@ class MessageTokenUsage(Base):
     completion_price = Column(
         DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="completion price"
     )
+    cache_price = Column(DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="cache price")
     total_price = Column(DECIMAL(10, 7), nullable=False, server_default=text("'0.0000000'"), comment="total price")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")

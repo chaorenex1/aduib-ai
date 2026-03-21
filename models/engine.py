@@ -1,8 +1,8 @@
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from configs import config
 
@@ -16,7 +16,7 @@ engine = create_engine(
     echo_pool=False,  # 生产环境关闭连接池日志
     connect_args={
         "connect_timeout": 10,  # 数据库连接超时（秒）
-    }
+    },
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

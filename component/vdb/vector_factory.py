@@ -3,8 +3,6 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-from sqlalchemy import select
-
 from component.cache.redis_cache import redis_client
 from component.vdb.base_vector import BaseVector
 from component.vdb.vector_type import VectorType
@@ -110,8 +108,7 @@ class Vector:
 
         if self._knowledge:
             embedding_model = model_manager.get_model_instance(
-                model_name=self._knowledge.embedding_model,
-                provider_name=self._knowledge.embedding_model_provider,
+                model_name=self._knowledge.embedding_model_provider+"/"+self._knowledge.embedding_model,
             )
         else:
             embedding_model = model_manager.get_default_model_instance(model_type=ModelType.EMBEDDING.to_model_type())

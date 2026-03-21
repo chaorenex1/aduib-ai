@@ -1,10 +1,10 @@
 import datetime
 
 from pgvecto_rs.sqlalchemy import VECTOR
-from sqlalchemy import Column, DateTime, Integer, String, text, UUID, Index, func, TEXT
+from sqlalchemy import TEXT, UUID, Column, DateTime, Index, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 
-from models import Base
+from models.base import Base
 
 
 class KnowledgeBase(Base):
@@ -26,6 +26,7 @@ class KnowledgeBase(Base):
     word_count = Column(Integer, nullable=True, server_default=text("0"), comment="word count")
     token_count = Column(Integer, nullable=True, server_default=text("0"), comment="token count")
     default_base = Column(Integer, nullable=True, server_default=text("0"), comment="default knowledge base")
+    user_id = Column(String(100), nullable=True, comment="owner user id")
 
 
 class KnowledgeDocument(Base):
@@ -34,7 +35,7 @@ class KnowledgeDocument(Base):
     knowledge_base_id = Column(UUID(as_uuid=True), index=True, nullable=False, comment="knowledge_base_id")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
-    deleted = Column(Integer, default=0, comment="delete flag")
+    deleted = Column(Integer, default=0, comment="delete flag", server_default=text("0"))
     title = Column(String(255), nullable=False, comment="name")
     file_id = Column(String, index=True, nullable=True, comment="file id")
     message_id = Column(String, index=True, nullable=True, comment="message id")
@@ -57,6 +58,7 @@ class KnowledgeDocument(Base):
     push_time = Column(DateTime, nullable=True, comment="push time")
     push_count = Column(Integer, nullable=True, server_default=text("0"), comment="push count")
     rag_count = Column(Integer, nullable=True, server_default=text("0"), comment="rag count")
+    user_id = Column(String(100), nullable=True, comment="owner user id")
 
     __table_args__ = (
         Index("idx_knowledge_document_content", func.to_tsvector(text("'jieba_cfg'"), content), postgresql_using="gin"),

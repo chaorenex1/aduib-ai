@@ -1,8 +1,8 @@
 import datetime
 
-from sqlalchemy import UUID, String, text, DateTime, Integer, Column, ForeignKeyConstraint, Text
+from sqlalchemy import UUID, Column, DateTime, Integer, String, Text, text
 
-from models import Base
+from models.base import Base
 
 
 class ToolCallResult(Base):
@@ -10,14 +10,13 @@ class ToolCallResult(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()"))
     message_id = Column(String, index=True, comment="message id")
     tool_call_id = Column(String, index=True, comment="tool call id")
-    tool_id = Column(UUID(as_uuid=True), index=True, comment="tool id")
-    tool_call = Column(Text, comment="tool calls")
+    tool_call_name = Column(String, index=True, comment="tool call name")
+    tool_call_args = Column(String, index=True, comment="tool call arguments")
     result = Column(Text, comment="tool call result", nullable=True, default="{}")
     state: str = Column(String, nullable=False, comment="tool call state", default="success")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="update time")
     deleted = Column(Integer, default=0, comment="delete flag")
-    __table_args__ = (ForeignKeyConstraint(["tool_id"], ["tool_info.id"]),)
 
 
 class ToolInfo(Base):
@@ -29,7 +28,7 @@ class ToolInfo(Base):
     configs = Column(Text, comment="tool configurations", nullable=True, server_default=text("{}"))
     icon = Column(String, comment="tool icon", nullable=True, server_default=text("'default_tool_icon.png'"))
     provider = Column(String, comment="tool provider type")
-    mcp_server_code = Column(String, comment="mcp server code", nullable=True, server_default=text("''"))
+    mcp_server_url = Column(String, comment="mcp server url", nullable=True, server_default=text("''"))
     type = Column(String, comment="tool type")
     credentials = Column(String, comment="tool credentials", nullable=True, server_default=text("none"))
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="create time")

@@ -1,12 +1,11 @@
 import logging
-from typing import Optional, Any, Union, Generator
+from collections.abc import Generator
+from typing import Any, Optional
 
 from starlette.responses import StreamingResponse
 
 from configs import config
-from runtime.entities.anthropic_entities import AnthropicMessageRequest
-from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, ClaudeChatCompletionResponse
-from runtime.protocol import ProtocolConverter
+from runtime.entities.llm_entities import LLMRequest, LLMResponse
 from utils import RateLimit
 
 logger = logging.getLogger(__name__)
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class ClaudeCompletionService:
     @classmethod
-    async def create_completion(cls, req: Union[AnthropicMessageRequest, ChatCompletionRequest, CompletionRequest]) -> Optional[Any]:
+    async def create_completion(cls, req: LLMRequest) -> Optional[Any]:
         """
         Create a completion based on the request and raw request.
         :param req: The request object containing parameters for completion.
@@ -35,29 +34,28 @@ class ClaudeCompletionService:
                 rate_limit.exit(request_id)
 
     @classmethod
-    async def _completion(cls, req: Union[AnthropicMessageRequest, ChatCompletionRequest, CompletionRequest]):
+    async def _completion(cls, req: LLMRequest):
         """
         Internal method to handle the completion logic.
         :param req: The request object containing parameters for completion.
         :return: A response object containing the completion result.
         """
-
-        from runtime.model_manager import ModelManager
+        from libs import get_current_user_id
         from runtime.callbacks.message_record_callback import MessageRecordCallback
+        from runtime.model_manager import ModelManager
 
         model_manager = ModelManager()
-        model_instance = model_manager.get_anthropic_model_instance(model_name=req.model)
-
-        # Convert AnthropicMessageRequest to ChatCompletionRequest so the model layer
-        # (LlMModel.invoke + AnthropicTransformation) receives a known request type.
-        invocation_req = ProtocolConverter.anthropic_to_openai(req) if isinstance(req, AnthropicMessageRequest) else req
-        return await model_instance.invoke_llm(prompt_messages=invocation_req, callbacks=[MessageRecordCallback()])
+        model_instance = model_manager.get_model_instance(model_name=req.model)
+        model_instance.model_instance.user_id = get_current_user_id()
+        return await model_instance.invoke_llm(
+            prompt_messages=req, source="message", callbacks=[MessageRecordCallback()]
+        )
 
     @classmethod
     async def convert_to_stream(
         cls,
-        response: Union[ClaudeChatCompletionResponse, Generator[ClaudeChatCompletionResponse, None, None]],
-        req: Union[AnthropicMessageRequest, ChatCompletionRequest, CompletionRequest],
+        response: LLMResponse,
+        req: LLMRequest,
     ) -> Any:
         """
         Convert the response to a streaming response if the request requires it.
@@ -70,7 +68,7 @@ class ClaudeCompletionService:
             def handle() -> Generator[bytes, None, None]:
                 for chunk in response:
                     if chunk.done:
-                        yield f"data: [DONE]\n\n"
+                        yield "data: [DONE]\n\n"
                     else:
                         yield f"event: {chunk.type}\n\n"
                         yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"

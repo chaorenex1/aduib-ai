@@ -1,6 +1,6 @@
 import logging
 from contextlib import contextmanager
-from typing import Dict, Any, List
+from typing import Any
 
 from neo4j import GraphDatabase
 from neo4j.exceptions import Neo4jError
@@ -12,8 +12,18 @@ logger = logging.getLogger(__name__)
 
 
 class Neo4jGraphStore(BaseGraphStore):
-    def __init__(self):
-        self._driver = GraphDatabase.driver(config.neo4j_url, auth=(config.NEO4J_USERNAME, config.NEO4J_PASSWORD))
+    @classmethod
+    def init_graph(cls, graph_name: str) -> "BaseGraphStore":
+        return cls(graph_name)
+
+    def __init__(self, graph_name: str):
+        self.graph_name = graph_name
+        self._driver = GraphDatabase.driver(
+            config.neo4j_url,
+            auth=(config.NEO4J_USERNAME, config.NEO4J_PASSWORD),
+            database=self.graph_name,
+            telemetry_disabled=True,
+        )
 
     @contextmanager
     def _session(self):
@@ -29,14 +39,14 @@ class Neo4jGraphStore(BaseGraphStore):
             if session:
                 session.close()
 
-    def create_node(self, label: str, properties: Dict[str, Any]) -> None:
+    def create_node(self, label: str, properties: dict[str, Any]) -> None:
         with self._session() as session:
             props = ", ".join([f"{key}: '{value}'" for key, value in properties.items()])
             query = f"CREATE (n:{label} {{{props}}})"
             session.run(query)
 
     def create_relationship(
-        self, start_node_id: str, end_node_id: str, rel_type: str, properties: Dict[str, Any]
+        self, start_node_id: str, end_node_id: str, rel_type: str, properties: dict[str, Any]
     ) -> None:
         with self._session() as session:
             props = ", ".join([f"{key}: '{value}'" for key, value in properties.items()])
@@ -47,7 +57,7 @@ class Neo4jGraphStore(BaseGraphStore):
             """
             session.run(query)
 
-    def query(self, cypher: str) -> List[Dict[str, Any]]:
+    def query(self, cypher: str) -> list[dict[str, Any]]:
         with self._session() as session:
             result = session.run(cypher)
             return [record.data() for record in result]

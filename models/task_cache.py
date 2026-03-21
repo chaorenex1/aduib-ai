@@ -1,8 +1,8 @@
 import datetime
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text, Boolean, Index
+from sqlalchemy import Boolean, Column, DateTime, Float, Index, Integer, String, Text
 
-from models import Base
+from models.base import Base
 
 
 class TaskCache(Base):
@@ -10,15 +10,16 @@ class TaskCache(Base):
     Task cache table for storing task execution results from Orchestrator clients.
     Supports caching and history tracking for AI task executions.
     """
+
     __tablename__ = "task_cache"
     __table_args__ = (
-        Index('idx_request_hash_mode_backend', 'request_hash', 'mode', 'backend', unique=True),
-        Index('idx_created_at', 'created_at'),
-        Index('idx_mode', 'mode'),
-        Index('idx_backend', 'backend'),
+        Index("idx_request_hash_mode_backend", "request_hash", "mode", "backend", unique=True),
+        Index("idx_created_at", "created_at"),
+        Index("idx_mode", "mode"),
+        Index("idx_backend", "backend"),
         {
             "comment": "Task cache and history table for Orchestrator integration",
-        }
+        },
     )
 
     id = Column(Integer, primary_key=True, index=True, comment="Task cache id")
@@ -33,4 +34,10 @@ class TaskCache(Base):
     duration_seconds = Column(Float, nullable=True, comment="Execution duration in seconds")
     hit_count = Column(Integer, nullable=False, default=0, comment="Cache hit count")
     created_at = Column(DateTime, nullable=False, default=datetime.datetime.now, comment="Task creation time")
-    updated_at = Column(DateTime, nullable=False, default=datetime.datetime.now, onupdate=datetime.datetime.now, comment="Last update time")
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.datetime.now,
+        onupdate=datetime.datetime.now,
+        comment="Last update time",
+    )

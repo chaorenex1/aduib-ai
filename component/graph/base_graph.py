@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any
 
 from configs import config
 
@@ -7,18 +7,22 @@ from configs import config
 class BaseGraphStore(ABC):
     """抽象图操作接口"""
 
+    @classmethod
+    def init_graph(cls, graph_name: str) -> "BaseGraphStore":
+        pass
+
     @abstractmethod
-    def create_node(self, label: str, properties: Dict[str, Any]) -> None:
+    def create_node(self, label: str, properties: dict[str, Any]) -> None:
         pass
 
     @abstractmethod
     def create_relationship(
-        self, start_node_id: str, end_node_id: str, rel_type: str, properties: Dict[str, Any]
+        self, start_node_id: str, end_node_id: str, rel_type: str, properties: dict[str, Any]
     ) -> None:
         pass
 
     @abstractmethod
-    def query(self, cypher: str) -> List[Dict[str, Any]]:
+    def query(self, cypher: str) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
@@ -31,17 +35,21 @@ class BaseGraphStore(ABC):
 
 
 class GraphManager(BaseGraphStore):
-    def create_node(self, label: str, properties: Dict[str, Any]) -> None:
+    def __init__(self, graph_name: str):
+        self.graph_name = graph_name
+        self.graph_instance = self.init_graph(self.graph_name)
+
+    def create_node(self, label: str, properties: dict[str, Any]) -> None:
         self.graph_instance.create_node(label=label, properties=properties)
 
     def create_relationship(
-        self, start_node_id: str, end_node_id: str, rel_type: str, properties: Dict[str, Any]
+        self, start_node_id: str, end_node_id: str, rel_type: str, properties: dict[str, Any]
     ) -> None:
         self.graph_instance.create_relationship(
             start_node_id=start_node_id, end_node_id=end_node_id, rel_type=rel_type, properties=properties
         )
 
-    def query(self, cypher: str) -> List[Dict[str, Any]]:
+    def query(self, cypher: str) -> list[dict[str, Any]]:
         return self.graph_instance.query(cypher=cypher)
 
     def delete_node(self, node_id: str) -> None:
@@ -50,12 +58,9 @@ class GraphManager(BaseGraphStore):
     def delete_relationship(self, rel_id: str) -> None:
         self.graph_instance.delete_relationship(rel_id=rel_id)
 
-    def __init__(self):
-        self.graph_instance = self.init_graph()
-
-    def init_graph(self) -> BaseGraphStore:
+    def init_graph(self, graph_name: str) -> BaseGraphStore:
         graph_cls = self.get_graph_instance(config.GRAPH_STORE)
-        return graph_cls()
+        return graph_cls.init_graph(graph_name)
 
     @staticmethod
     def get_graph_instance(graph_type: str) -> type[BaseGraphStore]:

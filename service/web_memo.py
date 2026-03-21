@@ -1,10 +1,9 @@
 import datetime
 import json
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
 
-
-from models import get_db, ApiKey
+from models import ApiKey, get_db
 from models.browser import BrowserHistory
 from service import FileService
 from service.error.error import ApiKeyNotFound
@@ -100,6 +99,6 @@ class WebMemoService:
                         from event.event_manager import event_manager_context
 
                         event_manager = event_manager_context.get()
-                        await event_manager.emit(
+                        event_manager.emit(
                             event="paragraph_rag_from_web_memo", crawl_text=crawl_text, crawl_type=crawl_type
                         )

@@ -41,15 +41,6 @@ class PlanService:
             )
             session.add(plan)
             session.flush()
-            cls._append_event(
-                session=session,
-                event_type="plan_created",
-                actor=actor,
-                target_id=str(plan.id),
-                session_id=context["session_id"],
-                request_id=message_id,
-                payload={"title": plan.title, "status": plan.status},
-            )
             session.commit()
             session.refresh(plan)
             return cls._serialize_plan(plan)
@@ -79,15 +70,6 @@ class PlanService:
             plan.change_log = list(plan.change_log or []) + [
                 cls._build_change_log(actor=actor, reason=change_reason, fields=changed_fields)
             ]
-            cls._append_event(
-                session=session,
-                event_type="plan_updated",
-                actor=actor,
-                target_id=str(plan.id),
-                session_id=context["session_id"] or plan.session_id,
-                request_id=message_id,
-                payload={"changed_fields": changed_fields, "change_reason": change_reason},
-            )
             session.commit()
             session.refresh(plan)
             return cls._serialize_plan(plan)
@@ -130,15 +112,6 @@ class PlanService:
         with get_db() as session:
             plan = cls._find_plan(session, plan_id=plan_id, title=title_lookup, context=context)
             summary = cls._serialize_plan(plan, include_body=False)
-            cls._append_event(
-                session=session,
-                event_type="plan_deleted",
-                actor=actor,
-                target_id=str(plan.id),
-                session_id=context["session_id"] or plan.session_id,
-                request_id=message_id,
-                payload={"deletion_reason": deletion_reason, "title": plan.title},
-            )
             session.delete(plan)
             session.commit()
             return {"deleted": True, "deletion_reason": deletion_reason, "plan": summary}
@@ -191,15 +164,6 @@ class PlanService:
             )
             session.add(todo)
             session.flush()
-            cls._append_event(
-                session=session,
-                event_type="todo_created",
-                actor=actor,
-                target_id=str(todo.id),
-                session_id=context["session_id"],
-                request_id=message_id,
-                payload={"title": todo.title, "status": todo.status},
-            )
             session.commit()
             session.refresh(todo)
             return cls._serialize_todo(todo)
@@ -247,15 +211,6 @@ class PlanService:
             todo.change_log = list(todo.change_log or []) + [
                 cls._build_change_log(actor=actor, reason=change_reason, fields=changed_fields)
             ]
-            cls._append_event(
-                session=session,
-                event_type="todo_updated",
-                actor=actor,
-                target_id=str(todo.id),
-                session_id=context["session_id"] or todo.session_id,
-                request_id=message_id,
-                payload={"changed_fields": changed_fields, "change_reason": change_reason},
-            )
             session.commit()
             session.refresh(todo)
             return cls._serialize_todo(todo)
@@ -292,15 +247,6 @@ class PlanService:
         with get_db() as session:
             todo = cls._find_todo(session, todo_id=int(todo_id), context=context)
             summary = cls._serialize_todo(todo)
-            cls._append_event(
-                session=session,
-                event_type="todo_deleted",
-                actor=actor,
-                target_id=str(todo.id),
-                session_id=context["session_id"] or todo.session_id,
-                request_id=message_id,
-                payload={"deletion_reason": deletion_reason, "title": todo.title},
-            )
             session.delete(todo)
             session.commit()
             return {"deleted": True, "deletion_reason": deletion_reason, "todo": summary}
@@ -333,28 +279,6 @@ class PlanService:
                 )
                 resolved["user_id"] = resolved["user_id"] or message.user_id
         return resolved
-
-    @staticmethod
-    def _append_event(
-        *,
-        session,
-        event_type: str,
-        actor: str,
-        target_id: str,
-        session_id: Optional[int],
-        request_id: Optional[str],
-        payload: dict[str, Any],
-    ) -> None:
-        session.add(
-            EventLog(
-                session_id=str(session_id) if session_id is not None else None,
-                request_id=request_id,
-                event_type=event_type,
-                actor=actor,
-                target_id=target_id,
-                payload=payload,
-            )
-        )
 
     @staticmethod
     def _build_change_log(*, actor: str, reason: str, fields: list[str]) -> dict[str, Any]:

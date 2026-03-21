@@ -1,8 +1,10 @@
-from typing import Optional
+from typing import Any, Optional
 
 from models.api_key import ApiKey
+from models.auth_user import User
 from models.engine import get_db
 from utils.api_key import generate_api_key, hash_api_key, verify_api_key
+
 from .error.error import ApiKeyNotFound
 
 
@@ -12,7 +14,7 @@ class ApiKeyService:
     """
 
     @staticmethod
-    def validate_api_key(api_hash_key: str) -> Optional[bool]:
+    def validate_api_key(api_hash_key: str) -> Optional[dict[str, Any]]:
         """
         validate the api key
         """
@@ -23,7 +25,15 @@ class ApiKeyService:
             if api_Key_model.hash_key != api_hash_key:
                 raise ApiKeyNotFound("Api Key not correct")
             if verify_api_key(api_Key_model.api_key, api_hash_key):
-                return True
+                user: User = session.query(User).filter(User.id == api_Key_model.user_id).first()
+                if not user:
+                    raise ApiKeyNotFound("Api Key not correct")
+                else:
+                    return {
+                        "user_id": str(user.id),
+                        "user_name": user.username,
+                        "role": user.role,
+                    }
             else:
                 raise ApiKeyNotFound("Api Key not correct")
 

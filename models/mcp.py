@@ -1,8 +1,8 @@
 import datetime
 
-from sqlalchemy import Column, String, Enum, Integer, DateTime, UUID, text, Text
+from sqlalchemy import UUID, Column, DateTime, Enum, Integer, String, Text, text
 
-from models import Base
+from models.base import Base
 
 
 class McpServer(Base):

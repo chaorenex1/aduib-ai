@@ -7,6 +7,7 @@ from models import Provider
 from models.engine import get_db
 from models.model import Model
 from runtime.entities.model_entities import AIModelEntity, ModelFeature, ModelType, PriceConfig
+
 from .error.error import ModelNotFound, ModelProviderNotFound
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ class ModelService:
             model = session.query(Model).filter_by(name=model_name).first()
             if not model:
                 logger.error(f"Model {model_name} not found")
-                raise ModelNotFound("Model "+model_name+" not found")
+                raise ModelNotFound("Model " + model_name + " not found")
         return model
 
     @staticmethod
@@ -77,7 +78,9 @@ class ModelService:
             provider: Optional[Provider] = session.query(Provider).filter_by(name=req.provider_name).first()
             if not provider:
                 raise ModelProviderNotFound("Provider not found")
-            existing_model = session.query(Model).filter_by(name=req.model_name, provider_name=req.provider_name).first()
+            existing_model = (
+                session.query(Model).filter_by(name=req.model_name, provider_name=req.provider_name).first()
+            )
             if not existing_model:
                 model = Model(
                     name=req.model_name,
@@ -122,7 +125,7 @@ class ModelService:
                 return None
             models = [
                 ModelCard(
-                    id=model.name,
+                    id=model.provider_name + "/" + model.name,
                     root=model.provider_name + "/" + model.name,
                     object="model",
                     created=int(model.created_at.timestamp()),
@@ -149,6 +152,7 @@ class ModelService:
                     model_type=ModelType.value_of(model.type),
                     features=get_model_features(model),
                     model_properties=json.loads(model.model_params),
+                    max_context_length=model.max_context_length,
                     parameter_rules=[],
                     pricing=PriceConfig(input=model.input_price, output=model.output_price),
                     deprecated=False,

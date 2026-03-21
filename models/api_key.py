@@ -1,8 +1,9 @@
 import datetime
 
-from sqlalchemy import Column, Integer, DateTime, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 
-from models import Base
+from models.base import Base
 
 
 class ApiKey(Base):
@@ -17,6 +18,9 @@ class ApiKey(Base):
     salt = Column(String, comment="api key salt")
     description = Column(String, comment="api key description")
     source = Column(String, comment="api key source")
+    user_id = Column(Integer, ForeignKey("user.id"), nullable=True, index=True, comment="bound user id")
     created_at = Column(DateTime, default=datetime.datetime.now(), comment="api key create time")
     updated_at = Column(DateTime, default=datetime.datetime.now(), comment="api key update time")
     deleted = Column(Integer, default=0, comment="api key delete flag")
+
+    user=relationship("User")

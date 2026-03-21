@@ -5,7 +5,7 @@ from typing import Any
 
 from libs.context import get_current_user_id
 from models import ConversationMessage, TaskJob, get_db
-from runtime.task.command_runtime import CommandTaskError, normalize_execution_payload
+from runtime.tasks.command_runtime import CommandTaskError, normalize_execution_payload
 from utils.encoders import jsonable_encoder
 
 

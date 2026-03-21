@@ -1,7 +1,8 @@
-from controllers.params import AgentCreatePayload, ModelCard, ModelList
+from typing import Any
+
+from controllers.params import AgentCreatePayload
 from models import get_db
-from runtime.agent_manager import AgentManager
-from runtime.entities.llm_entities import ChatCompletionRequest
+from runtime.entities import LLMRequest
 
 
 class AgentService:
@@ -24,37 +25,7 @@ class AgentService:
             return agent
 
     @classmethod
-    def get_agent_models(cls, agent_id):
-        with get_db() as session:
-            from models.agent import Agent
-            from models.model import Model
+    async def arun(cls, req: LLMRequest) -> Any:
+        from libs.context import app_context
 
-            agent = session.query(Agent).filter(Agent.id == agent_id).first()
-            if not agent:
-                return None
-            model = session.query(Model).filter(Model.id == agent.model_id).first()
-            return ModelList(
-                data=[
-                    ModelCard(
-                        id=model.name,
-                        root=model.provider_name + "/" + model.name,
-                        object="model",
-                        created=int(model.created_at.timestamp()),
-                        owned_by=model.provider_name,
-                        max_model_len=model.max_tokens,
-                    )
-                ]
-            )
-
-    @classmethod
-    async def create_completion(cls, agent_id: int, req: ChatCompletionRequest):
-        with get_db() as session:
-            from models.agent import Agent
-
-            agent = session.query(Agent).filter(Agent.id == agent_id).first()
-            if not agent:
-                return None
-            runtime = AgentManager()
-            from service import CompletionService
-
-            return CompletionService.convert_to_stream(await runtime.handle_agent_request(agent, req), req)
+        return await app_context.get().agent_manager.arun_response(request=req)

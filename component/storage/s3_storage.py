@@ -1,11 +1,13 @@
 import logging
-from typing import Generator, Any
+from collections.abc import Generator
+from typing import Any
 
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from configs import config
+
 from .base_storage import BaseStorage
 
 log = logging.getLogger(__name__)

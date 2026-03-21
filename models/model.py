@@ -1,15 +1,14 @@
 import datetime
 
 from sqlalchemy import (
+    DECIMAL,
     Column,
+    DateTime,
+    ForeignKeyConstraint,
     Integer,
     String,
-    DECIMAL,
-    DateTime,
-    UniqueConstraint,
-    ForeignKeyConstraint,
     Text,
-    UUID,
+    UniqueConstraint,
     text,
 )
 
@@ -27,9 +26,13 @@ class Model(Base):
     type = Column(String, index=True, comment="Model Type")
     provider_name = Column(String, index=True, comment="Model Provider")
     provider_id = Column(Integer, index=True, comment="Model Provider ID")
-    max_tokens = Column(Integer, index=True, comment="Max Tokens")
+    max_tokens = Column(Integer, index=True, comment="Max Tokens", server_default=text("'0'"))
+    max_context_length = Column(Integer, index=True, comment="Max Context Length", server_default=text("'0'"))
     input_price = Column(DECIMAL(10, 7), comment="Input Price", server_default=text("'0.0000000'"))
     output_price = Column(DECIMAL(10, 7), comment="Output Price", server_default=text("'0.0000000'"))
+    cache_read_price = Column(DECIMAL(10, 7), comment="Cache Read Price", server_default=text("'0.0000000'"))
+    cache_write_price = Column(DECIMAL(10, 7), comment="Cache Write Price", server_default=text("'0.0000000'"))
+    thinking_price = Column(DECIMAL(10, 7), comment="Thinking Price", server_default=text("'0.0000000'"))
     currency = Column(String, default="USD", comment="Model currency")
     feature = Column(Text, comment="Model Feature")
     model_params = Column(Text, comment="Model Params")

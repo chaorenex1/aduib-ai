@@ -1,9 +1,9 @@
 import datetime
 
-from sqlalchemy import Column, DateTime, Integer, String, text, UUID, Index, func, TEXT
+from sqlalchemy import TEXT, UUID, Column, DateTime, Index, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 
-from models import Base
+from models.base import Base
 
 
 class BrowserHistory(Base):

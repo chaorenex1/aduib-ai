@@ -1,25 +1,28 @@
-from typing import Dict, Any, List
+from typing import Any
 
 from component.graph.base_graph import BaseGraphStore
-from configs import config
 from models import get_db
 
 
 class PostgresAGEGraphStore(BaseGraphStore):
-    def __init__(self):
-        self.graph_name = config.GRAPH_NAME
+    @classmethod
+    def init_graph(cls, graph_name: str) -> "BaseGraphStore":
+        return cls(graph_name)
+
+    def __init__(self, graph_name: str):
         # Initialize connection to PostgreSQL with AGE extension here
+        self.graph_name = graph_name
         with get_db() as session:
             session.execute(f"SELECT create_graph('{self.graph_name}');")
 
-    def create_node(self, label: str, properties: Dict[str, Any]) -> None:
+    def create_node(self, label: str, properties: dict[str, Any]) -> None:
         with get_db() as session:
             props = ", ".join([f"{key}: '{value}'" for key, value in properties.items()])
             query = f"SELECT * FROM cypher('{self.graph_name}', $$ CREATE (n:{label} {{{props}}}) $$) AS (n agtype);"
             session.execute(query)
 
     def create_relationship(
-        self, start_node_id: str, end_node_id: str, rel_type: str, properties: Dict[str, Any]
+        self, start_node_id: str, end_node_id: str, rel_type: str, properties: dict[str, Any]
     ) -> None:
         with get_db() as session:
             props = ", ".join([f"{key}: '{value}'" for key, value in properties.items()])
@@ -32,7 +35,7 @@ class PostgresAGEGraphStore(BaseGraphStore):
             """
             session.execute(query)
 
-    def query(self, cypher: str) -> List[Dict[str, Any]]:
+    def query(self, cypher: str) -> list[dict[str, Any]]:
         with get_db() as session:
             query = f"SELECT * FROM cypher('{self.graph_name}', $$ {cypher} $$) AS (result agtype);"
             result = session.execute(query).fetchall()

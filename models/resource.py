@@ -1,9 +1,9 @@
 import datetime
 
-from sqlalchemy import Column, DateTime, Integer, String, text, UUID
+from sqlalchemy import UUID, Column, DateTime, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 
-from models import Base
+from models.base import Base
 
 
 class FileResource(Base):

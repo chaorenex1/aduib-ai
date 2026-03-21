@@ -1,6 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Generator, Callable, Any, Union
+from collections.abc import Callable, Generator
+from typing import Any, Union
 
 from aduib_app import AduibAIApp
 from configs import config
@@ -67,7 +68,7 @@ class StorageManager:
         try:
             self.storage_instance.save(filename, data)
         except Exception as e:
-            log.exception(f"Failed to save file {filename}")
+            log.exception("Failed to save file {filename}")
             raise e
 
     def load(self, filename: str, stream: bool) -> Union[bytes, Generator]:
@@ -77,38 +78,37 @@ class StorageManager:
             else:
                 return self.storage_instance.load(filename)
         except Exception as e:
-            log.exception(f"Failed to load file {filename}")
+            log.exception("Failed to load file {filename}")
             raise e
 
     def delete(self, filename: str):
         try:
             self.storage_instance.delete(filename)
         except Exception as e:
-            log.exception(f"Failed to delete file {filename}")
+            log.exception("Failed to delete file {filename}")
             raise e
 
     def exists(self, filename: str) -> bool:
         try:
             return self.storage_instance.exists(filename)
         except Exception as e:
-            log.exception(f"Failed to check file existence {filename}")
+            log.exception("Failed to check file existence {filename}")
             raise e
 
     def download(self, filename: str, target_file_path: str):
         try:
             load = self.load(filename, stream=True)
             with open(target_file_path, "wb") as f:
-                for chunk in load:
-                    f.write(chunk)
+                f.writelines(load)
         except Exception as e:
-            log.exception(f"Failed to download file {filename}")
+            log.exception("Failed to download file {filename}")
             raise e
 
     def size(self, filename: str) -> int:
         try:
             return self.storage_instance.size(filename)
         except Exception as e:
-            log.exception(f"Failed to get file size {filename}")
+            log.exception("Failed to get file size {filename}")
             raise e
 
 

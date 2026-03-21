@@ -1,8 +1,8 @@
 import datetime
 
-from sqlalchemy import UUID, String, text, DateTime, Integer, Column, Boolean
+from sqlalchemy import UUID, Boolean, Column, DateTime, Integer, String, text
 
-from models import Base
+from models.base import Base
 
 
 class McpUser(Base):

@@ -1,14 +1,16 @@
+import datetime
 import hashlib
 import logging
 from typing import Any
 
-from sqlalchemy import select, func, bindparam, desc
+from sqlalchemy import bindparam, desc, func, select
 
-from models import KnowledgeBase, get_db, BrowserHistory
+from controllers.document.document import rerank
+from models import BrowserHistory, KnowledgeBase, get_db
 from models.document import KnowledgeDocument
 from runtime.entities.document_entities import Document
 from runtime.rag.rag_type import RagType
-from runtime.rag.retrieve.retrieve import RerankMode
+from runtime.rag.retrieve.retrieve import RerankMode, RetrievalMethod
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +27,12 @@ class KnowledgeBaseService:
         return any("\u4e00" <= char <= "\u9fff" for char in text)
 
     @classmethod
-    def create_knowledge_base(cls, name: str, rag_type: str, default: int) -> KnowledgeBase:
+    def create_knowledge_base(
+        cls, name: str, rag_type: str, default: int, user_id: str, max_tokens: int = 500, chunk_overlap: int = 50
+    ) -> KnowledgeBase:
         with get_db() as session:
             kb = KnowledgeBase(
+                user_id=user_id,
                 name=name,
                 default_base=default,
                 rag_type=rag_type,
@@ -38,14 +43,18 @@ class KnowledgeBaseService:
                             {"id": "remove_extra_spaces", "enabled": True},
                             {"id": "remove_urls_emails", "enabled": False},
                         ],
-                        "segmentation": {"delimiter": "\n,.,。", "max_tokens": 500, "chunk_overlap": 50},
+                        "segmentation": {
+                            "delimiter": ["\n\n", "。", ". ", " ", ""],
+                            "max_tokens": max_tokens,
+                            "chunk_overlap": chunk_overlap,
+                        },
                     },
                 },
                 embedding_model="modelscope.cn/Qwen/Qwen3-Embedding-8B-GGUF:Q8_0",
                 embedding_model_provider="ollama",
                 rerank_model="Qwen/Qwen3-Reranker-4B",
                 rerank_model_provider="transformer",
-                reranking_rule={"score_threshold": 0.8, "top_k": 5},
+                reranking_rule={"score_threshold": 0.8, "top_k": 5, "keyword_weight": 0.2, "vector_weight": 0.8}
             )
             session.add(kb)
             session.commit()
@@ -57,8 +66,8 @@ class KnowledgeBaseService:
         """
         Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.
         """
-        from service import FileService
         from runtime.rag_manager import RagManager
+        from service import FileService
 
         file_hash = hashlib.sha256(crawl_text.encode("utf-8")).hexdigest()
         file_name = f"/web_memo/{file_hash}.{crawl_type}"
@@ -66,7 +75,7 @@ class KnowledgeBaseService:
 
         from runtime.generator.generator import LLMGenerator
 
-        name,language = LLMGenerator.generate_conversation_name(crawl_text)
+        name, language = LLMGenerator.generate_conversation_name(crawl_text)
         # name, language = LLMGenerator.generate_conversation_name(crawl_text), "chinese"
         with get_db() as session:
             existing_kb = (
@@ -102,12 +111,105 @@ class KnowledgeBaseService:
         RagManager().run([doc])
 
     @classmethod
-    async def paragraph_rag_from_blog_content(cls, blog_content: bytes,filename:str) -> None:
+    def paragraph_rag_from_memory(cls, memory_text: str, user_id: str, mem_kb_id: str, **kwargs) -> str:
         """
         Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.
         """
-        from service import FileService
         from runtime.rag_manager import RagManager
+        from service import FileService
+
+        file_hash = hashlib.sha256(memory_text.encode("utf-8")).hexdigest()
+        file_name = f"/memory/{user_id}/{file_hash}.md"
+        file_record = FileService.upload_bytes(file_name, memory_text.encode("utf-8"))
+
+        from runtime.generator.generator import LLMGenerator
+
+        name, language = LLMGenerator.generate_conversation_name(memory_text)
+        with get_db() as session:
+            existing_kb = session.query(KnowledgeBase).filter_by(id=mem_kb_id).one_or_none()
+
+            doc = (
+                session.query(KnowledgeDocument)
+                .filter_by(
+                    knowledge_base_id=existing_kb.id,
+                    file_id=str(file_record.id),
+                )
+                .one_or_none()
+            )
+            if not doc:
+                doc = KnowledgeDocument(
+                    knowledge_base_id=existing_kb.id,
+                    title=name,
+                    file_id=file_record.id,
+                    content=memory_text,
+                    doc_language=language,
+                    doc_from="memory",
+                    rag_type=RagType.PARAGRAPH,
+                    data_source_type="file",
+                    rag_status="pending",
+                    user_id=user_id,
+                )
+
+                session.add(doc)
+                session.commit()
+                session.refresh(doc)
+
+        RagManager().run([doc], **kwargs)
+        return str(doc.id)
+
+    @classmethod
+    def get_memory_doc_content(cls, doc_id: str) -> str:
+        with get_db() as session:
+            doc = session.query(KnowledgeDocument).filter_by(id=doc_id).one_or_none()
+            if doc is None:
+                raise ValueError(f"KnowledgeDocument not found: {doc_id}")
+            return doc.content or ""
+
+    @classmethod
+    def update_memory_doc(cls, doc_id: str, new_content: str, user_id: str) -> str:
+        """
+        Replace the content of an existing memory knowledge document and re-index it.
+
+        Strategy:
+        - Upload the new content as a new file (hash-based dedup).
+        - Point the existing KnowledgeDocument to the new file_id.
+        - Reset rag_status → "pending" so the RAG pipeline re-processes it.
+        - Return the same doc_id (record identity is preserved).
+        """
+        from runtime.rag_manager import RagManager
+        from service import FileService
+
+        file_hash = hashlib.sha256(new_content.encode("utf-8")).hexdigest()
+        file_name = f"/memory/{user_id}/{file_hash}.md"
+        file_record = FileService.upload_bytes(file_name, new_content.encode("utf-8"))
+
+        with get_db() as session:
+            doc = session.query(KnowledgeDocument).filter_by(id=doc_id).one_or_none()
+            if doc is None:
+                raise ValueError(f"KnowledgeDocument not found: {doc_id}")
+
+            doc.file_id = str(file_record.id)
+            doc.content = new_content
+            doc.rag_status = "pending"
+            doc.updated_at = datetime.datetime.now()
+            session.commit()
+            session.refresh(doc)
+
+        try:
+            RagManager().clean([doc])
+        except Exception:
+            logger.warning("Failed to clean old RAG artifacts for memory doc: %s", doc_id, exc_info=True)
+
+        RagManager().run([doc])
+        return str(doc.id)
+
+    @classmethod
+    async def paragraph_rag_from_blog_content(cls, blog_content: bytes, filename: str) -> None:
+        """
+        Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.
+        """
+        from runtime.rag_manager import RagManager
+        from service import FileService
 
         # file_hash = hashlib.sha256(blog_content).hexdigest()
         file_name = f"/blog_content/{filename}"
@@ -154,12 +256,11 @@ class KnowledgeBaseService:
                     RagManager().run([doc])
 
     @classmethod
-    async def qa_rag_from_conversation_message(cls,message_id: str) -> None:
+    async def qa_rag_from_conversation_message(cls, message_id: str) -> None:
         """
         Create a knowledge document from web crawl text and store it in the default paragraph knowledge base.
         """
         from runtime.rag_manager import RagManager
-        from runtime.generator.generator import LLMGenerator
 
         # name,language = LLMGenerator.generate_conversation_name(crawl_text)
         name, language = "", "chinese"
@@ -185,36 +286,48 @@ class KnowledgeBaseService:
         RagManager().run([doc])
 
     @classmethod
+    async def retrieve_from_kb(
+        cls,
+        kb: KnowledgeBase,
+        query: str,
+        top_k: int,
+        retrieval_method: RetrievalMethod.VECTOR,
+        score_threshold: float = 0.0,
+        weights: dict | None = None,
+        reranking_mode=RerankMode.RERANKING_MODEL,
+        **kwargs,
+    ) -> list[Document]:
+        """Retrieve documents from a specific KnowledgeBase object (not restricted to default_base)."""
+        from runtime.rag.rag_processor.rag_processor_factory import RAGProcessorFactory
+        from runtime.rag.retrieve.retrieve import RerankMode
+
+        rag_processor = RAGProcessorFactory.get_rag_processor(kb.rag_type)
+        rule = kb.reranking_rule or {}
+        reranking_model = (
+            {"reranking_model_name": kb.rerank_model, "reranking_provider_name": kb.rerank_model_provider}
+            if kb.rerank_model and kb.rerank_model_provider
+            else {}
+        )
+        reranking_model["reranking_mode"] = rule.get("reranking_mode", RetrievalMethod.VECTOR)
+        effective_weights = weights or {
+            "keyword_weight": rule.get("keyword_weight", 0.2),
+            "vector_weight": rule.get("vector_weight", 0.8),
+        }
+        return rag_processor.retrieve(retrieval_method, query, kb, top_k, score_threshold,reranking_mode, reranking_model,effective_weights,**kwargs)
+
+    @classmethod
     async def retrieve_from_knowledge_base(cls, rag_type: str, query: str) -> list[Document]:
         """
         Retrieve relevant documents from the knowledge base using RAG.
         """
-        from runtime.rag.rag_processor.rag_processor_factory import RAGProcessorFactory
 
-        rag_processor = RAGProcessorFactory.get_rag_processor(rag_type)
         with get_db() as session:
             existing_kb = session.query(KnowledgeBase).filter_by(default_base=1, rag_type=rag_type).one_or_none()
             if not existing_kb:
                 return []
-        return rag_processor.retrieve(
-            RerankMode.WEIGHTED_SCORE,
-            query,
-            existing_kb,
-            existing_kb.reranking_rule.get("top_k", 10),
-            existing_kb.reranking_rule.get("score_threshold", 0.8),
-            {
-                "reranking_model_name": existing_kb.rerank_model,
-                "reranking_provider_name": existing_kb.rerank_model_provider,
-            }
-            if existing_kb.rerank_model and existing_kb.rerank_model_provider
-            else {},
-            {
-                "keyword_weight": existing_kb.reranking_rule.get("keyword_weight", 0.2),
-                "vector_weight": existing_kb.reranking_rule.get("vector_weight", 0.8),
-                "embedding_model_name": existing_kb.embedding_model,
-                "embedding_provider_name": existing_kb.embedding_model_provider,
-            }
-        )
+        return await cls.retrieve_from_kb(existing_kb, query,
+                                      existing_kb.reranking_rule.get("top_k", 10),
+                                      existing_kb.reranking_rule.get("score_threshold", 0.8))
 
     @classmethod
     async def retrieval_from_browser_history(cls, query, start_time, end_time):
@@ -261,7 +374,7 @@ class KnowledgeBaseService:
             results = [(row[0], row[1], row[2], row[3], row[4]) for row in res]
         docs = []
         for record in results:
-            if record[4]>=0.6:  # score threshold
+            if record[4] >= 0.6:  # score threshold
                 meta = {
                     "id": record[0],
                     "url": record[1],
@@ -278,14 +391,19 @@ class KnowledgeBaseService:
         Retry failed paragraph RAG embeddings.
         """
         with get_db() as session:
-            blog_list: list[KnowledgeDocument] = session.query(KnowledgeDocument).filter(
-                KnowledgeDocument.rag_status != 'completed',
-                KnowledgeDocument.rag_type == 'paragraph',
-                KnowledgeDocument.rag_count < 3,
-            ).all()
+            blog_list: list[KnowledgeDocument] = (
+                session.query(KnowledgeDocument)
+                .filter(
+                    KnowledgeDocument.rag_status != "completed",
+                    KnowledgeDocument.rag_type == "paragraph",
+                    KnowledgeDocument.rag_count < 3,
+                )
+                .all()
+            )
             for blog in blog_list:
                 try:
                     from runtime.rag_manager import RagManager
+
                     manager = RagManager()
                     blog_ = [blog]
                     manager.clean(blog_)
@@ -293,32 +411,66 @@ class KnowledgeBaseService:
                     blog.rag_count += 1
                     session.commit()
                 except Exception as e:
-                    logger.exception(f"Failed to process document ID {blog.id}: {e}")
+                    logger.exception("Failed to process document ID {blog.id}: {e}")
                     session.rollback()
 
-
     @classmethod
-    async  def clean_knowledge_documents(cls):
+    async def clean_knowledge_documents(cls):
         """
         Clean knowledge documents with failed RAG status exceeding retry limit.
         """
         with get_db() as session:
-            docs_to_delete: list[KnowledgeDocument] = session.query(KnowledgeDocument).filter(
-                KnowledgeDocument.rag_status != 'completed',
-                KnowledgeDocument.rag_count >= 3,
-            ).all()
+            docs_to_delete: list[KnowledgeDocument] = (
+                session.query(KnowledgeDocument)
+                .filter(
+                    KnowledgeDocument.rag_status != "completed",
+                    KnowledgeDocument.rag_count >= 3,
+                )
+                .all()
+            )
             from runtime.rag_manager import RagManager
+
             try:
                 RagManager().clean(docs_to_delete)
                 for doc in docs_to_delete:
                     session.delete(doc)
                 session.commit()
             except Exception as e:
-                logger.exception(f"Failed to clean knowledge documents: {e}")
+                logger.exception("Failed to clean knowledge documents: {e}")
                 session.rollback()
 
     @classmethod
-    async def retrieve_With_doc_id(cls, doc_id)->dict[str, Any]:
+    def delete_kb_doc(cls, doc_id: str) -> None:
+        """
+        Delete a knowledge document by doc_id.
+        """
+        with get_db() as session:
+            doc = session.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_id).one_or_none()
+            if doc:
+                session.deleted = 1
+                session.commit()
+                session.refresh(doc)
+                from runtime.rag_manager import RagManager
+
+                RagManager().clean([doc])
+
+    @classmethod
+    def reactive_kb_doc(cls, doc_id: str) -> None:
+        """
+        Reactive a knowledge document by doc_id.
+        """
+        with get_db() as session:
+            doc = session.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_id).one_or_none()
+            if doc:
+                doc.deleted = 0
+                session.commit()
+                session.refresh(doc)
+                from runtime.rag_manager import RagManager
+
+                RagManager().run(knowledge_docs=[doc])
+
+    @classmethod
+    async def retrieve_With_doc_id(cls, doc_id) -> dict[str, Any]:
         """
         Retrieve document by doc_id.
         """
@@ -326,6 +478,4 @@ class KnowledgeBaseService:
             doc = session.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_id).one_or_none()
             if not doc:
                 return {"doc_id": doc_id, "error": "Document not found"}
-            return {
-                "doc_id": doc.id,
-                "doc_content": doc.content}
+            return {"doc_id": doc.id, "doc_content": doc.content}

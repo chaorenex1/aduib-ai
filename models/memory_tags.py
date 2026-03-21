@@ -1,15 +1,13 @@
 """Memory custom tags data models."""
 
-from sqlalchemy import (
-    Column, String, Text, Boolean, DateTime, ForeignKey, Integer,
-    UniqueConstraint, Index, text
-)
+import datetime
+
+from pgvecto_rs.sqlalchemy import VECTOR
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
-from typing import Optional, List
 
-from models import Base
+from models.base import Base
 
 
 class UserCustomTag(Base):
@@ -22,7 +20,7 @@ class UserCustomTag(Base):
     description = Column(Text, nullable=True, doc="Tag description")
     user_id = Column(String(100), nullable=False, doc="Owner user ID")
     color = Column(String(7), nullable=True, doc="Tag color in hex format (#RRGGBB)")
-
+    vector = Column(VECTOR(4096), nullable=True, comment="embedding vector")
     # Hierarchy support
     parent_id = Column(UUID(as_uuid=True), ForeignKey("user_custom_tags.id"), nullable=True, doc="Parent tag ID")
 
@@ -32,8 +30,8 @@ class UserCustomTag(Base):
 
     # Metadata
     usage_count = Column(Integer, nullable=True, default=0, doc="Number of times tag is used")
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now, nullable=False)
 
     # Relationships
     parent = relationship("UserCustomTag", remote_side="UserCustomTag.id", backref="children")
@@ -45,6 +43,20 @@ class UserCustomTag(Base):
         Index("idx_user_tags_user_id", "user_id"),
         Index("idx_user_tags_active", "is_active"),
         Index("idx_user_tags_parent", "parent_id"),
+        Index(
+            "idx_mem_tag_vector",
+            vector,
+            postgresql_using="vectors",
+            postgresql_with={
+                "options": """$$optimizing.optimizing_threads = 30
+                                    segment.max_growing_segment_size = 2000
+                                    segment.max_sealed_segment_size = 30000000
+                                    [indexing.hnsw]
+                                    m=30
+                                    ef_construction=500$$"""
+            },
+            postgresql_ops={"vector": "vector_l2_ops"},
+        ),
     )
 
     def __repr__(self):
@@ -72,7 +84,7 @@ class UserCustomTag(Base):
             return f"{self.parent.get_full_path()}/{self.name}"
         return self.name
 
-    def get_all_children(self) -> List["UserCustomTag"]:
+    def get_all_children(self) -> list["UserCustomTag"]:
         """Get all descendant tags recursively."""
         children = list(self.children)
         for child in self.children:
@@ -91,8 +103,7 @@ class MemoryTagAssociation(Base):
     assigned_by = Column(String(100), nullable=False, doc="User who assigned the tag")
 
     # Assignment metadata
-    assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False, doc="When tag was assigned")
-    confidence = Column(Integer, nullable=True, default=1.0, doc="Assignment confidence (0.0-1.0)")
+    assigned_at = Column(DateTime, default=datetime.datetime.now, nullable=False, doc="When tag was assigned")
     source = Column(String(50), default="manual", nullable=False, doc="Assignment source (manual/auto/learned)")
 
     # Optional context
@@ -121,30 +132,6 @@ class MemoryTagAssociation(Base):
             "tag_id": self.tag_id,
             "assigned_by": self.assigned_by,
             "assigned_at": self.assigned_at.isoformat() if self.assigned_at else None,
-            "confidence": self.confidence,
             "source": self.source,
             "context": self.context,
         }
-
-
-# Define common tag categories for system tags
-SYSTEM_TAG_CATEGORIES = {
-    "priority": {
-        "urgent": {"color": "#ff4444", "description": "Urgent items requiring immediate attention"},
-        "important": {"color": "#ff8800", "description": "Important but not urgent items"},
-        "normal": {"color": "#4488ff", "description": "Normal priority items"},
-        "low": {"color": "#888888", "description": "Low priority items"},
-    },
-    "type": {
-        "question": {"color": "#44ff44", "description": "Questions and inquiries"},
-        "idea": {"color": "#ffff44", "description": "Ideas and inspirations"},
-        "task": {"color": "#ff44ff", "description": "Tasks and action items"},
-        "note": {"color": "#44ffff", "description": "Notes and observations"},
-    },
-    "status": {
-        "todo": {"color": "#ff6644", "description": "Items to be done"},
-        "in-progress": {"color": "#ffaa00", "description": "Items currently being worked on"},
-        "done": {"color": "#44aa44", "description": "Completed items"},
-        "archived": {"color": "#666666", "description": "Archived items"},
-    }
-}

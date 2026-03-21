@@ -1,8 +1,8 @@
 import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, DateTime, Integer, String, Text
 
-from models import Base
+from models.base import Base
 
 
 class Provider(Base):
