@@ -1,0 +1,21 @@
+name: subagent
+description: Delegate to subagent
+parameters:
+  type: object
+  properties:
+    agent_name:
+      type: string
+      description: Name of the subagent to delegate to
+    task:
+      type: string
+      description: Task description for the subagent
+    context:
+      type: string
+      description: Optional execution context to pass to the subagent
+  required: ["task"]
+configs: {}
+icon: "🤖"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

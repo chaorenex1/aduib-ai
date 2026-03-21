@@ -1,0 +1,15 @@
+name: cronList
+description: List scheduled tasks
+parameters:
+  type: object
+  properties:
+    include_disabled:
+      type: boolean
+      description: Include disabled schedules in the result
+  required: []
+configs: {}
+icon: "📅"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

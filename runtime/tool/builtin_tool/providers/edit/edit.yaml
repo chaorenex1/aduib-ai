@@ -1,0 +1,36 @@
+name: edit
+description: Edit file with string replacement
+parameters:
+  type: object
+  properties:
+    file_path:
+      type: string
+      description: Path to the file to edit
+    old_string:
+      type: string
+      description: String to replace
+    new_string:
+      type: string
+      description: Replacement string
+    encoding:
+      type: string
+      description: Text encoding, default utf-8
+    replace_all:
+      type: boolean
+      description: Replace every occurrence instead of exactly one
+    expected_occurrences:
+      type: integer
+      description: Require an exact number of matches before editing
+    start_line:
+      type: integer
+      description: Optional inclusive 1-based start line to limit replacement scope
+    end_line:
+      type: integer
+      description: Optional inclusive 1-based end line to limit replacement scope
+  required: ["file_path", "old_string", "new_string"]
+configs: {}
+icon: "✏️"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

@@ -1,0 +1,15 @@
+name: webFetch
+description: Fetch and convert URL to markdown
+parameters:
+  type: object
+  properties:
+    url:
+      type: string
+      description: URL to fetch
+  required: ["url"]
+configs: {}
+icon: "📥"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

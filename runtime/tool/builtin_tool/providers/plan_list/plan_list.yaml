@@ -1,0 +1,24 @@
+name: planList
+description: List all plans
+parameters:
+  type: object
+  properties:
+    status:
+      type: string
+      description: Optional plan status filter
+    title_contains:
+      type: string
+      description: Optional case-insensitive title search
+    include_archived:
+      type: boolean
+      description: Whether archived plans should be included
+    include_body:
+      type: boolean
+      description: Whether the markdown body should be returned
+  required: []
+configs: {}
+icon: "📚"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

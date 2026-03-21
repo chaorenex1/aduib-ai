@@ -1,0 +1,29 @@
+name: taskCreate
+description: Create background task
+parameters:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Optional task display name
+    type:
+      type: string
+      description: Execution type
+      enum: ["command", "shell_script", "python_script"]
+    command:
+      type: string
+      description: Command text, or script content when type is shell_script or python_script
+    script_path:
+      type: string
+      description: Optional relative path under app.workdir for shell_script or python_script
+    timeout_seconds:
+      type: integer
+      description: Optional execution timeout in seconds
+      minimum: 1
+  required: ["type"]
+configs: {}
+icon: "⚙️"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

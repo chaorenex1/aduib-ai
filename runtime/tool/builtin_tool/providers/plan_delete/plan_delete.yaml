@@ -1,0 +1,24 @@
+name: planDelete
+description: Delete plan document
+parameters:
+  type: object
+  properties:
+    plan_id:
+      type: integer
+      description: Plan ID to delete
+    title:
+      type: string
+      description: Optional lookup title when plan_id is unavailable
+    deletion_reason:
+      type: string
+      description: Required justification for deleting this plan
+    name:
+      type: string
+      description: Legacy alias for title
+  required: ["deletion_reason"]
+configs: {}
+icon: "🗑️"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

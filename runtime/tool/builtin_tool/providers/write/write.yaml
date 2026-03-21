@@ -1,0 +1,39 @@
+name: write
+description: Write content to a file
+parameters:
+  type: object
+  properties:
+    file_path:
+      type: string
+      description: Path to the file to write
+    content:
+      type: string
+      description: Content to write to the file
+    mode:
+      type: string
+      description: overwrite, append, replace_lines, insert_before, or insert_after
+    encoding:
+      type: string
+      description: Text encoding, default utf-8
+    append:
+      type: boolean
+      description: Append instead of overwrite
+    create_dirs:
+      type: boolean
+      description: Create parent directories when missing
+    line:
+      type: integer
+      description: Target line for insert_before or insert_after
+    start_line:
+      type: integer
+      description: Inclusive start line for replace_lines
+    end_line:
+      type: integer
+      description: Inclusive end line for replace_lines
+  required: ["file_path", "content"]
+configs: {}
+icon: "📝"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

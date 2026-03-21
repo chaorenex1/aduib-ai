@@ -1,0 +1,15 @@
+name: cronDelete
+description: Delete scheduled task
+parameters:
+  type: object
+  properties:
+    cron_id:
+      type: string
+      description: Cron ID to delete
+  required: ["cron_id"]
+configs: {}
+icon: "🗑️"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

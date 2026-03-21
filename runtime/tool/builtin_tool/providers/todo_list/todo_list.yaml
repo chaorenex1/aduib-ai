@@ -1,0 +1,15 @@
+name: todoList
+description: List all todos
+parameters:
+  type: object
+  properties:
+    status:
+      type: string
+      description: Optional status filter
+  required: []
+configs: {}
+icon: "📋"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

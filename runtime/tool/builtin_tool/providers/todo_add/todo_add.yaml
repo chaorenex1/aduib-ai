@@ -1,0 +1,39 @@
+name: todoAdd
+description: Add todo item
+parameters:
+  type: object
+  properties:
+    title:
+      type: string
+      description: Todo title
+    status:
+      type: string
+      description: pending, in_progress, completed, failed, or blocked
+    completion_condition:
+      type: string
+      description: Concrete completion condition
+    depends_on:
+      type: array
+      items:
+        type: integer
+      description: Todo IDs that must complete first
+    blocked_reason:
+      type: string
+      description: Required when status=blocked
+    failure_reason:
+      type: string
+      description: Required when status=failed
+    evidence:
+      type: array
+      items: {}
+      description: Structured verification evidence, required when status=completed
+    subject:
+      type: string
+      description: Legacy alias for title
+  required: ["title"]
+configs: {}
+icon: "➕"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

@@ -1,0 +1,24 @@
+name: skill
+description: Invoke skill capability
+parameters:
+  type: object
+  properties:
+    action:
+      type: string
+      description: Progressive disclosure mode: instructions, reference, or script. Defaults to instructions when omitted.
+    skill_name:
+      type: string
+      description: Name of the skill to invoke
+    reference_path:
+      type: string
+      description: Reference file name inside the skill references directory
+    script_path:
+      type: string
+      description: Script file name inside the skill scripts directory. Returns script content instead of executing it.
+  required: ["skill_name"]
+configs: {}
+icon: "🎯"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

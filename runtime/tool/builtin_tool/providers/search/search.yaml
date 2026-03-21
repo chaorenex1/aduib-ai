@@ -1,0 +1,27 @@
+name: search
+description: Search codebase using Grep
+parameters:
+  type: object
+  properties:
+    pattern:
+      type: string
+      description: Search pattern (regex supported)
+    path:
+      type: string
+      description: Path to search in (optional)
+    glob:
+      type: string
+      description: Optional filename glob such as *.py
+    case_sensitive:
+      type: boolean
+      description: Whether the regex match is case sensitive
+    max_results:
+      type: integer
+      description: Maximum number of matches to return
+  required: ["pattern"]
+configs: {}
+icon: "🔍"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

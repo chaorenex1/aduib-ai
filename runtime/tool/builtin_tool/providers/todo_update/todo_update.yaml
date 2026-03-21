@@ -1,0 +1,42 @@
+name: todoUpdate
+description: Update todo item
+parameters:
+  type: object
+  properties:
+    todo_id:
+      type: integer
+      description: Todo ID to update
+    title:
+      type: string
+      description: Updated todo title
+    status:
+      type: string
+      description: New status (pending/in_progress/completed/failed/blocked)
+    completion_condition:
+      type: string
+      description: Updated concrete completion condition
+    depends_on:
+      type: array
+      items:
+        type: integer
+      description: Updated dependency todo IDs
+    blocked_reason:
+      type: string
+      description: Required when status=blocked
+    failure_reason:
+      type: string
+      description: Required when status=failed
+    evidence:
+      type: array
+      items: {}
+      description: Structured verification evidence, required when status=completed
+    change_reason:
+      type: string
+      description: Reason for this todo update
+  required: ["todo_id"]
+configs: {}
+icon: "✏️"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

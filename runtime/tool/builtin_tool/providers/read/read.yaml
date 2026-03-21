@@ -1,0 +1,27 @@
+name: read
+description: Read content from a file
+parameters:
+  type: object
+  properties:
+    file_path:
+      type: string
+      description: Path to the file to read
+    encoding:
+      type: string
+      description: Text encoding, default utf-8
+    start_line:
+      type: integer
+      description: Optional 1-based start line
+    end_line:
+      type: integer
+      description: Optional 1-based end line
+    max_chars:
+      type: integer
+      description: Maximum number of characters to return
+  required: ["file_path"]
+configs: {}
+icon: "📖"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

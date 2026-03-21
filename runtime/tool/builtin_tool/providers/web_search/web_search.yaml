@@ -1,0 +1,15 @@
+name: webSearch
+description: Search web for information
+parameters:
+  type: object
+  properties:
+    query:
+      type: string
+      description: Search query
+  required: ["query"]
+configs: {}
+icon: "🌐"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

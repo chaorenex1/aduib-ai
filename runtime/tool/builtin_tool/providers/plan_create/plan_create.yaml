@@ -1,0 +1,27 @@
+name: planCreate
+description: Create plan document
+parameters:
+  type: object
+  properties:
+    title:
+      type: string
+      description: Plan title
+    body:
+      type: string
+      description: Markdown planning document body
+    status:
+      type: string
+      description: draft, active, completed, cancelled, or archived
+    name:
+      type: string
+      description: Legacy alias for title
+    content:
+      type: string
+      description: Legacy alias for body
+  required: ["title", "body"]
+configs: {}
+icon: "📋"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

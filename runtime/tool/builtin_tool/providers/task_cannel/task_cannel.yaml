@@ -1,0 +1,15 @@
+name: taskCannel
+description: Cancel background task
+parameters:
+  type: object
+  properties:
+    task_id:
+      type: string
+      description: Task ID to cancel
+  required: ["task_id"]
+configs: {}
+icon: "❌"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

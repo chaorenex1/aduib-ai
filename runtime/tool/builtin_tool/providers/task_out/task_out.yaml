@@ -1,0 +1,15 @@
+name: taskOut
+description: Get task output
+parameters:
+  type: object
+  properties:
+    task_id:
+      type: string
+      description: Task ID to get output from
+  required: ["task_id"]
+configs: {}
+icon: "📤"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

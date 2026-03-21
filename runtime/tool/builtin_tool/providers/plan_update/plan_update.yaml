@@ -1,0 +1,33 @@
+name: planUpdate
+description: Update plan document
+parameters:
+  type: object
+  properties:
+    plan_id:
+      type: integer
+      description: Plan ID to update
+    title:
+      type: string
+      description: Updated plan title
+    body:
+      type: string
+      description: Updated markdown planning document body
+    status:
+      type: string
+      description: draft, active, completed, cancelled, or archived
+    change_reason:
+      type: string
+      description: Required reason for this plan update
+    name:
+      type: string
+      description: Legacy lookup alias for title
+    content:
+      type: string
+      description: Legacy alias for body
+  required: ["change_reason"]
+configs: {}
+icon: "📝"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

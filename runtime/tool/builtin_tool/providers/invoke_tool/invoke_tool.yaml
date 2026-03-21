@@ -1,0 +1,22 @@
+name: Tool
+description: Invoke a non-builtin tool
+parameters:
+  type: object
+  properties:
+    toolName:
+      type: string
+      description: Exact name of the non-builtin tool to invoke
+    toolProvider:
+      type: string
+      description: Optional non-builtin provider type
+      enum: ["skill", "local", "mcp"]
+    arguments:
+      type: object
+      description: Arguments to pass through to the target tool
+  required: ["toolName"]
+configs: {}
+icon: "🧰"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

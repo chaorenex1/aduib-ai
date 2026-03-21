@@ -1,0 +1,19 @@
+name: bash
+description: Execute shell commands
+parameters:
+  type: object
+  properties:
+    command:
+      type: string
+      description: Shell command to execute
+    timeout_seconds:
+      type: integer
+      description: Execution timeout in seconds
+  required: ["command"]
+configs:
+  timeout: 30
+icon: "🖥️"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true
