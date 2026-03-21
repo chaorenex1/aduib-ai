@@ -9,6 +9,7 @@ authors = [
     {name = "chaorenex1", email = "24537608z@gmail.com"},
     ]
 dependencies = [
+    "apscheduler>=3.11.0",
     "bcrypt>=4.3.0",
     "celery>=5.4.0",
     "boto3>=1.37.11",
@@ -35,6 +36,8 @@ dependencies = [
     "pyzmq",
     "spacy",
     "beautifulsoup4>=4.13.4",
+    "PyJWT",
+    "clickhouse-connect"
 ]
 [project.optional-dependencies]
 depcated = [

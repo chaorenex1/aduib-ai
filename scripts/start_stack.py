@@ -14,7 +14,6 @@ import signal
 import subprocess
 import sys
 import time
-from typing import List
 
 DEFAULT_APP = "app:app"
 DEFAULT_CELERY_APP = "runtime.tasks.celery_app.celery_app"
@@ -35,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_uvicorn_cmd(args: argparse.Namespace) -> List[str]:
+def build_uvicorn_cmd(args: argparse.Namespace) -> list[str]:
     cmd = [
         sys.executable,
         "-m",
@@ -53,7 +52,7 @@ def build_uvicorn_cmd(args: argparse.Namespace) -> List[str]:
     return cmd
 
 
-def build_celery_cmd(args: argparse.Namespace) -> List[str]:
+def build_celery_cmd(args: argparse.Namespace) -> list[str]:
     cmd = [
         sys.executable,
         "-m",
@@ -69,7 +68,7 @@ def build_celery_cmd(args: argparse.Namespace) -> List[str]:
     return cmd
 
 
-def build_rpc_cmd(args: argparse.Namespace) -> List[str]:
+def build_rpc_cmd(args: argparse.Namespace) -> list[str]:
     return [sys.executable, "-m", "rpc_app"]
 
 
@@ -100,7 +99,7 @@ def main():
     processes = [("uvicorn", uvicorn_proc), ("celery", celery_proc)]
 
     rpc_cmd = build_rpc_cmd(args)
-    print(f"[stack] Starting RPC app")
+    print("[stack] Starting RPC app")
     rpc_proc = subprocess.Popen(rpc_cmd, env=env)
     processes.append(("rpc", rpc_proc))
 

@@ -4,7 +4,7 @@ import logging
 import os
 import pathlib
 import time
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 from fastapi.routing import APIRoute
 
@@ -14,27 +14,40 @@ from component.log.app_logging import init_logging
 from component.storage.base_storage import init_storage
 from configs import config
 from controllers.route import api_router
-from libs.context import LoggingMiddleware, TraceIdContextMiddleware, ApiKeyContextMiddleware,PerformanceMetricsMiddleware
-from utils.snowflake_id import init_idGenerator
+from libs.context import (
+    ApiKeyContextMiddleware,
+    LoggingMiddleware,
+    PerformanceMetricsMiddleware,
+    TraceIdContextMiddleware,
+)
 from utils.port_utils import get_ip_and_free_port
 
 log = logging.getLogger(__name__)
+
 
 def create_app_with_configs() -> AduibAIApp:
     def custom_generate_unique_id(route: APIRoute) -> str:
         return f"{route.tags[0]}-{route.name}"
 
+    docs_url = "/docs" if config.SWAGGER_ENABLED else None
+    redoc_url = "/redoc" if config.SWAGGER_ENABLED else None
+    openapi_url = "/openapi.json" if config.SWAGGER_ENABLED else None
     app = AduibAIApp(
         title=config.APP_NAME,
         generate_unique_id_function=custom_generate_unique_id,
         debug=config.DEBUG,
         lifespan=lifespan,
+        docs_url=docs_url,
+        redoc_url=redoc_url,
+        openapi_url=openapi_url,
     )
     app.config = config
     if config.APP_HOME:
         app.app_home = config.APP_HOME
+        app.workdir = config.APP_HOME + "/workdir"
     else:
-        app.app_home = os.getenv("user.home", str(pathlib.Path.home())) + f"/.{config.APP_NAME.lower()}"
+        app.app_home = os.getenv("USER.HOME", str(pathlib.Path.home())) + f"/.{config.APP_NAME.lower()}"
+        app.workdir = app.app_home + "/workdir"
     app.include_router(api_router, prefix="/v1")
     if config.DEBUG:
         log.warning("Running in debug mode, this is not recommended for production use.")
@@ -51,8 +64,8 @@ def create_app() -> AduibAIApp:
     init_logging(app)
     init_apps(app)
     end_time = time.perf_counter()
-    log.info(f"App home directory: {app.app_home}")
-    log.info(f"Finished create_app ({round((end_time - start_time) * 1000, 2)} ms)")
+    log.info("App home directory: %s", app.app_home)
+    log.info("Finished create_app (%s ms)", round((end_time - start_time) * 1000, 2))
     return app
 
 
@@ -62,17 +75,16 @@ def init_apps(app: AduibAIApp):
     :param app: AduibAIApp instance
     """
     log.info("Initializing middlewares")
-    init_idGenerator(app)
     init_cache(app)
     init_storage(app)
-    from event.event_manager import EventManager
-    from event.event_manager import event_manager_context
+    from event.event_manager import EventManager, event_manager_context
 
     event_manager = EventManager()
     app.extensions["event_manager"] = event_manager
     event_manager_context.set(event_manager)
-    from event.rag.rag_event import paragraph_rag_from_web_memo, qa_rag_from_conversation_message
-    from event.agent.agent_event import agent_from_conversation_message
+    from component.clickhouse.client import init_clickhouse
+
+    init_clickhouse(app)
 
     log.info("middlewares initialized successfully")
 
@@ -95,32 +107,31 @@ async def run_service_register(app: AduibAIApp):
             "SERVICE_TRANSPORT_SCHEME": app.config.SERVICE_TRANSPORT_SCHEME,
             "APP_NAME": app.config.APP_NAME,
         }
-        from aduib_rpc.discover.registry.registry_factory import ServiceRegistryFactory
         from aduib_rpc.discover.entities import ServiceInstance
-        from aduib_rpc.utils.constant import AIProtocols
-        from aduib_rpc.utils.constant import TransportSchemes
+        from aduib_rpc.discover.registry.registry_factory import ServiceRegistryFactory
         from aduib_rpc.discover.service import AduibServiceFactory
         from aduib_rpc.server.rpc_execution.service_call import load_service_plugins
+        from aduib_rpc.utils.constant import AIProtocols, TransportSchemes
 
         # Get IP and determine RPC port
         preferred_port = config.RPC_SERVICE_PORT if config.RPC_SERVICE_PORT > 0 else None
         ip, port = get_ip_and_free_port(preferred_port=preferred_port)
 
-        log.info(f"RPC service will use IP: {ip}, Port: {port}")
+        log.info("RPC service will use IP: %s, Port: %s", ip, port)
 
         service_registry = ServiceRegistryFactory.start_service_discovery(registry_config)
         rpc_service_info = ServiceInstance(
-            service_name=registry_config.get('APP_NAME', 'aduib-rpc'),
+            service_name=registry_config.get("APP_NAME", "aduib-rpc"),
             host=ip,
             port=port,
             protocol=AIProtocols.AduibRpc,
             weight=1,
-            scheme=config.SERVICE_TRANSPORT_SCHEME or TransportSchemes.GRPC
+            scheme=config.SERVICE_TRANSPORT_SCHEME or TransportSchemes.GRPC,
         )
 
         factory = AduibServiceFactory(service_instance=rpc_service_info)
-        load_service_plugins('rpc.service')
-        load_service_plugins('rpc.client')
+        load_service_plugins("rpc.service")
+        load_service_plugins("rpc.client")
 
         # Docker environment configuration
         if config.DOCKER_ENV:
@@ -130,7 +141,7 @@ async def run_service_register(app: AduibAIApp):
                 port=rpc_service_info.port,
                 protocol=rpc_service_info.protocol,
                 weight=rpc_service_info.weight,
-                scheme=rpc_service_info.scheme
+                scheme=rpc_service_info.scheme,
             )
 
         # Setup AI app service instance
@@ -145,16 +156,26 @@ async def run_service_register(app: AduibAIApp):
 
         # Register services
         await service_registry.register_service(rpc_service_info)
-        log.info(f"Registered RPC service: {rpc_service_info.service_name} at {rpc_service_info.host}:{rpc_service_info.port}")
+        log.info(
+            "Registered RPC service: %s at %s:%s",
+            rpc_service_info.service_name,
+            rpc_service_info.host,
+            rpc_service_info.port,
+        )
 
         await service_registry.register_service(aduib_ai_service)
-        log.info(f"Registered AI app service: {aduib_ai_service.service_name} at {aduib_ai_service.host}:{aduib_ai_service.port}")
+        log.info(
+            "Registered AI app service: %s at %s:%s",
+            aduib_ai_service.service_name,
+            aduib_ai_service.host,
+            aduib_ai_service.port,
+        )
 
         # Run RPC server
         await factory.run_server()
 
     except Exception as e:
-        log.error(f"Failed to start RPC service: {e}", exc_info=True)
+        log.exception("Failed to start RPC service")
         _rpc_service_started = False
         raise
 
@@ -169,12 +190,43 @@ async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
     asyncio.create_task(run_service_register(app))
 
     from event.event_manager import EventManager
+
     event_manager: EventManager = app.extensions.get("event_manager")
     if event_manager:
         event_manager.start()
         log.info("Event manager started")
 
-    yield None
+    # Ensure default admin account exists
+    try:
+        from service.user_service import UserService
+
+        UserService.ensure_admin_exists()
+    except Exception as e:
+        log.exception("Failed to ensure admin account")
+
+    # Register builtin agents and initialize OrchestrationManager
+    try:
+
+        from runtime.agent.builtin_agents import register_builtin_agents
+        from runtime.tasks.cron_scheduler import cron_scheduler
+
+        register_builtin_agents()
+        cron_scheduler.start()
+    except Exception as e:
+        log.exception("Failed to register builtin agents/workflows")
+
+    try:
+        from runtime.agent_manager import AgentManager
+
+        app.agent_manager = AgentManager("supervisor_agent_v3")
+        log.info("AgentManager initialized")
+    except Exception as e:
+        log.exception("Failed to initialize AgentManager")
+
+    from libs.context import app_context
+
+    with app_context.temporary_set(app):
+        yield None
 
     # Shutdown logic
     log.info("Application is shutting down, cleaning up resources...")
@@ -185,13 +237,21 @@ async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
             await event_manager.stop()
             log.info("Event manager stopped")
         except Exception as e:
-            log.error(f"Error stopping event manager: {e}")
+            log.exception("Error stopping event manager")
+
+    try:
+        from runtime.tasks.cron_scheduler import cron_scheduler
+
+        cron_scheduler.stop()
+    except Exception as e:
+        log.exception("Error stopping cron scheduler")
 
     # Close database connections
     try:
         from models.engine import engine
+
         engine.dispose()
         log.info("Database connections closed")
     except Exception as e:
-        log.error(f"Error closing database connections: {e}")
+        log.exception("Error closing database connections")
     log.info("Application shutdown complete")

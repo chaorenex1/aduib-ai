@@ -1,9 +1,10 @@
 """
 Port utility functions for cross-platform port management.
 """
+
 import logging
 import socket
-from typing import Tuple, Optional
+from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -41,10 +42,10 @@ def find_free_port(start_port: int, max_attempts: int = 100, host: str = "0.0.0.
     """
     for port in range(start_port, start_port + max_attempts):
         if not is_port_in_use(port, host):
-            log.info(f"Found free port: {port}")
+            log.info("%Found free port: {port}")
             return port
 
-    log.error(f"No free port found in range {start_port}-{start_port + max_attempts}")
+    log.exception("No free port found in range {start_port}-{start_port + max_attempts}")
     return None
 
 
@@ -61,10 +62,10 @@ def get_free_port(preferred_port: Optional[int] = None, host: str = "0.0.0.0") -
     """
     if preferred_port is not None:
         if not is_port_in_use(preferred_port, host):
-            log.info(f"Using preferred port: {preferred_port}")
+            log.info("%Using preferred port: {preferred_port}")
             return preferred_port
         else:
-            log.warning(f"Preferred port {preferred_port} is in use, finding alternative...")
+            log.warning("%Preferred port {preferred_port} is in use, finding alternative...")
             free_port = find_free_port(preferred_port + 1, host=host)
             if free_port is not None:
                 return free_port
@@ -74,7 +75,7 @@ def get_free_port(preferred_port: Optional[int] = None, host: str = "0.0.0.0") -
         s.bind((host, 0))
         s.listen(1)
         port = s.getsockname()[1]
-        log.info(f"OS assigned free port: {port}")
+        log.info("%OS assigned free port: {port}")
         return port
 
 
@@ -95,11 +96,11 @@ def get_local_ip() -> str:
             ip = s.getsockname()[0]
             return ip
     except Exception as e:
-        log.warning(f"Could not determine local IP: {e}, falling back to 127.0.0.1")
+        log.warning("%Could not determine local IP: {e}, falling back to 127.0.0.1")
         return "127.0.0.1"
 
 
-def get_ip_and_free_port(preferred_port: Optional[int] = None, host: str = "0.0.0.0") -> Tuple[str, int]:
+def get_ip_and_free_port(preferred_port: Optional[int] = None, host: str = "0.0.0.0") -> tuple[str, int]:
     """
     Get local IP and a free port.
 
@@ -113,4 +114,3 @@ def get_ip_and_free_port(preferred_port: Optional[int] = None, host: str = "0.0.
     ip = get_local_ip()
     port = get_free_port(preferred_port, host)
     return ip, port
-

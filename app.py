@@ -18,6 +18,5 @@ async def run_app(**kwargs):
 if __name__ == "__main__":
     if app:
         freeze_support()
-        import uvicorn
 
         asyncio.run(run_app())

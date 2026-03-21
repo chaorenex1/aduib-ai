@@ -1,7 +1,7 @@
 import asyncio
 import copy
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 from configs import config
 from utils.port_utils import get_ip_and_free_port
@@ -9,7 +9,7 @@ from utils.port_utils import get_ip_and_free_port
 log = logging.getLogger(__name__)
 
 
-def _build_registry_config() -> Dict[str, Any]:
+def _build_registry_config() -> dict[str, Any]:
     """Build discovery/registry configuration from `configs.config`."""
     return {
         "server_addresses": config.NACOS_SERVER_ADDR,
@@ -24,8 +24,10 @@ def _build_registry_config() -> Dict[str, Any]:
     }
 
 
-def _select_ip_and_port() -> Tuple[str, int]:
-    preferred_port: Optional[int] = config.RPC_SERVICE_PORT if config.RPC_SERVICE_PORT and config.RPC_SERVICE_PORT > 0 else None
+def _select_ip_and_port() -> tuple[str, int]:
+    preferred_port: Optional[int] = (
+        config.RPC_SERVICE_PORT if config.RPC_SERVICE_PORT and config.RPC_SERVICE_PORT > 0 else None
+    )
     return get_ip_and_free_port(preferred_port=preferred_port)
 
 
