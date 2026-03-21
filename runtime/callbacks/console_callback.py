@@ -1,10 +1,11 @@
 import json
 import logging
-from typing import Optional, Sequence, Union
+from collections.abc import Sequence
+from typing import Optional, Union
 
-from .base_callback import Callback
-from ..entities import PromptMessage, ChatCompletionResponseChunk, ChatCompletionResponse, PromptMessageFunction
+from ..entities import ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessage, PromptMessageFunction
 from ..model_execution.base import AiModel
+from .base_callback import Callback
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,8 @@ class LoggingCallback(Callback):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
         """
         Before invoke callback
@@ -83,6 +86,8 @@ class LoggingCallback(Callback):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ):
         """
         On new chunk callback
@@ -118,6 +123,8 @@ class LoggingCallback(Callback):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
         """
         After invoke callback
@@ -161,6 +168,8 @@ class LoggingCallback(Callback):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
         """
         Invoke error callback

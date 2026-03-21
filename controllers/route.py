@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
-from .auth import api_key
+from .auth import api_key, user_auth
 from .chat import completion
-from .mcp import mcp_server, mcp
+from .mcp import mcp, mcp_server
 from .model import model
 
 api_router = APIRouter()
@@ -10,6 +10,7 @@ api_router.include_router(completion.router)
 
 # auth
 api_router.include_router(api_key.router)
+api_router.include_router(user_auth.router)
 
 # models
 api_router.include_router(model.router)
@@ -40,11 +41,6 @@ from .agent import agent
 
 api_router.include_router(agent.router)
 
-# qa memory
-from .qa_memory import qa_memory
-
-api_router.include_router(qa_memory.router)
-
 # task cache (Orchestrator integration)
 from .task_cache import task_cache
 
@@ -54,3 +50,18 @@ api_router.include_router(task_cache.router)
 from .common import health
 
 api_router.include_router(health.router)
+
+# memory
+from .memory import memory
+
+api_router.include_router(memory.router)
+
+# memory tags
+from .memory import tags
+
+api_router.include_router(tags.router)
+
+# file upload/download
+from .file import file
+
+api_router.include_router(file.router)

@@ -9,7 +9,7 @@ AUTOMATIC_RULES: dict[str, Any] = {
         {"id": "remove_extra_spaces", "enabled": True},
         {"id": "remove_urls_emails", "enabled": False},
     ],
-    "segmentation": {"delimiter": "\n", "max_tokens": 500, "chunk_overlap": 50},
+    "segmentation": {"delimiter": ["\n\n", "。", ". ", " ", ""], "max_tokens": 500, "chunk_overlap": 50},
 }
 default_retrieval_model = {
     "reranking_model": {"reranking_provider_name": "Qwen/Qwen3-Reranker-4B", "reranking_model_name": "transformer"},

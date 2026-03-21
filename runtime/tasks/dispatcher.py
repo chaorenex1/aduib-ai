@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from runtime.task.command_runtime import run_execution
-from runtime.task.types import TaskExecutionResult
+from runtime.tasks.command_runtime import run_execution
+from runtime.tasks.types import TaskExecutionResult
 
 
 class TaskDispatcher:

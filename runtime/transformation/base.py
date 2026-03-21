@@ -1,16 +1,16 @@
 import logging
-from typing import Union, Generator, Any
+from typing import Any, Optional
 
-from runtime.entities import ToolPromptMessage, AssistantPromptMessage, TextPromptMessageContent, UserPromptMessage
+from runtime.entities import (
+    TextPromptMessageContent,
+)
 from runtime.entities.llm_entities import (
     ChatCompletionRequest,
-    CompletionRequest,
-    ChatCompletionResponse,
-    ChatCompletionResponseChunk, CompletionResponse,
+    LLMRequest,
+    LLMResponse,
 )
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
-from runtime.tool.entities import ToolInvokeResult
 
 logger = logging.getLogger(__name__)
 
@@ -19,109 +19,68 @@ class LLMTransformation:
     """Base class for all transformations."""
 
     @classmethod
-    def setup_model_parameters(
-        cls,credentials:dict, model_params: dict[str, Any], prompt_messages: Union[ChatCompletionRequest, CompletionRequest]
-    ):
+    def setup_model_parameters(cls, credentials: dict, model_params: dict[str, Any], prompt_messages: LLMRequest):
         """Validate model parameters."""
-        if not prompt_messages.temperature:
+        if hasattr(prompt_messages, "temperature") and not getattr(prompt_messages, "temperature", None):
             prompt_messages.temperature = model_params.get("temperature")
-        if not prompt_messages.top_p:
+        if hasattr(prompt_messages, "top_p") and not getattr(prompt_messages, "top_p", None):
             prompt_messages.top_p = model_params.get("top_p")
-        if not prompt_messages.top_k:
+        if hasattr(prompt_messages, "top_k") and not getattr(prompt_messages, "top_k", None):
             prompt_messages.top_k = model_params.get("top_k")
-        if not prompt_messages.presence_penalty:
+        if hasattr(prompt_messages, "presence_penalty") and not getattr(prompt_messages, "presence_penalty", None):
             prompt_messages.presence_penalty = model_params.get("presence_penalty")
-        if not prompt_messages.frequency_penalty:
+        if hasattr(prompt_messages, "frequency_penalty") and not getattr(prompt_messages, "frequency_penalty", None):
             prompt_messages.frequency_penalty = model_params.get("frequency_penalty")
         # if not prompt_messages.miniP:
         #     prompt_messages.miniP = model_params.get("miniP", 0.0)
-        if prompt_messages.max_tokens:
-            prompt_messages.max_tokens = model_params.get("max_tokens") if (prompt_messages.max_tokens > model_params.get("max_tokens")) else prompt_messages.max_tokens
+        if hasattr(prompt_messages, "max_tokens") and getattr(prompt_messages, "max_tokens", None):
+            prompt_messages.max_tokens = min(prompt_messages.max_tokens, model_params.get("max_tokens"))
         # 判断模型名称是否包含Qwen3
-        if 'Qwen3' in prompt_messages.model and isinstance(prompt_messages, ChatCompletionRequest):
-            content=prompt_messages.messages[-1].content
-            if isinstance(content,str):
+        if getattr(prompt_messages, "model", None) and "Qwen3" in prompt_messages.model and isinstance(
+            prompt_messages, ChatCompletionRequest
+        ):
+            content = prompt_messages.messages[-1].content
+            if isinstance(content, str):
                 if prompt_messages.enable_thinking:
-                    prompt_messages.messages[-1].content = content+" /think"
+                    prompt_messages.messages[-1].content = content + " /think"
                 else:
-                    prompt_messages.messages[-1].content = content+" /no_think"
-            elif isinstance(content,list):
+                    prompt_messages.messages[-1].content = content + " /no_think"
+            elif isinstance(content, list):
                 if prompt_messages.enable_thinking:
-                    content.insert(len(content),TextPromptMessageContent(data="/think",text="/think"))
+                    content.insert(len(content), TextPromptMessageContent(data="/think", text="/think"))
                 else:
-                    content.insert(len(content),TextPromptMessageContent(data="/no_think",text="/no_think"))
+                    content.insert(len(content), TextPromptMessageContent(data="/no_think", text="/no_think"))
                 prompt_messages.messages[-1].content = content
         return prompt_messages
 
     @classmethod
-    def transform_message(
+    async def transform_message(
         cls,
         model_params: dict,
-        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+        prompt_messages: LLMRequest,
         credentials: dict,
         stream: bool = None,
-    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
+        source: Optional[str] = None,
+    ) -> LLMResponse:
         """
         Transform the input message using the provided credentials and raw request.
         :param model_params: The model parameters for transformation.
         :param prompt_messages: The input messages to be transformed.
         :param credentials: The credentials required for transformation.
         :param stream: Whether to return a streaming response.
-        :return: A response object containing the transformed message, or a streaming response if requested.
+        :return: LLMResponse (full response or stream response chunk generator)
         """
-        llm_result = cls._transform_message(model_params, prompt_messages, credentials, stream)
-        # if prompt_messages.tools and not stream:
-        #     return cls._call_tools(model_params,prompt_messages, credentials, llm_result,stream)
+        llm_result = await cls._transform_message(model_params, prompt_messages, credentials, stream)
         return llm_result
 
     @classmethod
-    def _call_tools(
+    async def _transform_message(
         cls,
         model_params: dict,
-        req: Union[ChatCompletionRequest, CompletionRequest],
-        credentials: dict,
-        llm_result: Union[CompletionResponse, Generator[CompletionResponse, None, None]],
-        stream: bool = None,
-    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
-        if not isinstance(llm_result, ChatCompletionResponse):
-            return llm_result
-        tools_calls: list[AssistantPromptMessage.ToolCall] = []
-        for chunkContent in llm_result.choices:
-            if chunkContent.message and chunkContent.message.tool_calls:
-                for tool_call in chunkContent.message.tool_calls:
-                    tools_calls.append(tool_call)
-        if len(tools_calls) > 0:
-            from runtime.tool.tool_manager import ToolManager
-
-            tool_manager = ToolManager()
-            tool_invoke_result: ToolInvokeResult = tool_manager.invoke_tools(
-                tools_calls, llm_result.id
-            )
-            if not tool_invoke_result:
-                logger.info(f"Tool calls for message {llm_result.id} already completed successfully.")
-                return llm_result
-            if tool_invoke_result.success:
-                for chunkContent in llm_result.choices:
-                    if chunkContent.message:
-                        req.messages.append(chunkContent.message)
-                    else:
-                        req.messages.append(chunkContent.delta)
-                req.messages.append(
-                    ToolPromptMessage(content=tool_invoke_result.data, tool_call_id=tools_calls[0].id)
-                )
-                llm_result = cls._transform_message(
-                    model_params, prompt_messages=req, credentials=credentials, stream=stream
-                )
-        return llm_result
-
-    @classmethod
-    def _transform_message(
-        cls,
-        model_params: dict,
-        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+        prompt_messages: LLMRequest,
         credentials: dict,
         stream: bool = None,
-    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]: ...
+    ) -> LLMResponse: ...
 
     @classmethod
     def setup_environment(cls, credentials: dict, model_params: dict):
@@ -129,11 +88,11 @@ class LLMTransformation:
         ...
 
     @classmethod
-    def transform_embeddings(cls, texts: EmbeddingRequest, credentials: dict) -> TextEmbeddingResult:
+    async def transform_embeddings(cls, texts: EmbeddingRequest, credentials: dict) -> TextEmbeddingResult:
         """Transform embeddings."""
         ...
 
     @classmethod
-    def transform_rerank(cls, query: RerankRequest, credentials: dict) -> RerankResponse:
+    async def transform_rerank(cls, query: RerankRequest, credentials: dict) -> RerankResponse:
         """Transform rerank."""
         ...

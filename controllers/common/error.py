@@ -11,6 +11,11 @@ class ServiceError(BaseHttpException):
         super().__init__(error_code=500, error_msg=message)
 
 
+class UnauthorizedError(BaseHttpException):
+    def __init__(self, message: str = "unauthorized"):
+        super().__init__(error_code=401, error_msg=message)
+
+
 class InnerError(Exception):
     code: int
     message: str

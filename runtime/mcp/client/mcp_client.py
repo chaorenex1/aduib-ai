@@ -2,15 +2,16 @@ import contextlib
 import logging
 import os
 import secrets
+from collections.abc import AsyncGenerator
 from datetime import timedelta
-from typing import Any, AsyncGenerator
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import requests
 from httpx import BasicAuth
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.auth import OAuthClientProvider, TokenStorage
-from mcp.shared.auth import OAuthClientMetadata, OAuthToken, OAuthClientInformationFull
+from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
 from pydantic import AnyHttpUrl
 
 from component.cache.redis_cache import redis_client
@@ -110,6 +111,7 @@ class McpClient:
                 self.server_url + "/mcp", headers=self.get_client_header(), auth=self.oauth_auth
             ) as (read, write, _):
                 async with ClientSession(read, write) as session:
+                    await session.initialize()
                     yield session  # <-- 保证外部能用，退出时自动清理
 
         elif self.client_type == McpTransportType.SSE:
@@ -121,6 +123,7 @@ class McpClient:
                 _,
             ):
                 async with ClientSession(read, write) as session:
+                    await session.initialize()
                     yield session
 
         elif self.client_type == McpTransportType.STDIO:

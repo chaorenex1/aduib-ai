@@ -1,36 +1,38 @@
 import logging
+from collections.abc import AsyncGenerator, Sequence
 from decimal import Decimal
 from enum import StrEnum
-from typing import Optional, Union, Sequence, Any
+from typing import Optional, Union
 
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .anthropic_entities import AnthropicStreamEvent
 from .message_entities import (
-    PromptMessage,
-    AssistantPromptMessage,
-    PromptMessageFunction,
-    StreamOptions,
     AnyResponseFormat,
+    AssistantPromptMessage,
+    PromptMessage,
+    PromptMessageFunction,
     PromptMessageRole,
-    UserPromptMessage,
+    PromptMessageTool,
+    PromptMessageToolChoiceParam,
+    StreamOptions,
     SystemPromptMessage,
+    ThinkingOptions,
     ToolPromptMessage,
-    ThinkingOptions, PromptMessageTool,
+    UserPromptMessage,
 )
 from .model_entities import ModelUsage, PriceInfo
 
-logger=logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ChatCompletionRequest(BaseModel):
     messages: Optional[list[PromptMessage]] = None
     model: Optional[str] = None
     tools: Optional[list[PromptMessageFunction]] = None
-    tool_choice: Optional[
-        Union[
-            str,dict[str,Any]
-        ]
-    ] = None  # "none", "auto", "required" or {"type": "function", "function": {"name": "my_function"}}
+    tool_choice: Optional[Union[str, PromptMessageToolChoiceParam]] = (
+        None  # "none", "auto", "required" or {"type": "function", "function": {"name": "my_function"}}
+    )
     stream: bool = None
     stream_options: Optional[StreamOptions] | None = None
     top_p: Optional[float] = None
@@ -60,8 +62,8 @@ class ChatCompletionRequest(BaseModel):
     enable_thinking: bool = None
     thinking_budget: Optional[int] = None
     thinking: Optional[ThinkingOptions] = None
-    system: list[dict[str, Any]] = None # for compatibility with anthropic
-    stop_sequences: Optional[Union[str, Sequence[str]]] = None # for compatibility with anthropic
+    system: Optional[list[dict[str, object]]] = None  # for compatibility with anthropic
+    stop_sequences: Optional[Union[str, Sequence[str]]] = None  # for compatibility with anthropic
 
     @field_validator("messages", mode="before")
     @classmethod
@@ -99,13 +101,16 @@ class ChatCompletionRequest(BaseModel):
             if isinstance(i_, dict):
                 if "type" in i_:
                     v[i] = PromptMessageFunction(**i_)
-                elif 'name' in i_:
-                    v[i] = PromptMessageFunction(type='function', function=PromptMessageTool(
-                        name=i_['name'],
-                        description=i_.get('description', ''),
-                        parameters=i_.get('parameters', {}) or i_.get('input_schema', {}),
-                        input_schema=i_.get('parameters', {}) or i_.get('input_schema', {}),
-                    ))
+                elif "name" in i_:
+                    v[i] = PromptMessageFunction(
+                        type="function",
+                        function=PromptMessageTool(
+                            name=i_["name"],
+                            description=i_.get("description", ""),
+                            parameters=i_.get("parameters", {}) or i_.get("input_schema", {}),
+                            input_schema=i_.get("parameters", {}) or i_.get("input_schema", {}),
+                        ),
+                    )
             else:
                 v[i] = i_
         return v
@@ -132,7 +137,8 @@ class ChatCompletionRequest(BaseModel):
             if not msgs:
                 return self
 
-            from .message_entities import AssistantPromptMessage as _Assistant, ToolPromptMessage as _Tool
+            from .message_entities import AssistantPromptMessage as _Assistant
+            from .message_entities import ToolPromptMessage as _Tool
 
             # Build map of tool_call_id -> list of ToolPromptMessage (preserve original relative order per id)
             tool_msg_map: dict[str, list[_Tool]] = {}
@@ -164,7 +170,7 @@ class ChatCompletionRequest(BaseModel):
                     for tc_id in ordered_ids:
                         if tc_id in consumed_ids:
                             continue
-                        if tc_id in tool_msg_map and tool_msg_map[tc_id]:
+                        if tool_msg_map.get(tc_id):
                             for tm in tool_msg_map[tc_id]:
                                 new_messages.append(tm)
                             consumed_ids.add(tc_id)
@@ -176,7 +182,7 @@ class ChatCompletionRequest(BaseModel):
                     new_messages.append(tm)
 
             self.messages = new_messages
-            #打印消息顺序
+            # 打印消息顺序
             # logger.warning("Reordered messages:")
             # for i, m in enumerate(self.messages):
             #     logger.warning(f"  [{i}] {m.role}")
@@ -260,6 +266,17 @@ class LLMUsage(ModelUsage):
     completion_unit_price: Decimal = Decimal("0.0")
     completion_price_unit: Decimal = Decimal("0.0")
     completion_price: Decimal = Decimal("0.0")
+    # Thinking tokens (e.g., Claude extended thinking, DeepSeek reasoning)
+    thinking_tokens: int = 0
+    thinking_unit_price: Decimal = Decimal("0.0")
+    thinking_price: Decimal = Decimal("0.0")
+    # Cache tokens (e.g., Claude cache hits)
+    cached_tokens: int = 0
+    cache_unit_price: Decimal = Decimal("0.0")
+    cache_price: Decimal = Decimal("0.0")
+    cache_write_tokens: int = 0
+    cache_write_unit_price: Decimal = Decimal("0.0")
+    cache_write_price: Decimal = Decimal("0.0")
     total_tokens: int = 0
     total_price: Decimal = Decimal("0.0")
     currency: str = "USD"
@@ -276,6 +293,15 @@ class LLMUsage(ModelUsage):
             completion_unit_price=Decimal("0.0"),
             completion_price_unit=Decimal("0.0"),
             completion_price=Decimal("0.0"),
+            thinking_tokens=0,
+            thinking_unit_price=Decimal("0.0"),
+            thinking_price=Decimal("0.0"),
+            cached_tokens=0,
+            cache_unit_price=Decimal("0.0"),
+            cache_price=Decimal("0.0"),
+            cache_write_tokens=0,
+            cache_write_unit_price=Decimal("0.0"),
+            cache_write_price=Decimal("0.0"),
             total_tokens=0,
             total_price=Decimal("0.0"),
             currency="USD",
@@ -301,6 +327,15 @@ class LLMUsage(ModelUsage):
                 completion_unit_price=other.completion_unit_price,
                 completion_price_unit=other.completion_price_unit,
                 completion_price=self.completion_price + other.completion_price,
+                thinking_tokens=self.thinking_tokens + other.thinking_tokens,
+                thinking_unit_price=other.thinking_unit_price,
+                thinking_price=self.thinking_price + other.thinking_price,
+                cached_tokens=self.cached_tokens + other.cached_tokens,
+                cache_unit_price=other.cache_unit_price,
+                cache_price=self.cache_price + other.cache_price,
+                cache_write_tokens=self.cache_write_tokens + other.cache_write_tokens,
+                cache_write_unit_price=other.cache_write_unit_price,
+                cache_write_price=self.cache_write_price + other.cache_write_price,
                 total_tokens=self.total_tokens + other.total_tokens,
                 total_price=self.total_price + other.total_price,
                 currency=other.currency,
@@ -322,7 +357,7 @@ class ChatCompletionResponseChunkDelta(BaseModel):
     Model class for llm result chunk delta.
     """
 
-    index: int=0
+    index: int = 0
     message: AssistantPromptMessage = None
     text: Optional[str] = None
     usage: Optional[LLMUsage] = None
@@ -334,6 +369,7 @@ class CompletionResponse(BaseModel):
     """
     Model class for llm result.
     """
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
     done: bool = False
 
@@ -342,6 +378,7 @@ class ChatCompletionResponseChunk(CompletionResponse):
     """
     Model class for llm result chunk.
     """
+
     id: Optional[str] = None
     object: Optional[str] = None
     created: Optional[int] = None
@@ -367,26 +404,6 @@ class ChatCompletionResponse(CompletionResponse):
     choices: list[ChatCompletionResponseChunkDelta] = None
 
 
-class ClaudeChatCompletionResponse(CompletionResponse):
-    """
-    Model class for Claude llm result.
-    """
-
-    id: str= None
-    type: str= None
-    role: str= None
-    index:int=0
-    prompt_messages: Union[list[PromptMessage], str] = None
-    content: list[dict] = None
-    delta:Optional[dict[str,Any]] = None
-    model: str= None
-    stop_reason: Optional[str] = None
-    stop_sequence: Optional[str] = None
-    usage: Optional[dict[str,Any]] = None
-    message: dict[str,Any]= None
-    content_block: Optional[dict[str,Any]] = None
-
-
 class NumTokensResult(PriceInfo):
     """
     Model class for number of tokens result.
@@ -394,8 +411,50 @@ class NumTokensResult(PriceInfo):
 
     tokens: int
 
-# Backward compatibility:
-# Some older code/tests still import ChatMessage from this module.
-# The canonical representation is PromptMessage (and its subclasses).
-ChatMessage = PromptMessage
 
+class ContextLengthExceeded(Exception):
+    """
+    Exception raised when prompt tokens exceed model's max_context_length.
+    """
+
+    def __init__(self, prompt_tokens: int, max_context_length: int, model: str):
+        self.prompt_tokens = prompt_tokens
+        self.max_context_length = max_context_length
+        self.model = model
+        super().__init__(
+            f"Prompt tokens ({prompt_tokens}) exceed max context length ({max_context_length}) for model {model}"
+        )
+
+
+# ── Unified Request/Response Types ──────────────────────────────────────────────
+# Unified type aliases for all three LLM protocols:
+# - Chat Completions (OpenAI-like): /completions, /chat/completions
+# - Messages (Anthropic): /messages
+# - Responses (OpenAI): /responses
+
+from runtime.entities.anthropic_entities import AnthropicMessageRequest, AnthropicMessageResponse
+from runtime.entities.response_entities import ResponseOutput, ResponseRequest, ResponseStreamEvent
+
+# Unified request type - all three protocols can be converted to this
+LLMRequest = Union[ChatCompletionRequest, CompletionRequest, AnthropicMessageRequest, ResponseRequest]
+
+
+# Unified streaming response type
+LLMStreamResponse = AsyncGenerator[Union[ResponseStreamEvent, ChatCompletionResponseChunk, AnthropicStreamEvent], None]
+
+# Unified response type - supports all three LLM protocols:
+# - ChatCompletionResponse: OpenAI Chat Completions (/completions, /chat/completions)
+# - ChatCompletionResponseChunk: Streaming response chunks
+# - AnthropicMessageResponse: Anthropic Messages API (/messages)
+# - ResponseOutput: OpenAI Responses API (/responses)
+LLMResponse = Union[
+    ChatCompletionResponse, ChatCompletionResponseChunk, ResponseOutput, AnthropicMessageResponse, LLMStreamResponse
+]
+
+__all__ = [
+    "ChatCompletionRequest",
+    "CompletionRequest",
+    "LLMRequest",
+    "LLMResponse",
+    "LLMStreamResponse",
+]

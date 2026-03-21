@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Generator, Union, Any
+from collections.abc import Generator
+from typing import Any, Union
 
-from runtime.tool.entities import ToolEntity, ToolProviderType, ToolInvokeResult
+from runtime.tool.entities import ToolEntity, ToolInvokeResult, ToolProviderType
 
 
 class Tool(ABC):
@@ -21,7 +22,15 @@ class Tool(ABC):
         """
         pass
 
-    def invoke(
+    def get_tool_schema(self) -> dict[str, Any]:
+        """
+        Get the tool schema
+
+        :return: the tool schema
+        """
+        return self.entity.get_schema()
+
+    async def invoke(
         self,
         tool_parameters: dict[str, Any],
         message_id: str | None = None,
@@ -32,7 +41,7 @@ class Tool(ABC):
         :param message_id: the message id for the tool invocation
         :return: the result of the tool invocation
         """
-        result = self._invoke(tool_parameters=tool_parameters, message_id=message_id)
+        result = await self._invoke(tool_parameters=tool_parameters, message_id=message_id)
 
         if isinstance(result, ToolInvokeResult):
 
@@ -44,7 +53,7 @@ class Tool(ABC):
             return result
 
     @abstractmethod
-    def _invoke(
+    async def _invoke(
         self,
         tool_parameters: dict[str, Any],
         message_id: str | None = None,

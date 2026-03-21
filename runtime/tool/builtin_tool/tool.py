@@ -1,14 +1,19 @@
 from abc import abstractmethod
-from typing import Any, Union, Generator
+from collections.abc import Generator
+from typing import Any, Union
 
 from ..base.tool import Tool, ToolInvokeResult
-from ..entities import ToolProviderType
+from ..entities import ToolEntity, ToolProviderType
 
 
 class BuiltinTool(Tool):
     """
     The base class of a builtin tool
     """
+
+    def __init__(self, entity: ToolEntity):
+        super().__init__(entity)
+        self.entity = entity
 
     def tool_provider_type(self) -> ToolProviderType:
         """

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from celery import Celery
+from celery.schedules import crontab
 
 from configs import config
 
@@ -36,7 +37,7 @@ celery_app = Celery(
     "aduib_ai",
     broker=broker_url,
     backend=backend_url,
-    include=["runtime.tasks.qa_memory_tasks"],
+    include=["runtime.tasks.event_tasks", "runtime.tasks.task_job_runner"],
 )
 
 celery_app.conf.task_default_queue = getattr(config, "CELERY_TASK_DEFAULT_QUEUE", "aduib_ai")
@@ -47,11 +48,11 @@ celery_app.conf.task_acks_late = True
 if getattr(config, "CELERY_BEAT_SCHEDULE_ENABLED", True):
     interval = max(60, int(getattr(config, "CELERY_EXPIRE_TASK_INTERVAL_SECONDS", 900)))
     celery_app.conf.beat_schedule = {
-        "qa-memory-expiry-sweep": {
-            "task": "runtime.tasks.qa_memory_tasks.expire_qa_memory_task",
-            "schedule": interval,
+        "memory-daily-learning-scan": {
+            "task": "event.memory_learning_scan",
+            "schedule": crontab(hour=2, minute=0),
             "options": {"queue": celery_app.conf.task_default_queue},
-        }
+        },
     }
 
 __all__ = ["celery_app"]

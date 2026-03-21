@@ -4,10 +4,12 @@ from fastapi import APIRouter
 
 from controllers.common.base import BaseResponse, catch_exceptions
 from controllers.params import AgentCreatePayload
+from runtime.entities.anthropic_entities import AnthropicMessageRequest
 from runtime.entities.llm_entities import ChatCompletionRequest
+from runtime.entities.response_entities import ResponseRequest
 from service.agent_service import AgentService
 
-router = APIRouter(tags=["web_memo"])
+router = APIRouter(tags=["agent"])
 
 
 @router.post("/agents")
@@ -17,26 +19,22 @@ async def create_agent(payload: AgentCreatePayload):
     return BaseResponse.ok(agent)
 
 
-@router.get("/agents/{agent_id}/v1/models")
+@router.post("/agents/v1/chat/completions")
 @catch_exceptions
-async def get_agent_models(agent_id: int):
-    models = AgentService.get_agent_models(agent_id)
-    return models
+async def agent_chat_completions(req: ChatCompletionRequest) -> Any:
+    """OpenAI Chat format — 直调路径."""
+    return await AgentService.arun(req)
 
 
-@router.post("/agents/{agent_id}/v1/chat/completions")
+@router.post("/agents/v1/messages")
 @catch_exceptions
-async def completion(agent_id: int, req: ChatCompletionRequest) -> Any:
-    """
-    Completion endpoint
-    """
-    return await AgentService.create_completion(agent_id, req)
+async def agent_messages(req: AnthropicMessageRequest) -> Any:
+    """Anthropic Messages format — 直调路径."""
+    return await AgentService.arun(req)
 
 
-@router.post("/agents/{agent_id}/v1/messages")
+@router.post("/agents/v1/responses")
 @catch_exceptions
-async def messages(agent_id: int, req: ChatCompletionRequest) -> Any:
-    """
-    Completion endpoint
-    """
-    return await AgentService.create_completion(agent_id, req)
+async def agent_responses(req: ResponseRequest) -> Any:
+    """OpenAI Responses format — 直调路径."""
+    return await AgentService.arun(req)

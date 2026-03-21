@@ -1,8 +1,9 @@
 import time
 import uuid
 from decimal import Decimal
-from typing import Optional, Any, List
+from typing import Any, Optional
 
+from fastapi import UploadFile
 from pydantic import BaseModel, Field, field_validator
 
 from utils import random_uuid
@@ -129,6 +130,7 @@ class QACandidatePayload(BaseModel):
     author: str | None = None
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
 
+
 class QAReferencePayload(BaseModel):
     qa_id: str
     shown: bool = True
@@ -163,6 +165,7 @@ class QAExpirePayload(BaseModel):
 class TaskGradePayload(BaseModel):
     prompt: str
 
+
 class TaskGradeResult(BaseModel):
     task_level: str
     reason: str
@@ -174,8 +177,11 @@ class TaskGradeResult(BaseModel):
 # Request/Response Models
 class TaskDataRequest(BaseModel):
     """Request model for saving task results"""
+
     request: str = Field(..., min_length=1, max_length=10000, description="Original request content")
-    mode: str = Field(..., min_length=1, max_length=32, description="Execution mode: command/agent/prompt/skill/backend")
+    mode: str = Field(
+        ..., min_length=1, max_length=32, description="Execution mode: command/agent/prompt/skill/backend"
+    )
     backend: str = Field(..., min_length=1, max_length=32, description="Backend type: claude/gemini/codex")
     success: bool = Field(..., description="Whether execution succeeded")
     output: str = Field(..., description="Task output content")
@@ -183,18 +189,18 @@ class TaskDataRequest(BaseModel):
     run_id: Optional[str] = Field(None, max_length=64, description="Memex-CLI run ID")
     duration_seconds: Optional[float] = Field(None, ge=0, le=3600, description="Execution duration in seconds")
 
-    @field_validator('mode')
+    @field_validator("mode")
     @classmethod
     def validate_mode(cls, v: str) -> str:
-        valid_modes = ['command', 'agent', 'prompt', 'skill', 'backend']
+        valid_modes = ["command", "agent", "prompt", "skill", "backend"]
         if v not in valid_modes:
             raise ValueError(f"Mode must be one of {valid_modes}, got: {v}")
         return v
 
-    @field_validator('backend')
+    @field_validator("backend")
     @classmethod
     def validate_backend(cls, v: str) -> str:
-        valid_backends = ['claude', 'gemini', 'codex', 'openai', 'deepseek', 'other']
+        valid_backends = ["claude", "gemini", "codex", "openai", "deepseek", "other"]
         if v not in valid_backends:
             raise ValueError(f"Backend must be one of {valid_backends}, got: {v}")
         return v
@@ -202,11 +208,13 @@ class TaskDataRequest(BaseModel):
 
 class BatchTaskDataRequest(BaseModel):
     """Request model for batch saving tasks"""
-    tasks: List[TaskDataRequest] = Field(..., min_length=1, max_length=100, description="List of tasks to save")
+
+    tasks: list[TaskDataRequest] = Field(..., min_length=1, max_length=100, description="List of tasks to save")
 
 
 class CachedResultResponse(BaseModel):
     """Response model for cached results"""
+
     task_id: int = Field(..., description="Task cache ID")
     output: str = Field(..., description="Cached output content")
     success: bool = Field(..., description="Execution status")
@@ -216,6 +224,7 @@ class CachedResultResponse(BaseModel):
 
 class TaskHistoryResponse(BaseModel):
     """Response model for task history item"""
+
     id: int
     request: str
     request_hash: str
@@ -229,3 +238,73 @@ class TaskHistoryResponse(BaseModel):
     hit_count: int
     created_at: str
     updated_at: str
+
+
+class RegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6, max_length=128)
+    email: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str = Field(..., min_length=6, max_length=128)
+
+
+class CreateApiKeyRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class MemoryCreateRequest(BaseModel):
+    content: str = Field(..., description="Memory content text, can be empty if file is provided")
+    file: Optional[UploadFile] = Field(None, description="Memory file")
+    project_id: str = Field(..., description="Project ID associated with the memory")
+    user_id: str = Field(..., description="User ID associated with the memory", exclude=True)
+    agent_id: Optional[str] = Field(None, description="Agent ID associated with the memory", exclude=True)
+    summary_enabled: bool = Field(False, description="Whether to generate summary for the memory")
+    memory_source: Optional[str] = Field(
+        None, description="Source of the memory, e.g. 'user_input', 'agent_observation'"
+    )
+
+
+class MemoryRetrieveRequest(BaseModel):
+    """记忆检索请求模型。"""
+
+    query: str
+    user_id: str
+    agent_id: Optional[str] = None
+    project_id: Optional[str] = None
+    retrieve_type: str
+    top_k: int = 5
+    score_threshold: float = 0.6
+    filters: dict[str, Any] = Field(default_factory=dict)
+
+
+class MemoryRetrieveResponse(BaseModel):
+    """记忆检索响应模型。"""
+
+    content: str = Field(..., description="Memory content text, can be empty if file is provided")
+    memory_id: str = Field(..., description="Memory ID")
+    score: float = Field(..., description="Memory score")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata for the memory")
+
+    @classmethod
+    def from_memory(
+        cls, content: str, memory_id: str, score: float = 0.0, metadata: dict[str, Any] = None
+    ) -> "MemoryRetrieveResponse":
+        return cls(
+            content=content,
+            memory_id=memory_id,
+            score=score,
+            metadata=metadata or {},
+        )

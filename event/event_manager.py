@@ -1,56 +1,59 @@
-import asyncio
-import inspect
-from typing import Callable, Dict, List, Any
-from concurrent.futures import ThreadPoolExecutor
+from __future__ import annotations
+
+import logging
+from typing import Any
 
 from libs.contextVar_wrapper_enhanced import ContextVarWrapper
 
+logger = logging.getLogger(__name__)
+
 event_manager_context = ContextVarWrapper.create("event_manager")
+
+# Event name → Celery task name mapping
+_EVENT_TASK_MAP: dict[str, str] = {
+    "paragraph_rag_from_web_memo": "event.paragraph_rag_from_web_memo",
+    "qa_rag_from_conversation_message": "event.qa_rag_from_conversation_message",
+    "memory_stored": "event.memory_stored",
+    "memory_domain_from_conversation": "event.memory_domain_from_conversation",
+    "memory_topic_from_conversation": "event.memory_topic_from_conversation",
+    "memory_retrieval_logged": "event.memory_retrieval_logged",
+    "learning_signal_persist": "event.learning_signal_persist",
+    "learning_signal_persist_batch": "event.learning_signal_persist_batch",
+}
 
 
 class EventManager:
-    def __init__(self):
-        self._subscribers: Dict[str, List[Callable[..., Any]]] = {}
-        self._queue: asyncio.Queue = asyncio.Queue()
-        self._running = False
-        self._executor = ThreadPoolExecutor(thread_name_prefix="EventManagerWorker")
+    """Celery-backed event dispatcher.
+
+    emit() serializes the payload and dispatches a Celery task to a worker process.
+    subscribe() is kept as a no-op decorator for backward compatibility.
+    start() / stop() are no-ops; Celery workers are managed externally.
+    """
+
+    def emit(self, event: str, **kwargs: Any) -> None:
+        """Sync emit: dispatch event as a Celery task. All kwargs must be JSON-serializable."""
+        task_name = _EVENT_TASK_MAP.get(event)
+        if not task_name:
+            logger.warning("No Celery task registered for event '%s'", event)
+            return
+        from runtime.tasks.celery_app import celery_app
+
+        celery_app.send_task(task_name, kwargs=kwargs)
+
+    async def emit_async(self, event: str, **kwargs: Any) -> None:
+        """Async-compatible emit; delegates to sync emit."""
+        self.emit(event, **kwargs)
 
     def subscribe(self, event: str):
-        """装饰器: 注册事件回调"""
+        """No-op decorator retained for backward compatibility."""
 
-        def decorator(func: Callable[..., Any]):
-            if event not in self._subscribers:
-                self._subscribers[event] = []
-            self._subscribers[event].append(func)
+        def decorator(func):
             return func
 
         return decorator
 
-    async def emit(self, event: str, *args, **kwargs):
-        """发布事件"""
-        await self._queue.put((event, args, kwargs))
+    def start(self) -> None:
+        """No-op: Celery workers are managed by an external process."""
 
-    async def _dispatch(self):
-        """事件分发循环"""
-        while self._running:
-            event, args, kwargs = await self._queue.get()
-            if event in self._subscribers:
-                for callback in self._subscribers[event]:
-                    if inspect.iscoroutinefunction(callback):
-                        # 异步函数 → asyncio 直接调度
-                        asyncio.create_task(callback(*args, **kwargs))
-                    else:
-                        # 同步函数 → 放到线程池执行
-                        asyncio.get_running_loop().run_in_executor(self._executor, lambda: callback(*args, **kwargs))
-            self._queue.task_done()
-
-    def start(self):
-        """启动事件循环"""
-        self._running = True
-        asyncio.create_task(self._dispatch())
-
-    async def stop(self):
-        """停止事件循环"""
-        self._running = False
-        await self._queue.join()
-        self._executor.shutdown(wait=True)
+    async def stop(self) -> None:
+        """No-op: Celery workers are managed by an external process."""

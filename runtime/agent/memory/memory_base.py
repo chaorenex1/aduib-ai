@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from runtime.agent.agent_type import Message
+from runtime.memory.types import MemoryRetrieveResult
 
 
 class MemoryBase(ABC):
@@ -9,13 +9,17 @@ class MemoryBase(ABC):
     """
 
     @abstractmethod
-    def add_memory(self, message: Message) -> None:
+    async def add_memory(self, message: str) -> None:
         raise NotImplementedError("Add memory method not implemented.")
 
     @abstractmethod
-    def get_memory(self, query: str) -> list[dict]:
+    async def get_long_term_memory(self, query: str) -> list[MemoryRetrieveResult]:
         raise NotImplementedError("Get memory method not implemented.")
 
     @abstractmethod
-    def delete_memory(self) -> None:
+    async def get_short_term_memory(self, compact_session: bool = False) -> list[str] | str:
+        raise NotImplementedError("Get memory method not implemented.")
+
+    @abstractmethod
+    async def delete_memory(self) -> None:
         raise NotImplementedError("Delete memory method not implemented.")

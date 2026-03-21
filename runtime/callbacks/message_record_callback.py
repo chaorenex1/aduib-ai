@@ -1,16 +1,22 @@
 import json
 import re
-from typing import Union, Optional, Sequence
+from collections.abc import Sequence
+from typing import Optional, Union
 
 from event.event_manager import event_manager_context
-from libs.context import validate_api_key_in_internal
 from models import ConversationMessage
+from runtime.agent.memory.prompt_markup import sanitize_memory_markup
 from runtime.callbacks.base_callback import Callback
-from runtime.entities import PromptMessage, ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessageFunction, \
-    TextPromptMessageContent
+from runtime.entities import (
+    ChatCompletionResponse,
+    ChatCompletionResponseChunk,
+    PromptMessage,
+    PromptMessageFunction,
+    TextPromptMessageContent,
+)
 from runtime.model_execution import AiModel
 from service import ConversationMessageService
-from utils import jsonable_encoder, AsyncUtils
+from utils import jsonable_encoder
 
 
 class MessageRecordCallback(Callback):
@@ -46,42 +52,59 @@ class MessageRecordCallback(Callback):
         return content
 
     def _emit_event(self, message: ConversationMessage) -> None:
-        """Emit event for conversation message processing."""
+        """Serialize message and dispatch Celery event task."""
         event_manager = event_manager_context.get()
-        # Use AsyncUtils to properly run the async coroutine
-        AsyncUtils.run_async_gen(
-            event_manager.emit(event="qa_rag_from_conversation_message", message=message)
+        event_manager.emit(
+            event="qa_rag_from_conversation_message",
+            message_dict={
+                "message_id": message.message_id,
+                "agent_id": message.agent_id,
+                "agent_session_id": message.agent_session_id,
+                "model_name": message.model_name,
+                "provider_name": message.provider_name,
+                "model_parameters": message.model_parameters,
+                "role": message.role,
+                "content": message.content,
+                "system_prompt": message.system_prompt,
+                "usage": message.usage,
+                "state": message.state or "success",
+                "user_id": message.user_id,
+            },
         )
 
     def on_new_chunk(
-            self,
-            llm_instance: AiModel,
-            chunk: ChatCompletionResponseChunk,
-            model: str,
-            credentials: dict,
-            prompt_messages: Sequence[PromptMessage],
-            model_parameters: dict,
-            tools: Optional[list[PromptMessageFunction]] = None,
-            stop: Optional[Sequence[str]] = None,
-            stream: bool = True,
-            include_reasoning: bool = False,
-            user: Optional[str] = None,
+        self,
+        llm_instance: AiModel,
+        chunk: ChatCompletionResponseChunk,
+        model: str,
+        credentials: dict,
+        prompt_messages: Sequence[PromptMessage],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ):
         pass
 
     def on_after_invoke(
-            self,
-            llm_instance: AiModel,
-            result: ChatCompletionResponse,
-            model: str,
-            credentials: dict,
-            prompt_messages: Sequence[PromptMessage],
-            model_parameters: dict,
-            tools: Optional[list[PromptMessageFunction]] = None,
-            stop: Optional[Sequence[str]] = None,
-            stream: bool = True,
-            include_reasoning: bool = False,
-            user: Optional[str] = None,
+        self,
+        llm_instance: AiModel,
+        result: ChatCompletionResponse,
+        model: str,
+        credentials: dict,
+        prompt_messages: Sequence[PromptMessage],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
         """
         After invoke callback
@@ -98,9 +121,6 @@ class MessageRecordCallback(Callback):
         :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
-        if not validate_api_key_in_internal():
-            return
-
         message_id = model_parameters.get("message_id")
         if not message_id:
             return
@@ -117,6 +137,7 @@ class MessageRecordCallback(Callback):
 
         # Remove thinking tags if present
         message_content = self._remove_thinking_tags(message_content)
+        message_content = sanitize_memory_markup(message_content)
 
         # Create conversation message
         message = ConversationMessage(
@@ -129,24 +150,29 @@ class MessageRecordCallback(Callback):
             system_prompt=system_prompt,
             usage=result.usage.model_dump_json(exclude_none=True),
             state="success",
+            user_id=user,
+            agent_id=agent_id,
+            agent_session_id=agent_session_id,
         )
 
         # Emit event for async processing
         self._emit_event(message)
 
     def on_invoke_error(
-            self,
-            llm_instance: AiModel,
-            ex: Exception,
-            model: str,
-            credentials: dict,
-            prompt_messages: list[PromptMessage],
-            model_parameters: dict,
-            tools: Optional[list[PromptMessageFunction]] = None,
-            stop: Optional[Sequence[str]] = None,
-            stream: bool = True,
-            include_reasoning: bool = False,
-            user: Optional[str] = None,
+        self,
+        llm_instance: AiModel,
+        ex: Exception,
+        model: str,
+        credentials: dict,
+        prompt_messages: list[PromptMessage],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
         """
         Invoke error callback
@@ -163,8 +189,6 @@ class MessageRecordCallback(Callback):
         :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
-        if not validate_api_key_in_internal():
-            return
         message_id = model_parameters.get("message_id")
         if not message_id:
             return
@@ -174,17 +198,19 @@ class MessageRecordCallback(Callback):
         )
 
     def on_before_invoke(
-            self,
-            llm_instance: AiModel,
-            model: str,
-            credentials: dict,
-            prompt_messages: Union[list[PromptMessage], str],
-            model_parameters: dict,
-            tools: Optional[list[PromptMessageFunction]] = None,
-            stop: Optional[Sequence[str]] = None,
-            stream: bool = True,
-            include_reasoning: bool = False,
-            user: Optional[str] = None,
+        self,
+        llm_instance: AiModel,
+        model: str,
+        credentials: dict,
+        prompt_messages: Union[list[PromptMessage], str],
+        model_parameters: dict,
+        tools: Optional[list[PromptMessageFunction]] = None,
+        stop: Optional[Sequence[str]] = None,
+        stream: bool = True,
+        include_reasoning: bool = False,
+        user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
         """
         Before invoke callback
@@ -200,9 +226,6 @@ class MessageRecordCallback(Callback):
         :param include_reasoning: include reasoning in the prompt
         :param user: unique user id
         """
-        if not validate_api_key_in_internal():
-            return
-
         role = ""
         system_prompt = ""
         content = ""
@@ -221,6 +244,7 @@ class MessageRecordCallback(Callback):
                         content = "".join([ct.data or ct.text for ct in c if ct.data or ct.text])
                     except Exception:
                         content = json.dumps(jsonable_encoder(c, exclude_none=True))
+            content = sanitize_memory_markup(content)
 
             # Extract system prompt
             system_prompt = self._get_system_prompt(prompt_messages)
@@ -238,8 +262,10 @@ class MessageRecordCallback(Callback):
             role=role,
             content=content,
             system_prompt=system_prompt,
+            user_id=user,
+            agent_id=agent_id,
+            agent_session_id=agent_session_id,
         )
 
         # Emit event for async processing
         self._emit_event(conversation_message)
-

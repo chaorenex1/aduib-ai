@@ -1,15 +1,20 @@
 import json
 import logging
-from typing import Optional, Generator, Union, cast, Callable, Any, IO, Iterable
+from collections.abc import Callable, Iterable
+from typing import IO, Any, Optional, cast
 
-from models import Provider, Model
+from models import Model, Provider
+
 from .callbacks.base_callback import Callback
 from .entities.embedding_type import EmbeddingInputType
-from .entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
+from .entities.llm_entities import (
+    LLMRequest,
+    LLMResponse,
+)
 from .entities.model_entities import AIModelEntity, ModelType
-from .entities.provider_entities import ProviderEntity, ProviderSDKType
+from .entities.provider_entities import ProviderEntity
 from .entities.rerank_entities import RerankRequest, RerankResponse
-from .entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
+from .entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from .model_execution.audio2text_model import Audio2TextModel
 from .model_execution.base import AiModel
 from .model_execution.large_language_model import LlMModel
@@ -33,29 +38,55 @@ class ModelInstance:
         self.credentials["sdk_type"] = provider.provider_credential.sdk_type
         self.model = model
 
-    def invoke_llm(
+    async def invoke_llm(
         self,
-        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+        prompt_messages: LLMRequest,
+        source: Optional[str] = None,
         callbacks: Optional[list[Callback]] = None,
-    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
+        user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
+    ) -> LLMResponse:
+        if not isinstance(self.model_instance, LlMModel):
+            raise Exception("Model type instance is not LargeLanguageModel")
+
+        self.model_type_instance = cast(LlMModel, self.model_instance)
+        return await self._invoke_async(
+            function=self.model_type_instance.invoke,
+            req=prompt_messages,
+            source=source,
+            callbacks=callbacks,
+            user=user,
+            agent_id=agent_id,
+            agent_session_id=agent_session_id,
+        )
+
+    def invoke_llm_sync(
+        self,
+        prompt_messages: LLMRequest,
+        source: Optional[str] = None,
+        callbacks: Optional[list[Callback]] = None,
+        user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
+    ) -> LLMResponse:
         """
-        Invoke large language model
+        Invoke large language model (sync wrapper for backward compatibility)
 
         :param prompt_messages: prompt messages
         :param callbacks: callbacks
         :return: full response or stream response chunk generator result
         """
-        if not isinstance(self.model_instance, LlMModel):
-            raise Exception("Model type instance is not LargeLanguageModel")
+        from utils import run_async
 
-        self.model_type_instance = cast(LlMModel, self.model_instance)
-        return cast(
-            Union[CompletionResponse, Generator[CompletionResponse, None, None]],
-            self._invoke(
-                function=self.model_type_instance.invoke,
-                req=prompt_messages,
-                callbacks=callbacks,
-            ),
+        return run_async(
+            self.invoke_llm,
+            prompt_messages=prompt_messages,
+            source=source,
+            callbacks=callbacks,
+            user=user,
+            agent_id=agent_id,
+            agent_session_id=agent_session_id,
         )
 
     def invoke_text_embedding(
@@ -191,7 +222,21 @@ class ModelInstance:
         try:
             return function(*args, **kwargs)
         except Exception as e:
-            logger.error(f"Error invoking function: {e}")
+            logger.exception("Error invoking function: {e}")
+            raise e
+
+    async def _invoke_async(self, function: Callable[..., Any], *args, **kwargs) -> Any:
+        """
+        Async invoke
+        :param function: async function to invoke
+        :param args: function args
+        :param kwargs: function kwargs
+        :return:
+        """
+        try:
+            return await function(*args, **kwargs)
+        except Exception as e:
+            logger.exception("Error invoking async function: {e}")
             raise e
 
 
@@ -203,12 +248,17 @@ class ModelManager:
     def __init__(self):
         self.provider = ProviderManager()
 
-    def get_model_instance(self, model_name: str, provider_name: str = None) -> Optional[ModelInstance]:
+    def get_model_instance(
+        self,
+        model_name: str,
+    ) -> Optional[ModelInstance]:
         from service import ModelService, ProviderService
 
+        provider_name = model_name.split("/")[1]
         if provider_name:
             model: Model = ModelService.get_model_by_provider(model_name, provider_name)
         else:
+            logger.warning("Provider name not found in model name '%s', falling back to get_model", model_name)
             model: Model = ModelService.get_model(model_name)
         provider: Provider = ProviderService.get_provider(model.provider_name)
         model_list: list[AIModelEntity] = ModelService.get_ai_models(provider.name)
@@ -216,13 +266,12 @@ class ModelManager:
         model_params = json.loads(model.model_params)
         if "max_tokens" not in model_params:
             model_params["max_tokens"] = model.max_tokens
+        if "max_context_length" not in model_params:
+            model_params["max_context_length"] = model.max_context_length
         ai_model = self.provider.provider_factory.get_model_type_instance(
             provider_entity, model_params, ModelType.value_of(model.type)
         )
         instance = ModelInstance(provider_entity, ai_model, model.name)
-        instance.model_instance.credentials["orig_sdk_type"] = instance.provider.provider_credential.sdk_type
-        instance.credentials["orig_sdk_type"] = instance.provider.provider_credential.sdk_type
-        instance.model_instance.credentials["none_anthropic"] = True
         return instance
 
     def get_default_model_instance(self, model_type: str):
@@ -239,23 +288,32 @@ class ModelManager:
         )
         return ModelInstance(provider_entity, model_instance, model.name)
 
-    def get_anthropic_model_instance(self, model_name: str, provider_name: str = None) -> Optional[ModelInstance]:
-        model_instance: ModelInstance = self.get_model_instance(model_name, provider_name)
-        model_instance.model_instance.credentials["sdk_type"] = ProviderSDKType.ANTHROPIC
-        model_instance.credentials["sdk_type"] = ProviderSDKType.ANTHROPIC
-        model_instance.model_instance.credentials["none_anthropic"] = False
-        model_instance.credentials["none_anthropic"] = False
-        return model_instance
-
     def get_planner_model_instance(self) -> Optional[ModelInstance]:
         from configs import config
 
-        model_name = getattr(config, "SPECULATION_PLANNER_MODEL", "")
-        provider_name = getattr(config, "SPECULATION_PLANNER_PROVIDER", "")
+        model_name = config.TOOL_CHOICE_LLM_MODEL
+        provider_name = config.TOOL_CHOICE_LLM_PROVIDER
         if not model_name:
             return None
         try:
-            return self.get_model_instance(model_name, provider_name or None)
+            return self.get_model_instance(model_name + "/" + provider_name)
         except Exception as e:
             logger.warning("Failed to get planner model instance: %s", e)
+            return None
+
+    def get_tool_choice_model(self) -> Optional[ModelInstance]:
+        """Return model instance for tool-choice LLM (TOOL_CHOICE_LLM_MODEL config).
+
+        Returns None when unconfigured so callers can fall back to keyword search.
+        """
+        from configs import config
+
+        model_name = config.TOOL_CHOICE_LLM_MODEL
+        provider_name = config.TOOL_CHOICE_LLM_PROVIDER
+        if not model_name:
+            return None
+        try:
+            return self.get_model_instance(model_name + "/" + provider_name)
+        except Exception as e:
+            logger.warning("Failed to get tool_choice model instance: %s", e)
             return None

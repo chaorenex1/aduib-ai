@@ -2,11 +2,11 @@ from typing import Optional
 
 from pydantic import ConfigDict
 
-from .gpt_tokenizer import GPTTokenizer
 from ..entities.embedding_type import EmbeddingInputType
 from ..entities.model_entities import ModelType
-from ..entities.text_embedding_entities import TextEmbeddingResult, EmbeddingRequest
+from ..entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from ..model_execution.base import AiModel
+from .gpt_tokenizer import GPTTokenizer
 
 
 class TextEmbeddingModel(AiModel):

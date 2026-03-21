@@ -1,5 +1,5 @@
 import re
-from typing import cast, Optional
+from typing import Optional, cast
 
 from jieba3 import jieba3
 
@@ -11,7 +11,7 @@ class JiebaKeyword:
         # import jieba.analyse  # type: ignore
         #
         # jieba3.analyse.default_tfidf.stop_words = STOPWORDS  # type: ignore
-        self.jieba3=jieba3()
+        self.jieba3 = jieba3()
 
     def extract_keywords(self, text: str, max_keywords_per_chunk: Optional[int] = 10) -> set[str]:
         """Extract keywords with JIEBA tfidf."""

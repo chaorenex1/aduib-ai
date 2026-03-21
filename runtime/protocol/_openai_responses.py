@@ -27,7 +27,11 @@ from runtime.entities.llm_entities import (
 )
 from runtime.entities.response_entities import (
     ResponseContentPartAddedEvent,
+    ResponseContentPartDoneEvent,
     ResponseCreatedEvent,
+    ResponseDoneEvent,
+    ResponseFunctionCallArgumentsDeltaEvent,
+    ResponseFunctionCallArgumentsDoneEvent,
     ResponseFunctionTool,
     ResponseInProgressEvent,
     ResponseInputItem,
@@ -35,15 +39,33 @@ from runtime.entities.response_entities import (
     ResponseOutputFunctionCall,
     ResponseOutputItem,
     ResponseOutputItemAddedEvent,
+    ResponseOutputItemDoneEvent,
     ResponseOutputMessage,
+    ResponseOutputStatus,
     ResponseRequest,
+    ResponseStatus,
     ResponseStreamEvent,
-    ResponseToolCall,
+    ResponseTextDeltaEvent,
+    ResponseTextDoneEvent,
     TextContentBlock,
 )
 from runtime.protocol._utils import extract_text_content
 
 logger = logging.getLogger(__name__)
+
+
+def _clone_response_output_item(item: ResponseOutputItem) -> ResponseOutputItem:
+    item_cls = type(item)
+    return item_cls(**item.model_dump())
+
+
+def _clone_response_output(response: ResponseOutput) -> ResponseOutput:
+    return ResponseOutput(
+        **{
+            **response.model_dump(exclude={"output"}),
+            "output": [_clone_response_output_item(item) for item in response.output],
+        }
+    )
 
 
 # ── Request: OpenAI -> Responses ─────────────────────────────────────────────
@@ -166,7 +188,7 @@ def openai_response_to_responses(resp: ChatCompletionResponse) -> ResponseOutput
     tool_calls: Optional[list[dict]] = None
 
     if resp.message:
-        content = str(resp.message.content or "")
+        content = extract_text_content(resp.message.content)
         if resp.message.tool_calls:
             tool_calls = []
             for tc in resp.message.tool_calls:
@@ -183,15 +205,21 @@ def openai_response_to_responses(resp: ChatCompletionResponse) -> ResponseOutput
 
     output_items: list[ResponseOutputItem] = []
     if content:
-        output_items.append(ResponseOutputItem(role="assistant", content=content))
+        output_items.append(
+            ResponseOutputMessage(
+                role="assistant",
+                content=[TextContentBlock(type="text", text=content)],
+            )
+        )
 
     # Add tool calls if present
     if tool_calls:
         for tc in tool_calls:
             output_items.append(
-                ResponseOutputItem(
+                ResponseOutputFunctionCall(
                     type="function_call",
                     id=tc["id"],
+                    call_id=tc["id"],
                     name=tc["function"]["name"],
                     arguments=tc["function"]["arguments"],
                 )
@@ -217,9 +245,20 @@ def responses_to_openai_response(resp: ResponseOutput) -> ChatCompletionResponse
     tool_calls: list[AssistantPromptMessage.ToolCall] = []
 
     for item in resp.output or []:
-        if hasattr(item, "content") and item.content:
-            text += str(item.content)
-        elif hasattr(item, "type") and item.type == "function_call":
+        if isinstance(item, ResponseOutputMessage):
+            text += extract_text_content(item.content)
+            for tc in item.tool_calls or []:
+                tool_calls.append(
+                    AssistantPromptMessage.ToolCall(
+                        id=tc.id or "",
+                        type="function",
+                        function=AssistantPromptMessage.ToolCall.ToolCallFunction(
+                            name=(tc.function or {}).get("name", ""),
+                            arguments=(tc.function or {}).get("arguments", ""),
+                        ),
+                    )
+                )
+        elif isinstance(item, ResponseOutputFunctionCall):
             # Handle function call output
             tool_calls.append(
                 AssistantPromptMessage.ToolCall(
@@ -274,19 +313,31 @@ def openai_stream_to_responses(
 
     # Track state
     if not hasattr(openai_stream_to_responses, "_state"):
-        openai_stream_to_responses._state = {
-            "id": chunk_id,
-            "created": int(time_module.time()),
-            "output": [],
-        }
+        openai_stream_to_responses._state = {}
     state = openai_stream_to_responses._state
-    state["id"] = chunk_id
-    state["model"] = model
+    if state.get("id") != chunk_id:
+        state.clear()
+        state.update(
+            {
+                "id": chunk_id,
+                "created": int(time_module.time()),
+                "model": model,
+                "output": [],
+                "message_item_id": None,
+                "message_output_index": None,
+                "text_content_index": 0,
+                "message_text": "",
+                "tool_calls": {},
+                "completed_tool_calls": set(),
+                "text_done": False,
+            }
+        )
 
     # response.created event on first chunk
     if not hasattr(openai_stream_to_responses, "_initialized"):
-        openai_stream_to_responses._initialized = True
-        state["output"] = []
+        openai_stream_to_responses._initialized = set()
+    if chunk_id not in openai_stream_to_responses._initialized:
+        openai_stream_to_responses._initialized.add(chunk_id)
         events.append(
             ResponseCreatedEvent(
                 type="response.created",
@@ -296,11 +347,13 @@ def openai_stream_to_responses(
                     model=model,
                     output=[],
                     usage=LLMUsage.empty_usage(),
+                    status=ResponseStatus.IN_PROGRESS,
                 ),
             )
         )
 
     # Process deltas
+    changed = False
     for choice in choices:
         delta = choice.delta
         index = choice.index
@@ -308,73 +361,174 @@ def openai_stream_to_responses(
         if delta:
             text = delta.content or delta.text or ""
             if text:
+                changed = True
                 # Add text to output
-                if not state["output"]:
-                    state["output"].append(
-                        ResponseOutputMessage(
-                            type="message",
-                            id=f"msg_{index}",
-                            role="assistant",
-                            content=[],
+                if state["message_item_id"] is None:
+                    message_item = ResponseOutputMessage(
+                        type="message",
+                        id=f"msg_{index}",
+                        status=ResponseOutputStatus.IN_PROGRESS,
+                        role="assistant",
+                        content=[TextContentBlock(type="text", text="")],
+                    )
+                    state["message_item_id"] = message_item.id
+                    state["message_output_index"] = len(state["output"])
+                    state["output"].append(message_item)
+                    events.append(
+                        ResponseOutputItemAddedEvent(
+                            type="response.output_item.added",
+                            output_index=state["message_output_index"],
+                            item=_clone_response_output_item(message_item),
+                        )
+                    )
+                    events.append(
+                        ResponseContentPartAddedEvent(
+                            type="response.content_part.added",
+                            item_id=message_item.id,
+                            output_index=state["message_output_index"],
+                            content_index=state["text_content_index"],
+                            part=TextContentBlock(type="text", text=""),
                         )
                     )
 
-                # Find or create text content
-                msg = state["output"][0]
-                text_block = TextContentBlock(type="text", text=text)
-                msg.content.append(text_block)
+                msg = state["output"][state["message_output_index"]]
+                state["message_text"] += text
+                msg.content[state["text_content_index"]].text = state["message_text"]
 
                 events.append(
-                    ResponseContentPartAddedEvent(
-                        type="response.content_part.added",
+                    ResponseTextDeltaEvent(
+                        type="response.text.delta",
                         item_id=msg.id,
-                        output_index=0,
-                        content_index=len(msg.content) - 1,
-                        part=text_block,
+                        output_index=state["message_output_index"],
+                        content_index=state["text_content_index"],
+                        delta=text,
                     )
                 )
 
             # Tool calls
             if delta.tool_calls:
                 for tc in delta.tool_calls:
-                    tool_call = ResponseToolCall(
-                        id=tc.id or f"call_{index}",
-                        type="function",
-                        function={
-                            "name": tc.function.name or "",
-                            "arguments": tc.function.arguments or "",
-                        },
-                    )
-                    state["output"].append(
-                        ResponseOutputFunctionCall(
+                    changed = True
+                    tc_id = tc.id or f"call_{index}"
+                    if tc_id not in state["tool_calls"]:
+                        tool_item = ResponseOutputFunctionCall(
                             type="function_call",
-                            id=tc.id or f"call_{index}",
-                            call_id=tc.id or f"call_{index}",
+                            id=tc_id,
+                            status=ResponseOutputStatus.IN_PROGRESS,
+                            call_id=tc_id,
                             name=tc.function.name or "",
-                            arguments=tc.function.arguments or "",
+                            arguments="",
                         )
-                    )
-                    events.append(
-                        ResponseOutputItemAddedEvent(
-                            type="response.output_item.added",
-                            output_index=len(state["output"]) - 1,
-                            item=state["output"][-1],
+                        output_index = len(state["output"])
+                        state["output"].append(tool_item)
+                        state["tool_calls"][tc_id] = {"output_index": output_index}
+                        events.append(
+                            ResponseOutputItemAddedEvent(
+                                type="response.output_item.added",
+                                output_index=output_index,
+                                item=_clone_response_output_item(tool_item),
+                            )
                         )
-                    )
+
+                    tool_state = state["tool_calls"][tc_id]
+                    tool_item = state["output"][tool_state["output_index"]]
+                    arg_delta = tc.function.arguments or ""
+                    if tc.function.name:
+                        tool_item.name = tc.function.name
+                    if arg_delta:
+                        tool_item.arguments += arg_delta
+                        events.append(
+                            ResponseFunctionCallArgumentsDeltaEvent(
+                                type="response.function_call_arguments.delta",
+                                item_id=tool_item.id,
+                                output_index=tool_state["output_index"],
+                                delta=arg_delta,
+                            )
+                        )
+
+        current_response = ResponseOutput(
+            id=chunk_id,
+            created=state["created"],
+            model=model,
+            output=[_clone_response_output_item(item) for item in state["output"]],
+            usage=chunk.usage or LLMUsage.empty_usage(),
+            status=ResponseStatus.IN_PROGRESS,
+        )
+
+        if changed and not choice.finish_reason:
+            events.append(ResponseInProgressEvent(type="response.in_progress", response=current_response))
 
         # Finish
         if choice.finish_reason:
-            usage = chunk.usage or LLMUsage.empty_usage()
+            if state["message_item_id"] is not None and not state["text_done"]:
+                msg = state["output"][state["message_output_index"]]
+                msg.status = ResponseOutputStatus.COMPLETED
+                events.append(
+                    ResponseTextDoneEvent(
+                        type="response.text.done",
+                        item_id=msg.id,
+                        output_index=state["message_output_index"],
+                        content_index=state["text_content_index"],
+                        text=state["message_text"],
+                    )
+                )
+                events.append(
+                    ResponseContentPartDoneEvent(
+                        type="response.content_part.done",
+                        item_id=msg.id,
+                        output_index=state["message_output_index"],
+                        content_index=state["text_content_index"],
+                        part=TextContentBlock(type="text", text=state["message_text"]),
+                    )
+                )
+                events.append(
+                    ResponseOutputItemDoneEvent(
+                        type="response.output_item.done",
+                        output_index=state["message_output_index"],
+                        item=_clone_response_output_item(msg),
+                    )
+                )
+                state["text_done"] = True
+
+            for tc_id, tool_state in state["tool_calls"].items():
+                if tc_id in state["completed_tool_calls"]:
+                    continue
+                tool_item = state["output"][tool_state["output_index"]]
+                tool_item.status = ResponseOutputStatus.COMPLETED
+                events.append(
+                    ResponseFunctionCallArgumentsDoneEvent(
+                        type="response.function_call_arguments.done",
+                        item_id=tool_item.id,
+                        output_index=tool_state["output_index"],
+                        arguments=tool_item.arguments,
+                    )
+                )
+                events.append(
+                    ResponseOutputItemDoneEvent(
+                        type="response.output_item.done",
+                        output_index=tool_state["output_index"],
+                        item=_clone_response_output_item(tool_item),
+                    )
+                )
+                state["completed_tool_calls"].add(tc_id)
+
             final_response = ResponseOutput(
                 id=chunk_id,
                 created=state["created"],
                 model=model,
-                output=state["output"],
-                usage=usage,
+                output=[_clone_response_output_item(item) for item in state["output"]],
+                usage=chunk.usage or LLMUsage.empty_usage(),
+                status=ResponseStatus.COMPLETED,
             )
             events.append(
                 ResponseInProgressEvent(
                     type="response.in_progress",
+                    response=_clone_response_output(final_response.model_copy(update={"status": ResponseStatus.IN_PROGRESS})),
+                )
+            )
+            events.append(
+                ResponseDoneEvent(
+                    type="response.done",
                     response=final_response,
                 )
             )
@@ -396,12 +550,14 @@ def responses_stream_to_openai(
         responses_stream_to_openai._state = {
             "id": None,
             "model": None,
-            "text": "",
-            "tool_calls": [],
+            "tool_calls": {},
             "finish_reason": None,
             "usage": None,
         }
     state = responses_stream_to_openai._state
+    delta_message: Optional[AssistantPromptMessage] = None
+    finish_reason: Optional[str] = None
+    usage: Optional[LLMUsage] = None
 
     if isinstance(event, ResponseCreatedEvent):
         state["id"] = event.response.id
@@ -410,56 +566,86 @@ def responses_stream_to_openai(
 
     elif isinstance(event, ResponseInProgressEvent):
         state["usage"] = event.response.usage
-        state["finish_reason"] = "stop"
+        usage = event.response.usage
 
     elif isinstance(event, ResponseOutputItemAddedEvent):
         item = event.item
-        if hasattr(item, "content"):
-            # Text content
-            for block in item.content:
-                if hasattr(block, "text"):
-                    state["text"] += block.text or ""
-        elif hasattr(item, "type") and item.type == "function_call":
-            state["tool_calls"].append(
-                {
-                    "id": item.id,
-                    "name": item.name,
-                    "arguments": item.arguments,
-                }
-            )
+        if isinstance(item, ResponseOutputFunctionCall):
+            state["tool_calls"][item.id] = {
+                "id": item.id,
+                "name": item.name,
+                "arguments": item.arguments or "",
+            }
+        elif isinstance(item, ResponseOutputMessage):
+            usage = state["usage"]
+
+    elif isinstance(event, ResponseTextDeltaEvent):
+        delta_message = AssistantPromptMessage(content=event.delta)
+
+    elif isinstance(event, ResponseFunctionCallArgumentsDeltaEvent):
+        tc = state["tool_calls"].get(event.item_id)
+        if tc is None:
+            tc = {"id": event.item_id, "name": "", "arguments": ""}
+            state["tool_calls"][event.item_id] = tc
+        tc["arguments"] += event.delta or ""
+        delta_message = AssistantPromptMessage(
+            content="",
+            tool_calls=[
+                AssistantPromptMessage.ToolCall(
+                    id=tc["id"],
+                    type="function",
+                    function=AssistantPromptMessage.ToolCall.ToolCallFunction(
+                        name=tc["name"],
+                        arguments=event.delta or "",
+                    ),
+                )
+            ],
+        )
+
+    elif isinstance(event, ResponseFunctionCallArgumentsDoneEvent):
+        tc = state["tool_calls"].get(event.item_id)
+        if tc is None:
+            state["tool_calls"][event.item_id] = {
+                "id": event.item_id,
+                "name": "",
+                "arguments": event.arguments,
+            }
+        else:
+            tc["arguments"] = event.arguments
+
+    elif isinstance(event, ResponseDoneEvent):
+        state["usage"] = event.response.usage
+        finish_reason = "stop"
+        usage = event.response.usage
+
+    elif isinstance(event, ResponseOutputItemDoneEvent):
+        item = event.item
+        if isinstance(item, ResponseOutputFunctionCall):
+            state["tool_calls"][item.id] = {
+                "id": item.id,
+                "name": item.name,
+                "arguments": item.arguments,
+            }
 
     # Build chunk
     chunk = ChatCompletionResponseChunk(
         id=state["id"] or f"chatcmpl-{int(time_module.time() * 1000)}",
         model=state["model"] or "",
         created=int(time_module.time()),
+        choices=[],
     )
 
-    delta = AssistantPromptMessage(content=state["text"])
-    if state["tool_calls"]:
-        delta.tool_calls = []
-        for tc in state["tool_calls"]:
-            delta.tool_calls.append(
-                AssistantPromptMessage.ToolCall(
-                    id=tc["id"],
-                    type="function",
-                    function=AssistantPromptMessage.ToolCall.ToolCallFunction(
-                        name=tc["name"],
-                        arguments=tc["arguments"],
-                    ),
-                )
+    if delta_message is not None or finish_reason is not None:
+        chunk.choices = [
+            ChatCompletionResponseChunkDelta(
+                index=0,
+                delta=delta_message or AssistantPromptMessage(content=""),
+                finish_reason=finish_reason,
             )
+        ]
 
-    chunk.choices = [
-        ChatCompletionResponseChunkDelta(
-            index=0,
-            delta=delta,
-            finish_reason=state["finish_reason"],
-        )
-    ]
-
-    if state["usage"]:
-        chunk.usage = state["usage"]
+    if usage or state["usage"]:
+        chunk.usage = usage or state["usage"]
 
     return chunk
 
@@ -471,13 +657,12 @@ def reset_responses_stream_state():
             func._state = {
                 "id": None,
                 "model": None,
-                "text": "",
-                "tool_calls": [],
+                "tool_calls": {},
                 "finish_reason": None,
                 "usage": None,
             }
         if hasattr(func, "_initialized"):
-            func._initialized = False
+            func._initialized = set()
 
 
 # ── Tool Call Collection ─────────────────────────────────────────────────────────
@@ -492,6 +677,7 @@ class ResponsesStreamingToolCallCollector:
 
     def __init__(self):
         self._tool_calls: dict[str, dict] = {}  # call_id -> {name, arguments}
+        self._tool_call_index_map: dict[int, str] = {}
         self._message_id: str = ""
 
     def process_event(self, event: ResponseStreamEvent) -> None:
@@ -500,25 +686,35 @@ class ResponsesStreamingToolCallCollector:
             self._message_id = event.response.id
         if isinstance(event, ResponseOutputItemAddedEvent):
             item = event.item
-            if hasattr(item, "type") and item.type == "function_call":
+            if isinstance(item, ResponseOutputFunctionCall):
                 self._tool_calls[item.id] = {
                     "id": item.id,
                     "call_id": item.call_id,
                     "name": item.name,
                     "arguments": item.arguments or "",
                 }
+        elif isinstance(event, ResponseFunctionCallArgumentsDeltaEvent):
+            tool_call = self._tool_calls.get(event.item_id)
+            if tool_call is not None:
+                tool_call["arguments"] += event.delta or ""
+        elif isinstance(event, ResponseFunctionCallArgumentsDoneEvent):
+            tool_call = self._tool_calls.get(event.item_id)
+            if tool_call is not None:
+                tool_call["arguments"] = event.arguments or tool_call["arguments"]
 
     def process_chunk(self, chunk: ChatCompletionResponseChunk) -> None:
         """Process an OpenAI streaming chunk and accumulate tool call data."""
         if not chunk.choices:
             return
-        if len(chunk.id) == 0:
+        if chunk.id:
             self._message_id = chunk.id
         for choice in chunk.choices:
             delta = choice.delta
             if delta and delta.tool_calls:
                 for tc in delta.tool_calls:
-                    tc_id = tc.id or f"call_{len(self._tool_calls)}"
+                    tc_index = tc.index if tc.index is not None else len(self._tool_call_index_map)
+                    tc_id = tc.id or self._tool_call_index_map.get(tc_index) or f"call_{tc_index}"
+                    self._tool_call_index_map[tc_index] = tc_id
                     if tc_id not in self._tool_calls:
                         self._tool_calls[tc_id] = {
                             "id": tc_id,
@@ -556,6 +752,7 @@ class ResponsesStreamingToolCallCollector:
     def clear(self) -> None:
         """Clear accumulated tool calls."""
         self._tool_calls.clear()
+        self._tool_call_index_map.clear()
         self._message_id = ""
 
 

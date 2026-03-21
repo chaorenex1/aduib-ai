@@ -1,14 +1,14 @@
 import base64
 import hashlib
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from sqlalchemy.exc import IntegrityError
 
 from component.cache.redis_cache import redis_client
 from configs import config
-from models import get_db, KnowledgeEmbeddings
+from models import KnowledgeEmbeddings, get_db
 from runtime.entities.embedding_type import EmbeddingInputType
 from runtime.entities.text_embedding_entities import EmbeddingRequest
 from runtime.model_manager import ModelInstance

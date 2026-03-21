@@ -1,7 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, File, UploadFile
 
 from controllers.common.base import BaseResponse, catch_exceptions
-from controllers.params import KnowledgeBasePayload, KnowledgeRetrievalPayload, BrowserHistoryPayload
+from controllers.params import BrowserHistoryPayload, KnowledgeBasePayload, KnowledgeRetrievalPayload
 from runtime.generator.generator import LLMGenerator
 from service import KnowledgeBaseService
 
@@ -25,7 +25,7 @@ async def create_qa_rag():
 @router.post("/knowledge/rag/paragraph")
 @catch_exceptions
 async def create_paragraph_rag(file: UploadFile = File(...)):
-    await KnowledgeBaseService.paragraph_rag_from_blog_content(await file.read(),file.filename)
+    await KnowledgeBaseService.paragraph_rag_from_blog_content(await file.read(), file.filename)
     return BaseResponse.ok()
 
 
@@ -45,8 +45,8 @@ async def clean_paragraph_rag():
 
 @router.post("/knowledge/rag/paragraph/background")
 @catch_exceptions
-async def create_paragraph_rag_background(background_tasks: BackgroundTasks,file: UploadFile = File(...)):
-    background_tasks.add_task(KnowledgeBaseService.paragraph_rag_from_blog_content,await file.read())
+async def create_paragraph_rag_background(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    background_tasks.add_task(KnowledgeBaseService.paragraph_rag_from_blog_content, await file.read())
     return BaseResponse.ok()
 
 
@@ -56,15 +56,18 @@ async def knowledge_retrieval(payload: KnowledgeRetrievalPayload):
     result = await KnowledgeBaseService.retrieve_from_knowledge_base(payload.rag_type, payload.query)
     return result
 
+
 @router.post("/knowledge/retrieval/answer")
 @catch_exceptions
 async def knowledge_retrieval(payload: KnowledgeRetrievalPayload):
     result = await KnowledgeBaseService.retrieve_from_knowledge_base(payload.rag_type, payload.query)
-    return LLMGenerator.generate_retrieval_content(payload.query,result,payload.rag_type)
+    return LLMGenerator.generate_retrieval_content(payload.query, result, payload.rag_type)
 
 
 @router.post("/knowledge/retrieval/browser_history")
 @catch_exceptions
 async def knowledge_retrieval_browser_history(payload: BrowserHistoryPayload):
-    result = await KnowledgeBaseService.retrieval_from_browser_history(payload.query,payload.start_time,payload.end_time)
+    result = await KnowledgeBaseService.retrieval_from_browser_history(
+        payload.query, payload.start_time, payload.end_time
+    )
     return result

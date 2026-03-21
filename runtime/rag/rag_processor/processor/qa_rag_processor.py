@@ -13,7 +13,7 @@ from runtime.rag.clean.clean_processor import CleanProcessor
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 from runtime.rag.extractor.extractor_runner import ExtractorRunner
 from runtime.rag.keyword.keyword import Keyword
-from runtime.rag.rag_config import SplitterRule, AUTOMATIC_RULES
+from runtime.rag.rag_config import AUTOMATIC_RULES, SplitterRule
 from runtime.rag.rag_processor.rag_processor_base import BaseRAGProcessor
 from runtime.rag.retrieve.retrieval_service import RetrievalService
 
@@ -110,24 +110,19 @@ class QARAGProcessor(BaseRAGProcessor):
             else:
                 keyword.delete()
 
-    def retrieve(
-        self,
-        retrieval_method: str,
-        query: str,
-        knowledge: KnowledgeBase,
-        top_k: int,
-        score_threshold: float,
-        reranking_model: dict,
-        weights: Optional[dict] = None,
-    ) -> list[Document]:
+    def retrieve(self, retrieval_method: str, query: str, knowledge: KnowledgeBase, top_k: int, score_threshold: float,
+                 reranking_mode: str,
+                 reranking_model: dict,weights: Optional[dict] = None, **kwargs) -> list[Document]:
         # Set search parameters.
         results = RetrievalService.retrieve(
             knowledge_base_id=knowledge.id,
             query=query,
             top_k=top_k,
             score_threshold=score_threshold,
+            reranking_mode=reranking_mode,
             reranking_model=reranking_model,
             weights=weights,
+            **kwargs
         )
         # Organize results.
         docs = []

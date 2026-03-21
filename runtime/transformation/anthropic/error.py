@@ -4,7 +4,7 @@ Provides Claude-specific error classes and mapping for API error responses.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from service.error.base import BaseServiceError
 
@@ -23,31 +23,37 @@ class AnthropicAPIError(BaseServiceError):
 
 class AnthropicAuthenticationError(AnthropicAPIError):
     """Authentication error for Anthropic API."""
+
     pass
 
 
 class AnthropicRateLimitError(AnthropicAPIError):
     """Rate limit error for Anthropic API."""
+
     pass
 
 
 class AnthropicModelNotFoundError(AnthropicAPIError):
     """Model not found error for Anthropic API."""
+
     pass
 
 
 class AnthropicInvalidRequestError(AnthropicAPIError):
     """Invalid request error for Anthropic API."""
+
     pass
 
 
 class AnthropicServerError(AnthropicAPIError):
     """Server error for Anthropic API."""
+
     pass
 
 
 class AnthropicTransformationError(BaseServiceError):
     """Error during transformation of requests/responses."""
+
     pass
 
 
@@ -83,8 +89,8 @@ class AnthropicErrorMapper:
     def map_error(
         cls,
         status_code: int,
-        error_response: Optional[Dict[str, Any]] = None,
-        default_message: str = "Anthropic API request failed"
+        error_response: Optional[dict[str, Any]] = None,
+        default_message: str = "Anthropic API request failed",
     ) -> AnthropicAPIError:
         """
         Map HTTP status code and error response to appropriate error class.
@@ -108,27 +114,15 @@ class AnthropicErrorMapper:
         # Try to map by error type first
         if error_type and error_type in cls.ERROR_TYPE_MAPPING:
             error_class = cls.ERROR_TYPE_MAPPING[error_type]
-            return error_class(
-                message=error_message,
-                status_code=status_code,
-                error_type=error_type
-            )
+            return error_class(message=error_message, status_code=status_code, error_type=error_type)
 
         # Fall back to status code mapping
         if status_code in cls.STATUS_CODE_MAPPING:
             error_class = cls.STATUS_CODE_MAPPING[status_code]
-            return error_class(
-                message=error_message,
-                status_code=status_code,
-                error_type=error_type
-            )
+            return error_class(message=error_message, status_code=status_code, error_type=error_type)
 
         # Default to generic API error
-        return AnthropicAPIError(
-            message=error_message,
-            status_code=status_code,
-            error_type=error_type
-        )
+        return AnthropicAPIError(message=error_message, status_code=status_code, error_type=error_type)
 
     @classmethod
     def should_retry(cls, error: AnthropicAPIError) -> bool:
@@ -159,13 +153,7 @@ class AnthropicRetryStrategy:
     Implements exponential backoff with jitter.
     """
 
-    def __init__(
-        self,
-        max_retries: int = 3,
-        base_delay: float = 1.0,
-        max_delay: float = 60.0,
-        jitter: bool = True
-    ):
+    def __init__(self, max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 60.0, jitter: bool = True):
         """
         Initialize retry strategy.
 
@@ -191,11 +179,12 @@ class AnthropicRetryStrategy:
             Delay in seconds
         """
         # Exponential backoff
-        delay = self.base_delay * (2 ** attempt)
+        delay = self.base_delay * (2**attempt)
 
         # Add jitter if enabled
         if self.jitter:
             import random
+
             delay = delay * (0.5 + random.random() * 0.5)
 
         # Cap at maximum delay

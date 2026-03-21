@@ -55,10 +55,7 @@ class CosineWeightRerankRunner(BaseRerankRunner):
 
         rerank_documents = []
         for document, query_score, query_vector_score in zip(documents, query_scores, query_vector_scores):
-            score = (
-                self.weights.vector_weight * query_vector_score
-                + self.weights.keyword_weight * query_score
-            )
+            score = self.weights.vector_weight * query_vector_score + self.weights.keyword_weight * query_score
             if score_threshold and score < score_threshold:
                 continue
             if document.metadata is not None:
@@ -76,7 +73,7 @@ class CosineWeightRerankRunner(BaseRerankRunner):
 
         :return:
         """
-        keyword=JiebaKeyword()
+        keyword = JiebaKeyword()
         query_keywords = keyword.extract_keywords(query, None)
         documents_keywords = []
         for document in documents:
@@ -145,9 +142,7 @@ class CosineWeightRerankRunner(BaseRerankRunner):
 
         return similarities
 
-    def _calculate_cosine(
-        self, query: str, documents: list[Document]
-    ) -> list[float]:
+    def _calculate_cosine(self, query: str, documents: list[Document]) -> list[float]:
         """
         Calculate Cosine scores
         :param query: search query
@@ -160,8 +155,7 @@ class CosineWeightRerankRunner(BaseRerankRunner):
         model_manager = ModelManager()
 
         embedding_model = model_manager.get_model_instance(
-            model_name=self.weights.embedding_model_name
-            ,provider_name=self.weights.embedding_provider_name
+            model_name=self.weights.embedding_model_name, provider_name=self.weights.embedding_provider_name
         )
         cache_embedding = CacheEmbeddings(embedding_model)
         query_vector = cache_embedding.embed_query(query)

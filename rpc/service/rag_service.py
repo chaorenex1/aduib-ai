@@ -11,6 +11,7 @@ from utils import jsonable_encoder
 @service(service_name="RagService")
 class RagService:
     """RAG Service for handling retrieval-augmented generation requests."""
+
     async def retrieval_from_paragraph(self, query: str) -> dict[str, Any]:
         docs = await KnowledgeBaseService.retrieve_from_knowledge_base(RagType.PARAGRAPH, query)
         return self._build_response(docs, RagType.PARAGRAPH)

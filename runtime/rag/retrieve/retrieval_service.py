@@ -4,11 +4,11 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from component.vdb.vector_factory import Vector
-from models import get_db, KnowledgeBase
+from models import KnowledgeBase, get_db
 from runtime.entities.document_entities import Document
 from runtime.rag.keyword.keyword import Keyword
-from runtime.rag.retrieve.rerank_model import RankerModelRunner
 from runtime.rag.retrieve.rerank_processor import RerankProcessor
+from runtime.rag.retrieve.retrieve import RetrievalMethod
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +23,10 @@ class RetrievalService:
         query: str,
         top_k: int,
         score_threshold: Optional[float] = 0.0,
+        reranking_mode: Optional[str] = None,
         reranking_model: Optional[dict] = None,
         weights: Optional[dict] = None,
-        knowledge_ids_filter: Optional[list[str]] = None,
+        **kwargs
     ):
         if not query:
             return []
@@ -40,17 +41,18 @@ class RetrievalService:
 
         # Optimize multithreading with thread pools
         with ThreadPoolExecutor(thread_name_prefix="Retrieval") as executor:  # type: ignore
-            futures = [
-                # executor.submit(
-                #     cls.keyword_search,
-                #     knowledge_base_id=knowledge_base_id,
-                #     query=query,
-                #     top_k=top_k,
-                #     all_documents=all_documents,
-                #     exceptions=exceptions,
-                #     knowledge_ids_filter=knowledge_ids_filter,
-                # ),
+            futures = []
+            futures.append(
                 executor.submit(
+                    cls.keyword_search,
+                    knowledge_base_id=knowledge_base_id,
+                    query=query,
+                    top_k=top_k,
+                    all_documents=all_documents,
+                    exceptions=exceptions,
+                )),
+            if rerank_method == RetrievalMethod.SEMANTICS.value:
+                futures.append(executor.submit(
                     cls.embedding_search,
                     knowledge_base_id=knowledge_base_id,
                     query=query,
@@ -59,9 +61,10 @@ class RetrievalService:
                     reranking_model=reranking_model,
                     all_documents=all_documents,
                     exceptions=exceptions,
-                    knowledge_ids_filter=knowledge_ids_filter,
-                ),
-                executor.submit(
+                    **kwargs,
+                )),
+            if rerank_method == RetrievalMethod.FULL_TEXT.value:
+                futures.append(executor.submit(
                     cls.full_text_index_search,
                     knowledge_base_id=knowledge_base_id,
                     query=query,
@@ -70,15 +73,14 @@ class RetrievalService:
                     reranking_model=reranking_model,
                     all_documents=all_documents,
                     exceptions=exceptions,
-                    knowledge_ids_filter=knowledge_ids_filter,
-                ),
-            ]
+                    **kwargs,
+                )),
             concurrent.futures.wait(futures, timeout=30, return_when=concurrent.futures.ALL_COMPLETED)
 
         if exceptions:
             raise ValueError(";\n".join(exceptions))
 
-        data_post_processor = RerankProcessor(rerank_method,reranking_model, weights)
+        data_post_processor = RerankProcessor(reranking_mode, reranking_model, weights)
         all_documents = data_post_processor.invoke(
             query=query,
             documents=all_documents,
@@ -101,7 +103,6 @@ class RetrievalService:
         top_k: int,
         all_documents: list,
         exceptions: list,
-        knowledge_ids_filter: Optional[list[str]] = None,
     ):
         try:
             if knowledge_base_id:
@@ -113,7 +114,7 @@ class RetrievalService:
 
             documents = keyword.search(cls.escape_query_for_search(query), max_keywords_per_chunk=top_k)
             all_documents.extend(documents)
-            logger.debug(f"Keyword search found {len(documents)} documents.")
+            logger.debug("%Keyword search found {len(documents)} documents.")
         except Exception as e:
             exceptions.append(str(e))
 
@@ -127,7 +128,7 @@ class RetrievalService:
         reranking_model: Optional[dict],
         all_documents: list,
         exceptions: list,
-        knowledge_ids_filter: Optional[list[str]] = None,
+        **kwargs
     ):
         try:
             if knowledge_base_id:
@@ -136,15 +137,18 @@ class RetrievalService:
                     raise ValueError("knowledge not found")
 
             vector = Vector(knowledge=knowledge_base)
+            if kwargs:
+                kwargs["knowledge_base_id"]=knowledge_base_id
+            else:
+                kwargs["knowledge_base_id"]=knowledge_base_id
             documents = vector.search_by_vector(
                 query,
                 search_type="similarity_score_threshold",
                 top_k=top_k,
                 score_threshold=score_threshold,
-                filter={"group_id": [knowledge_base.id]},
-                knowledge_ids_filter=knowledge_ids_filter,
+                **kwargs,
             )
-            logger.debug(f"Embedding search found {len(documents)} documents.")
+            logger.debug("%Embedding search found {len(documents)} documents.")
             if documents:
                 all_documents.extend(documents)
         except Exception as e:
@@ -160,7 +164,7 @@ class RetrievalService:
         reranking_model: Optional[dict],
         all_documents: list,
         exceptions: list,
-        knowledge_ids_filter: Optional[list[str]] = None,
+        **kwargs
     ):
         try:
             if knowledge_base_id:
@@ -171,9 +175,9 @@ class RetrievalService:
                 vector_processor = Vector(knowledge=knowledge_base)
 
                 documents = vector_processor.search_by_full_text(
-                    cls.escape_query_for_search(query), top_k=top_k, knowledge_ids_filter=knowledge_ids_filter
+                    cls.escape_query_for_search(query), top_k=top_k, **kwargs
                 )
-                logger.debug(f"Full Text search found {len(documents)} documents.")
+                logger.debug("%Full Text search found {len(documents)} documents.")
                 if documents:
                     all_documents.extend(documents)
         except Exception as e:

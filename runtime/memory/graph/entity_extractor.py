@@ -10,7 +10,7 @@ import hashlib
 import json
 import logging
 
-from runtime.memory.types.base import Entity, EntityType, Relation
+from runtime.memory.types import Entity, Relation
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +46,15 @@ class EntityExtractor:
 
         try:
             # 懒导入以避免导入错误
+            from runtime.agent import TripleCleaner
             from runtime.generator.generator import LLMGenerator
-            from runtime.agent.clean.triple_clean import TripleCleaner
 
             # 1. 使用LLM提取三元组
             triples_json = LLMGenerator.generate_triples(text)
             triples_data = json.loads(triples_json)
 
             # 2. 转换为元组格式并清理
-            raw_triples = [
-                (t["subject"], t["relation"], t["object"])
-                for t in triples_data
-            ]
+            raw_triples = [(t["subject"], t["relation"], t["object"]) for t in triples_data]
 
             cleaner = TripleCleaner(doc_lang=self._language)
             cleaned_triples = cleaner.deduplicate(triples=raw_triples)
@@ -82,27 +79,13 @@ class EntityExtractor:
             object_id = self._generate_entity_id(object_name)
 
             # 创建实体
-            subject_entity = Entity(
-                id=subject_id,
-                name=subject_name,
-                type=EntityType.CONCEPT,
-                properties={}
-            )
+            subject_entity = Entity(id=subject_id, name=subject_name, properties={})
 
-            object_entity = Entity(
-                id=object_id,
-                name=object_name,
-                type=EntityType.CONCEPT,
-                properties={}
-            )
+            object_entity = Entity(id=object_id, name=object_name, properties={})
 
             # 创建关系
             relation = Relation(
-                source_id=subject_id,
-                target_id=object_id,
-                type=relation_type,
-                properties={},
-                weight=1.0
+                source_id=subject_id, target_id=object_id, type=relation_type, properties={}, weight=1.0
             )
 
             result.append((subject_entity, relation, object_entity))
@@ -112,5 +95,5 @@ class EntityExtractor:
     def _generate_entity_id(self, name: str) -> str:
         """生成实体的确定性ID。"""
         # 使用名称的哈希来生成确定性ID
-        name_hash = hashlib.md5(name.encode('utf-8')).hexdigest()[:8]
+        name_hash = hashlib.md5(name.encode("utf-8")).hexdigest()
         return f"entity_{name_hash}"

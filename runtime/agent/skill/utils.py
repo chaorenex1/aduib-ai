@@ -7,7 +7,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 
 def is_safe_path(base_dir: Path, requested_path: str) -> bool:
@@ -59,7 +59,7 @@ def parse_shebang(script_path: Path) -> Optional[str]:
         The interpreter name (e.g., "python3", "bash") or None if no valid shebang.
     """
     try:
-        with open(script_path, "r", encoding="utf-8") as f:
+        with open(script_path, encoding="utf-8") as f:
             first_line = f.readline().strip()
     except (OSError, UnicodeDecodeError):
         return None
@@ -87,7 +87,7 @@ def parse_shebang(script_path: Path) -> Optional[str]:
     return Path(interpreter_path).name
 
 
-def get_interpreter_command(interpreter: str) -> List[str]:
+def get_interpreter_command(interpreter: str) -> list[str]:
     """Map an interpreter name to a Windows-compatible command.
 
     Args:
@@ -109,7 +109,7 @@ def get_interpreter_command(interpreter: str) -> List[str]:
     return [interpreter]
 
 
-def _build_windows_command(script_path: Path, args: List[str]) -> List[str]:
+def _build_windows_command(script_path: Path, args: list[str]) -> list[str]:
     """Build the command list for executing a script on Windows.
 
     On Windows, shebang lines are not processed by the OS, so we need to
@@ -143,7 +143,7 @@ class ScriptResult:
 
 def run_script(
     script_path: Path,
-    args: Optional[List[str]] = None,
+    args: Optional[list[str]] = None,
     timeout: int = 30,
     cwd: Optional[Path] = None,
 ) -> ScriptResult:

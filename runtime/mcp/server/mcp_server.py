@@ -1,16 +1,17 @@
+import inspect
 import json
 import logging
 import uuid
 from typing import cast
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from configs import config
 from models import McpServer
 from models.engine import get_db
 from models.user import McpUser
 from runtime.mcp import types
-from runtime.mcp.types import METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
+from runtime.mcp.types import INTERNAL_ERROR, INVALID_PARAMS, METHOD_NOT_FOUND
 from runtime.mcp.utils import create_mcp_error_response
 from runtime.tool.mcp.tool_provider import McpToolController
 from utils import jsonable_encoder
@@ -67,7 +68,7 @@ class MCPServerStreamableHTTPRequestHandler:
         request_id = (self.request.root.model_extra or {}).get("id", 1) or 1
         return create_mcp_error_response(request_id, code, message, data)
 
-    def handle(self):
+    async def handle(self):
         handle_map = {
             types.InitializeRequest: self.initialize,
             types.ListToolsRequest: self.list_tools,
@@ -77,7 +78,12 @@ class MCPServerStreamableHTTPRequestHandler:
         }
         try:
             if self.request_type in handle_map:
-                return self.response(handle_map[self.request_type]())
+                if handle_map[self.request_type] is not None:
+                    handle = handle_map[self.request_type]
+                    if inspect.isawaitable(handle) and inspect.iscoroutine(handle):
+                        return self.response(await handle())
+                    else:
+                        return self.response(handle())
             else:
                 return self.error_response(METHOD_NOT_FOUND, f"Method not found: {self.request_type}")
         except ValueError as e:
@@ -129,12 +135,12 @@ class MCPServerStreamableHTTPRequestHandler:
             ],
         )
 
-    def invoke_tool(self):
+    async def invoke_tool(self):
         if not self.end_user:
             raise ValueError("User not found")
         request = cast(types.CallToolRequest, self.request.root)
         params = request.params
-        tool_invoke_result = self.mcp_tool_controller.get_tool(params.name).invoke(
+        tool_invoke_result = await self.mcp_tool_controller.get_tool(params.name).invoke(
             tool_parameters=params.arguments, message_id=""
         )
         result = next(tool_invoke_result)

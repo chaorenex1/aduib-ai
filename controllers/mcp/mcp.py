@@ -10,8 +10,8 @@ from models import McpServer
 from models.engine import get_db
 from runtime.mcp import types
 from runtime.mcp.server.mcp_server import MCPServerStreamableHTTPRequestHandler
-from runtime.mcp.types import ClientRequest, ClientNotification
-from runtime.mcp.utils import create_mcp_error_response, compact_generate_response
+from runtime.mcp.types import ClientNotification, ClientRequest
+from runtime.mcp.utils import compact_generate_response, create_mcp_error_response
 
 router = APIRouter(tags=["mcp"], prefix="/mcp")
 
@@ -65,5 +65,5 @@ async def mcp_chat_completions(server_code: str, request: Request, current_key: 
             )
 
     mcp_server_handler = MCPServerStreamableHTTPRequestHandler(request, mcp_server)
-    response = mcp_server_handler.handle()
+    response = await mcp_server_handler.handle()
     return compact_generate_response(response)

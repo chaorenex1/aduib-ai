@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Sequence, Union
+from collections.abc import Sequence
+from typing import Optional, Union
 
-from ..entities import PromptMessage, ChatCompletionResponseChunk, ChatCompletionResponse, PromptMessageFunction
+from ..entities import ChatCompletionResponse, ChatCompletionResponseChunk, PromptMessage, PromptMessageFunction
 from ..model_execution import AiModel
 
 
@@ -25,6 +26,8 @@ class Callback(ABC):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
         """
         Before invoke callback
@@ -56,6 +59,8 @@ class Callback(ABC):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ):
         """
         On new chunk callback
@@ -88,6 +93,8 @@ class Callback(ABC):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
         """
         After invoke callback
@@ -120,6 +127,8 @@ class Callback(ABC):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
         """
         Invoke error callback

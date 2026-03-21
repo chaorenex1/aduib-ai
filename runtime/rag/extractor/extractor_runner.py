@@ -1,6 +1,5 @@
 import os.path
 import shutil
-import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -33,15 +32,13 @@ class ExtractorRunner:
             input_file = Path(target_file)
             file_type = input_file.suffix.lower()
             extractor: Optional[BaseExtractor] = None
-            if file_type == ".pdf":
-                ...
-            elif file_type in [".doc", ".docx"]:
-                ...
-            elif file_type in [".xls", ".xlsx"]:
-                ...
-            elif file_type == ".csv":
-                ...
-            elif file_type in [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif"]:
+            if (
+                file_type == ".pdf"
+                or file_type in [".doc", ".docx"]
+                or file_type in [".xls", ".xlsx"]
+                or file_type == ".csv"
+                or file_type in [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif"]
+            ):
                 ...
             elif file_type in [".md", ".markdown", ".mdx"]:
                 extractor = MarkdownExtractor(target_file, encoding="utf-8")

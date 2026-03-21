@@ -1,5 +1,6 @@
-from datetime import datetime, UTC
-from typing import Any, Union, Generator
+from collections.abc import Generator
+from datetime import UTC, datetime
+from typing import Any, Union
 
 from pytz import timezone as pytz_timezone
 

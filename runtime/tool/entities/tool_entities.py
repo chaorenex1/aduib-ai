@@ -1,9 +1,11 @@
+from collections.abc import Callable
 from enum import StrEnum
 from typing import Optional, Union
 
 from pydantic import BaseModel
 
-from runtime.mcp.types import TextContent, ImageContent, EmbeddedResource, BlobResourceContents, TextResourceContents
+from runtime.entities import AnthropicTool, PromptMessageFunction, ResponseFunctionTool
+from runtime.mcp.types import BlobResourceContents, EmbeddedResource, ImageContent, TextContent, TextResourceContents
 
 
 class McpTransportType(StrEnum):
@@ -42,7 +44,8 @@ class ToolProviderType(StrEnum):
     BUILTIN = "builtin"
     API = "api"
     MCP = "mcp"
-    local = "local"
+    LOCAL = "local"
+    SKILL = "skill"
 
     @classmethod
     def value_of(cls, value: str) -> "ToolProviderType":
@@ -60,7 +63,9 @@ class ToolProviderType(StrEnum):
         elif type == "mcp":
             return cls.MCP
         elif type == "local":
-            return cls.local
+            return cls.LOCAL
+        elif type == "skill":
+            return cls.SKILL
         else:
             raise ValueError(f"Invalid ToolProviderType value: {type}")
 
@@ -102,10 +107,55 @@ class ToolEntity(BaseModel):
     provider: str = ""
     type: ToolProviderType = ToolProviderType.BUILTIN
     credentials: CredentialType = CredentialType.NONE
-    side_effect: bool = True  # True = mutation, False = read-only safe to speculate
+    entrypoint: Optional[Callable] = None
 
     def is_local(self) -> bool:
-        return self.type == ToolProviderType.local
+        return self.type == ToolProviderType.LOCAL
+
+    def get_schema(self) -> dict[str, str]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "provider": self.provider,
+            "type": self.type.value,
+        }
+
+    def convert_to_openai_tool(self) -> PromptMessageFunction:
+        from runtime.entities.message_entities import PromptMessageTool
+
+        return PromptMessageFunction(
+            function=PromptMessageTool(
+                name=self.name,
+                description=self.description,
+                parameters=self.parameters or {},
+            )
+        )
+
+    def convert_to_anthropic_tool(self) -> AnthropicTool:
+        return AnthropicTool(
+            name=self.name,
+            description=self.description,
+            input_schema=self.parameters or {},
+        )
+
+    def convert_to_response_tool(self) -> ResponseFunctionTool:
+        return ResponseFunctionTool(
+            name=self.name,
+            description=self.description,
+            parameters=self.parameters or {},
+        )
+
+
+class ToolInvokeParams(BaseModel):
+    """
+    Model for tool invoke parameters.
+    """
+
+    name: str
+    arguments: str
+    message_id: Optional[str] = None
+    tool_provider: Optional[ToolProviderType] = None
+    tool_call_id: Optional[str] = None
 
 
 class ToolInvokeResult(BaseModel):
@@ -114,13 +164,10 @@ class ToolInvokeResult(BaseModel):
     success: bool = True
     error: Optional[str] = None
     meta: Optional[dict] = None
+    tool_call_id: Optional[str] = None
 
     def to_normal(self) -> str | None:
-        if isinstance(self.data, dict):
-            import json
-
-            return json.dumps(self.data, ensure_ascii=False)
-        elif isinstance(self.data, list):
+        if isinstance(self.data, dict) or isinstance(self.data, list):
             import json
 
             return json.dumps(self.data, ensure_ascii=False)

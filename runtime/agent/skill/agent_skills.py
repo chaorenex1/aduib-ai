@@ -1,14 +1,17 @@
 import json
+import logging
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
-from agno.skills.errors import SkillValidationError
-from agno.skills.loaders.base import SkillLoader
-from agno.skills.skill import Skill
-from agno.skills.utils import is_safe_path, read_file_safe, run_script
-from agno.tools.function import Function
-from agno.utils.log import log_debug, log_warning
+from runtime.agent.skill.errors import SkillValidationError
+from runtime.agent.skill.loaders.base import SkillLoader
+from runtime.agent.skill.skill import Skill
+from runtime.agent.skill.utils import is_safe_path, read_file_safe, run_script
+from runtime.tool.entities import ToolEntity
+from runtime.tool.skill.tool import SkillTool
+
+logger = logging.getLogger(__name__)
 
 
 class Skills:
@@ -24,9 +27,9 @@ class Skills:
         loaders: List of SkillLoader instances to load skills from.
     """
 
-    def __init__(self, loaders: List[SkillLoader]):
+    def __init__(self, loaders: list[SkillLoader]):
         self.loaders = loaders
-        self._skills: Dict[str, Skill] = {}
+        self._skills: dict[str, Skill] = {}
         self._load_skills()
 
     def _load_skills(self) -> None:
@@ -40,14 +43,14 @@ class Skills:
                 skills = loader.load()
                 for skill in skills:
                     if skill.name in self._skills:
-                        log_warning(f"Duplicate skill name '{skill.name}', overwriting with newer version")
+                        logger.debug("%Duplicate skill name '{skill.name}', overwriting with newer version")
                     self._skills[skill.name] = skill
             except SkillValidationError:
                 raise  # Re-raise validation errors as hard failures
             except Exception as e:
-                log_warning(f"Error loading skills from {loader}: {e}")
+                logger.warning("%Error loading skills from {loader}: {e}")
 
-        log_debug(f"Loaded {len(self._skills)} total skills")
+        logger.debug("%Loaded {len(self._skills)} total skills")
 
     def reload(self) -> None:
         """Reload skills from all loaders, clearing existing skills.
@@ -69,7 +72,7 @@ class Skills:
         """
         return self._skills.get(name)
 
-    def get_all_skills(self) -> List[Skill]:
+    def get_all_skills(self) -> list[Skill]:
         """Get all loaded skills.
 
         Returns:
@@ -77,7 +80,7 @@ class Skills:
         """
         return list(self._skills.values())
 
-    def get_skill_names(self) -> List[str]:
+    def get_skill_names(self) -> list[str]:
         """Get the names of all loaded skills.
 
         Returns:
@@ -145,38 +148,44 @@ class Skills:
 
         return "\n".join(lines)
 
-    def get_tools(self) -> List[Function]:
+    def get_tools(self) -> list[SkillTool]:
         """Get the tools for accessing skills.
 
         Returns:
-            A list of Function objects that agents can use to access skills.
+            A list of ToolEntity objects that agents can use to access skills.
         """
-        tools: List[Function] = []
+        tools: list[SkillTool] = []
 
         # Tool: get_skill_instructions
         tools.append(
-            Function(
-                name="get_skill_instructions",
-                description="Load the full instructions for a skill. Use this when you need to follow a skill's guidance.",
-                entrypoint=self._get_skill_instructions,
+            SkillTool(
+                entity=ToolEntity(
+                    name="get_skill_instructions",
+                    description="Load the full instructions for a skill. Use this when you need to follow a skill's guidance.",
+                    entrypoint=self._get_skill_instructions,
+                )
             )
         )
 
         # Tool: get_skill_reference
         tools.append(
-            Function(
-                name="get_skill_reference",
-                description="Load a reference document from a skill's references. Use this to access detailed documentation.",
-                entrypoint=self._get_skill_reference,
+            SkillTool(
+                entity=ToolEntity(
+                    name="get_skill_reference",
+                    description="Load a reference document from a skill's references. Use this to access detailed documentation.",
+                    entrypoint=self._get_skill_reference,
+                )
             )
         )
 
         # Tool: get_skill_script
         tools.append(
-            Function(
-                name="get_skill_script",
-                description="Read or execute a script from a skill. Set execute=True to run the script and get output, or execute=False (default) to read the script content.",
-                entrypoint=self._get_skill_script,
+            SkillTool(
+                entity=ToolEntity(
+                    name="get_skill_script",
+                    description="Read or execute a script from a skill. Set execute=True to run the script and get output, or execute=False (default) to read the script content.",
+                    entrypoint=self._get_skill_script,
+                )
             )
         )
 
@@ -274,7 +283,7 @@ class Skills:
         skill_name: str,
         script_path: str,
         execute: bool = False,
-        args: Optional[List[str]] = None,
+        args: Optional[list[str]] = None,
         timeout: int = 30,
     ) -> str:
         """Read or execute a script from a skill.

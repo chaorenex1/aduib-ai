@@ -1,4 +1,5 @@
-from typing import Any, Union, Generator
+from collections.abc import Generator
+from typing import Any, Union
 
 from runtime.tool.builtin_tool.tool import BuiltinTool
 from runtime.tool.entities import ToolInvokeResult

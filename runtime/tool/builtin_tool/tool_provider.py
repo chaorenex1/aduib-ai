@@ -1,9 +1,10 @@
 import os
+from pathlib import Path
 
 from runtime.tool.base.tool_provider import ToolController
 from runtime.tool.builtin_tool.tool import BuiltinTool
 from runtime.tool.entities import ToolEntity
-from utils import load_single_subclass_from_source, load_yaml_files
+from utils import load_single_subclass_from_source, load_yaml_file
 
 
 class BuiltinToolController(ToolController):
@@ -44,7 +45,7 @@ class BuiltinToolController(ToolController):
         """
         for tool in self.tools:
             if tool.entity.name == tool_name:
-                return
+                return tool.entity.model_json_schema()
         raise ValueError(f"Tool {tool_name} not found.")
 
     def load_tools(self) -> list[BuiltinTool]:
@@ -54,22 +55,19 @@ class BuiltinToolController(ToolController):
         """
 
         tools_dir = os.path.join(os.path.dirname(__file__), "providers")
-        tools_yamls = load_yaml_files(tools_dir)
-        tool_entities = []
         tools = []
-        if tools_yamls:
-            tool_entities = [ToolEntity(**tool) for tool in tools_yamls]
-        for tool_entity in tool_entities:
+        yaml_paths = sorted(path for path in Path(tools_dir).rglob("*.yaml") if not path.name.startswith("__"))
+        for yaml_path in yaml_paths:
+            tool_config = load_yaml_file(str(yaml_path), ignore_error=True, default_value=None)
+            if not isinstance(tool_config, dict) or not tool_config:
+                continue
+            tool_entity = ToolEntity(**tool_config)
+            module_stem = yaml_path.stem
+            provider_dir = yaml_path.parent.name
             # get tool class, import the module
             assistant_tool_class: type[BuiltinTool] = load_single_subclass_from_source(
-                module_name=f"runtime.tool.builtin_tool.providers.{tool_entity.name}.{tool_entity.name}",
-                script_path=os.path.join(
-                    os.path.dirname(os.path.realpath(__file__)),
-                    # "builtin_tool",
-                    "providers",
-                    tool_entity.name,
-                    f"{tool_entity.name}.py",
-                ),
+                module_name=f"runtime.tool.builtin_tool.providers.{provider_dir}.{module_stem}",
+                script_path=str(yaml_path.with_suffix(".py")),
                 parent_type=BuiltinTool,
             )
             tools.append(

@@ -1,7 +1,7 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, File, UploadFile
 from starlette.responses import StreamingResponse
 
-from controllers.common.base import catch_exceptions, BaseResponse
+from controllers.common.base import BaseResponse, catch_exceptions
 from service import FileService
 
 router = APIRouter(tags=["file_upload"])

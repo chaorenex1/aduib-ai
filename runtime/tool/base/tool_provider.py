@@ -1,6 +1,9 @@
+import logging
 from abc import ABC, abstractmethod
 
 from .tool import Tool
+
+logger = logging.getLogger(__name__)
 
 
 class ToolController(ABC):

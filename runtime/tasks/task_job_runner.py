@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from runtime.task.dispatcher import TaskDispatcher
+from runtime.tasks.dispatcher import TaskDispatcher
 from runtime.tasks.celery_app import celery_app
 from service.task_job_service import TaskJobError, TaskJobService
 

@@ -12,7 +12,14 @@ from __future__ import annotations
 
 from runtime.entities.anthropic_entities import AnthropicMessageRequest, AnthropicMessageResponse, AnthropicStreamEvent
 from runtime.entities.llm_entities import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionResponseChunk
+from runtime.entities.protocol_entities import (
+    AnyProtocolRequest,
+    AnyProtocolResponse,
+    AnyProtocolStreamEvent,
+    ExternalProtocol,
+)
 from runtime.entities.response_entities import ResponseOutput, ResponseRequest, ResponseStreamEvent
+from runtime.protocol.registry import ProtocolAdapterRegistry
 from runtime.protocol._openai_anthropic import (
     StreamingToolCallCollector,
     anthropic_response_to_openai,
@@ -149,6 +156,39 @@ class ProtocolConverter:
         """Convert Responses API SSE event -> Anthropic SSE events (via OpenAI)."""
         chunk = responses_stream_to_openai(event)
         return openai_stream_to_anthropic(chunk)
+
+    @staticmethod
+    def adapt_request(
+        req: AnyProtocolRequest,
+        *,
+        source_protocol: ExternalProtocol,
+        target_protocol: ExternalProtocol,
+    ) -> AnyProtocolRequest:
+        """Convert a request object from one external protocol into another."""
+        adapter = ProtocolAdapterRegistry.get_ingress_adapter(source_protocol, target_protocol)
+        return adapter.adapt(req)
+
+    @staticmethod
+    def adapt_response(
+        resp: AnyProtocolResponse,
+        *,
+        source_protocol: ExternalProtocol,
+        target_protocol: ExternalProtocol,
+    ) -> AnyProtocolResponse:
+        """Convert a non-streaming response object from one protocol into another."""
+        adapter = ProtocolAdapterRegistry.get_egress_adapter(source_protocol, target_protocol)
+        return adapter.adapt_response(resp)
+
+    @staticmethod
+    def adapt_stream_event(
+        event: AnyProtocolStreamEvent,
+        *,
+        source_protocol: ExternalProtocol,
+        target_protocol: ExternalProtocol,
+    ) -> list[AnyProtocolStreamEvent]:
+        """Convert a single streaming event from one protocol into another."""
+        adapter = ProtocolAdapterRegistry.get_egress_adapter(source_protocol, target_protocol)
+        return adapter.adapt_stream_event(event)
 
     @staticmethod
     def reset_stream_state():

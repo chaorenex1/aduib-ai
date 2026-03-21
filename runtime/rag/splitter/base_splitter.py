@@ -1,6 +1,6 @@
 import logging
-from abc import abstractmethod, ABC
-from typing import Sequence, Iterable, Optional, Callable
+from abc import ABC, abstractmethod
+from collections.abc import Callable, Sequence
 
 from runtime.entities.document_entities import BaseDocumentTransformer, Document
 

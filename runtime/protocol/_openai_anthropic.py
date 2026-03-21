@@ -221,20 +221,19 @@ def anthropic_to_openai(req: AnthropicMessageRequest) -> ChatCompletionRequest:
             raw_messages.append({"role": msg.role, "content": msg.content})
             continue
 
-        # Process content blocks
-        text_parts: list[dict] = []
-        tool_calls: list[dict] = []
-        tool_results: list[dict] = []
+        pending_text_parts: list[dict[str, str]] = []
+        pending_tool_calls: list[dict[str, Any]] = []
+        tool_results: list[dict[str, Any]] = []
 
         for block in msg.content:
             if isinstance(block, AnthropicTextBlock):
-                text_parts.append({"type": "text", "text": block.text})
+                pending_text_parts.append({"type": "text", "text": block.text})
             elif isinstance(block, AnthropicThinkingBlock):
                 # Represent thinking as a text part for OpenAI compat
                 if block.thinking:
-                    text_parts.append({"type": "text", "text": block.thinking})
+                    pending_text_parts.append({"type": "text", "text": block.thinking})
             elif isinstance(block, AnthropicToolUseBlock):
-                tool_calls.append(
+                pending_tool_calls.append(
                     {
                         "type": "function",
                         "id": block.id,
@@ -253,15 +252,19 @@ def anthropic_to_openai(req: AnthropicMessageRequest) -> ChatCompletionRequest:
                         "content": content_str,
                     }
                 )
+            else:
+                block_text = extract_text_content(getattr(block, "content", None))
+                if block_text:
+                    pending_text_parts.append({"type": "text", "text": block_text})
 
+        if pending_text_parts or pending_tool_calls:
+            msg_dict: dict[str, Any] = {"role": msg.role}
+            msg_dict["content"] = extract_text_content(pending_text_parts) if pending_text_parts else ""
+            if pending_tool_calls:
+                msg_dict["tool_calls"] = pending_tool_calls
+            raw_messages.append(msg_dict)
         if tool_results:
             raw_messages.extend(tool_results)
-        else:
-            msg_dict: dict[str, Any] = {"role": msg.role}
-            msg_dict["content"] = text_parts if text_parts else ""
-            if tool_calls:
-                msg_dict["tool_calls"] = tool_calls
-            raw_messages.append(msg_dict)
 
     # Tools
     openai_tools: Optional[list[dict]] = None
@@ -547,50 +550,76 @@ def anthropic_stream_to_openai(
         anthropic_stream_to_openai._state = {
             "id": None,
             "model": None,
-            "text": "",
-            "tool_calls": [],
+            "tool_calls": {},
             "finish_reason": None,
             "usage": None,
         }
 
     state = anthropic_stream_to_openai._state
+    delta_message: Optional[AssistantPromptMessage] = None
+    finish_reason: Optional[str] = None
 
     if isinstance(event, AnthropicMessageStartEvent):
         state["id"] = event.message.id if event.message else None
         state["model"] = event.message.model if event.message else None
         state["usage"] = event.message.usage if event.message else None
-        state["text"] = ""
-        state["tool_calls"] = []
+        state["tool_calls"] = {}
         state["finish_reason"] = None
 
     elif isinstance(event, AnthropicContentBlockDeltaEvent):
         delta = event.delta
         if delta:
             if delta.type == AnthropicStreamDeltaType.TEXT_DELTA and delta.text:
-                state["text"] += delta.text
+                delta_message = AssistantPromptMessage(content=delta.text)
             elif delta.type == AnthropicStreamDeltaType.INPUT_JSON_DELTA:
-                # Accumulate tool call arguments
-                if state["tool_calls"]:
-                    tc = state["tool_calls"][-1]
+                tc = state["tool_calls"].get(event.index)
+                if tc is not None:
                     tc["arguments"] = (tc.get("arguments") or "") + (delta.partial_json or "")
+                    delta_message = AssistantPromptMessage(
+                        content="",
+                        tool_calls=[
+                            AssistantPromptMessage.ToolCall(
+                                index=event.index,
+                                id=tc["id"],
+                                type="function",
+                                function=AssistantPromptMessage.ToolCall.ToolCallFunction(
+                                    name=tc["name"],
+                                    arguments=delta.partial_json or "",
+                                ),
+                            )
+                        ],
+                    )
 
     elif isinstance(event, AnthropicContentBlockStartEvent):
         if event.content_block and event.content_block.type == "tool_use":
-            state["tool_calls"].append(
-                {
-                    "id": event.content_block.id,
-                    "name": event.content_block.name,
-                    "arguments": "",
-                }
+            state["tool_calls"][event.index] = {
+                "id": event.content_block.id,
+                "name": event.content_block.name,
+                "arguments": "",
+            }
+            delta_message = AssistantPromptMessage(
+                content="",
+                tool_calls=[
+                    AssistantPromptMessage.ToolCall(
+                        index=event.index,
+                        id=event.content_block.id,
+                        type="function",
+                        function=AssistantPromptMessage.ToolCall.ToolCallFunction(
+                            name=event.content_block.name,
+                            arguments="",
+                        ),
+                    )
+                ],
             )
 
     elif isinstance(event, AnthropicMessageDeltaEvent):
         if event.delta:
-            state["finish_reason"] = map_stop_reason_to_openai(
+            finish_reason = map_stop_reason_to_openai(
                 event.delta.stop_reason.value
                 if hasattr(event.delta.stop_reason, "value")
                 else str(event.delta.stop_reason or "")
             )
+            state["finish_reason"] = finish_reason
         if event.usage:
             state["usage"] = event.usage
 
@@ -601,31 +630,12 @@ def anthropic_stream_to_openai(
         choices=[],
     )
 
-    if state["text"] or state["tool_calls"] or state["finish_reason"]:
-        delta = AssistantPromptMessage(content=state["text"])
-        if state["tool_calls"]:
-            delta.tool_calls = []
-            for tc in state["tool_calls"]:
-                try:
-                    args = json.loads(tc["arguments"]) if tc["arguments"] else {}
-                except Exception:
-                    args = {}
-                delta.tool_calls.append(
-                    AssistantPromptMessage.ToolCall(
-                        id=tc["id"],
-                        type="function",
-                        function=AssistantPromptMessage.ToolCall.ToolCallFunction(
-                            name=tc["name"],
-                            arguments=json.dumps(args),
-                        ),
-                    )
-                )
-
+    if delta_message is not None or finish_reason is not None:
         chunk.choices = [
             ChatCompletionResponseChunkDelta(
                 index=0,
-                delta=delta,
-                finish_reason=state["finish_reason"],
+                delta=delta_message or AssistantPromptMessage(content=""),
+                finish_reason=finish_reason,
             )
         ]
 
@@ -647,8 +657,7 @@ def reset_anthropic_stream_state():
         anthropic_stream_to_openai._state = {
             "id": None,
             "model": None,
-            "text": "",
-            "tool_calls": [],
+            "tool_calls": {},
             "finish_reason": None,
             "usage": None,
         }
@@ -668,6 +677,7 @@ class StreamingToolCallCollector:
 
     def __init__(self):
         self._tool_calls: dict[str, dict] = {}  # tool_use_id -> {name, arguments, input}
+        self._tool_call_index_map: dict[int, str] = {}
         self._message_id: str = ""
 
     def process_event(self, event: AnthropicStreamEvent) -> None:
@@ -684,15 +694,14 @@ class StreamingToolCallCollector:
                     "arguments": "",
                     "input": block.input or {},
                 }
+                self._tool_call_index_map[event.index] = block.id
 
         elif isinstance(event, AnthropicContentBlockDeltaEvent):
             delta = event.delta
             if delta and delta.type == AnthropicStreamDeltaType.INPUT_JSON_DELTA:
-                # Find the tool call by index (simplified - assumes sequential)
-                for tc in self._tool_calls.values():
-                    if tc["arguments"] == "" or tc["arguments"].endswith('"'):
-                        tc["arguments"] += delta.partial_json or ""
-                        break
+                tool_call_id = self._tool_call_index_map.get(event.index)
+                if tool_call_id and tool_call_id in self._tool_calls:
+                    self._tool_calls[tool_call_id]["arguments"] += delta.partial_json or ""
 
     def get_completed_tool_calls(self) -> list[dict]:
         """Get all accumulated tool calls with parsed input."""
@@ -721,6 +730,7 @@ class StreamingToolCallCollector:
     def clear(self) -> None:
         """Clear accumulated tool calls."""
         self._tool_calls.clear()
+        self._tool_call_index_map.clear()
         self._message_id: str = ""
 
 

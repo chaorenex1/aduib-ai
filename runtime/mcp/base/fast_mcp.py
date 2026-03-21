@@ -616,8 +616,7 @@ class FastMCP:
             return endpoint
 
         # Remove trailing slash from mount path
-        if mount_path.endswith("/"):
-            mount_path = mount_path[:-1]
+        mount_path = mount_path.removesuffix("/")
 
         # Ensure endpoint starts with slash
         if not endpoint.startswith("/"):

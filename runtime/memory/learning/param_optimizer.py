@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -51,6 +52,27 @@ PARAM_BOUNDS: dict = {
     },
 }
 
+PARAM_MAX_DELTAS: dict = {
+    "quality_scorer": {
+        "recency_half_life_days": 10.0,
+        "max_access_saturation": 3,
+        "max_tag_saturation": 2,
+        "weight_recency": 0.08,
+        "weight_usage": 0.08,
+        "weight_richness": 0.08,
+    },
+    "insight_distiller": {
+        "min_episodic_count": 1,
+        "max_topics_per_run": 3,
+    },
+    "memory_pruner": {
+        "quality_threshold": 0.05,
+        "inactive_days": 14,
+        "retention_threshold": 0.04,
+        "half_life_hours": 48.0,
+    },
+}
+
 
 def _clamp(value, lo, hi):
     return max(lo, min(hi, value))
@@ -95,6 +117,8 @@ class ParamOptimizer:
 
     OPTIMIZE_MIN_CYCLES: int = 7  # 至少有这么多次 learning log 才触发
     OPTIMIZE_INTERVAL_DAYS: int = 7  # 上次优化距今超过 N 天才重新优化
+    OPTIMIZE_MIN_RETRIEVAL_QUERIES: int = 8
+    OPTIMIZE_MIN_EXPOSED_MEMORIES: int = 5
 
     def __init__(self, user_id: str) -> None:
         self.user_id = user_id
@@ -146,6 +170,16 @@ class ParamOptimizer:
         """执行一次参数优化，返回是否成功写入新参数。"""
         try:
             stats = self._collect_stats()
+            evidence_ok, evidence_reasons, evidence_summary = self._assess_optimization_evidence(stats)
+            if not evidence_ok:
+                logger.info(
+                    "ParamOptimizer: skipped for user %s due to insufficient evidence: %s | summary=%s",
+                    self.user_id,
+                    "; ".join(evidence_reasons),
+                    json.dumps(evidence_summary, ensure_ascii=False, sort_keys=True),
+                )
+                return False
+
             from runtime.generator.generator import LLMGenerator
 
             raw = LLMGenerator.evaluate_learning_params(stats)
@@ -153,8 +187,12 @@ class ParamOptimizer:
                 logger.warning("ParamOptimizer: LLM returned empty result for user %s", self.user_id)
                 return False
 
-            validated = _validate_params(raw)
+            candidate_params = _validate_params(raw)
+            current_params = _validate_params(stats.get("current_params", DEFAULT_PARAMS))
+            validated, change_limit_summary = self._apply_param_change_limits(current_params, candidate_params)
             reasoning = raw.get("reasoning", "")
+            debug_snapshot = self._build_optimizer_debug_snapshot(stats, raw, validated, change_limit_summary)
+            reasoning_with_snapshot = self._format_reasoning_with_snapshot(reasoning, debug_snapshot)
 
             from models.engine import get_db
             from models.memory_learning_params import MemoryLearningParams
@@ -164,7 +202,7 @@ class ParamOptimizer:
                     MemoryLearningParams(
                         user_id=self.user_id,
                         params=validated,
-                        reasoning=reasoning,
+                        reasoning=reasoning_with_snapshot,
                     )
                 )
                 session.commit()
@@ -173,6 +211,11 @@ class ParamOptimizer:
                 "ParamOptimizer: wrote new params for user %s — reasoning: %s",
                 self.user_id,
                 reasoning[:120] if reasoning else "(none)",
+            )
+            logger.info(
+                "ParamOptimizer: debug snapshot for user %s: %s",
+                self.user_id,
+                json.dumps(debug_snapshot, ensure_ascii=False, sort_keys=True),
             )
             return True
 
@@ -230,6 +273,366 @@ class ParamOptimizer:
         trends["error_rate"] = round(error_count / n, 3)
         return trends
 
+    @staticmethod
+    def _summarize_retrieval_rows(rows: list[dict]) -> dict:
+        """压缩检索质量指标，供趋势分析和 LLM 调参参考。"""
+        if not rows:
+            return {"query_count": 0}
+
+        n = len(rows)
+
+        def avg(key: str, digits: int = 4) -> float:
+            vals = [float(r.get(key, 0.0) or 0.0) for r in rows]
+            return round(sum(vals) / n, digits) if vals else 0.0
+
+        return {
+            "query_count": n,
+            "success_rate": avg("success_rate"),
+            "empty_rate": avg("empty_rate"),
+            "result_fill_rate": avg("result_fill_rate"),
+            "avg_final_score": avg("avg_final_score"),
+            "avg_selection_rate": avg("avg_selection_rate"),
+            "supported_result_ratio": avg("supported_result_ratio"),
+            "expansion_result_ratio": avg("expansion_result_ratio"),
+            "avg_latency_ms": avg("avg_latency_ms", digits=1),
+            "avg_react_steps": avg("avg_react_steps", digits=3),
+        }
+
+    @classmethod
+    def _compute_retrieval_trends(cls, retrievals: list[dict]) -> dict:
+        """将最近检索日志压缩为更贴近质量的趋势摘要。"""
+        if not retrievals:
+            return {
+                "query_count": 0,
+                "overall": {"query_count": 0},
+                "trends": {},
+                "stop_reason_dist": {},
+                "by_type": {},
+            }
+
+        n = len(retrievals)
+        mid = max(1, n // 2)
+        early = retrievals[:mid]
+        recent = retrievals[mid:]
+
+        overall = cls._summarize_retrieval_rows(retrievals)
+        early_summary = cls._summarize_retrieval_rows(early)
+        recent_summary = cls._summarize_retrieval_rows(recent)
+
+        thresholds = {
+            "success_rate": 0.02,
+            "empty_rate": 0.02,
+            "result_fill_rate": 0.03,
+            "avg_final_score": 0.03,
+            "avg_selection_rate": 0.03,
+            "supported_result_ratio": 0.03,
+            "expansion_result_ratio": 0.03,
+            "avg_latency_ms": 50.0,
+            "avg_react_steps": 0.25,
+        }
+
+        trends: dict[str, dict] = {"query_count": n}
+        for metric, stable_threshold in thresholds.items():
+            early_avg = float(early_summary.get(metric, 0.0) or 0.0)
+            recent_avg = float(recent_summary.get(metric, 0.0) or 0.0)
+            delta = round(recent_avg - early_avg, 4)
+            if abs(delta) < stable_threshold:
+                direction = "stable"
+            elif delta > 0:
+                direction = "rising"
+            else:
+                direction = "falling"
+            trends[metric] = {
+                "early_avg": round(early_avg, 4),
+                "recent_avg": round(recent_avg, 4),
+                "delta": delta,
+                "direction": direction,
+            }
+
+        stop_reason_dist: dict[str, float] = {}
+        stop_reason_counts: dict[str, int] = {}
+        for retrieval in retrievals:
+            stop_reason = str(retrieval.get("react_stop_reason") or "").strip()
+            if not stop_reason:
+                continue
+            stop_reason_counts[stop_reason] = stop_reason_counts.get(stop_reason, 0) + 1
+        for stop_reason, count in sorted(stop_reason_counts.items(), key=lambda item: item[1], reverse=True):
+            stop_reason_dist[stop_reason] = round(count / n, 4)
+
+        rows_by_type: dict[str, list[dict]] = {}
+        for retrieval in retrievals:
+            retrieve_type = str(retrieval.get("retrieve_type") or "unknown")
+            rows_by_type.setdefault(retrieve_type, []).append(retrieval)
+
+        return {
+            "query_count": n,
+            "overall": overall,
+            "trends": trends,
+            "stop_reason_dist": stop_reason_dist,
+            "by_type": {
+                retrieve_type: cls._summarize_retrieval_rows(rows) for retrieve_type, rows in rows_by_type.items()
+            },
+        }
+
+    @staticmethod
+    def _compute_signal_funnel(signal_rows: list[dict]) -> dict:
+        """基于 LearningSignal 构建轻量漏斗摘要。"""
+        if not signal_rows:
+            return {
+                "event_counts": {"exposed": 0, "selected": 0, "used_in_answer": 0},
+                "unique_memory_counts": {"exposed": 0, "selected": 0, "used_in_answer": 0},
+                "rates": {
+                    "selected_per_exposed": 0.0,
+                    "used_per_selected": 0.0,
+                    "used_per_exposed": 0.0,
+                },
+                "exposed_by_retrieve_type": {},
+            }
+
+        stage_map = {
+            MemorySignalType.MEMORY_EXPOSED.value: "exposed",
+            MemorySignalType.MEMORY_SELECTED.value: "selected",
+            MemorySignalType.MEMORY_USED_IN_ANSWER.value: "used_in_answer",
+        }
+        event_counts = {"exposed": 0, "selected": 0, "used_in_answer": 0}
+        unique_ids = {
+            "exposed": set(),
+            "selected": set(),
+            "used_in_answer": set(),
+        }
+        exposed_by_retrieve_type: dict[str, dict[str, object]] = {}
+
+        for row in signal_rows:
+            signal_type = str(row.get("signal_type") or "")
+            stage = stage_map.get(signal_type)
+            if stage is None:
+                continue
+            event_counts[stage] += 1
+
+            source_id = str(row.get("source_id") or "").strip()
+            if source_id:
+                unique_ids[stage].add(source_id)
+
+            if stage != "exposed":
+                continue
+
+            context = row.get("context") if isinstance(row.get("context"), dict) else {}
+            retrieve_type = str(context.get("retrieve_type") or "unknown").strip() or "unknown"
+            bucket = exposed_by_retrieve_type.setdefault(retrieve_type, {"event_count": 0, "memory_ids": set()})
+            bucket["event_count"] = int(bucket.get("event_count", 0)) + 1
+            if source_id:
+                bucket_memory_ids = bucket.get("memory_ids")
+                if isinstance(bucket_memory_ids, set):
+                    bucket_memory_ids.add(source_id)
+
+        exposed_unique = len(unique_ids["exposed"])
+        selected_unique = len(unique_ids["selected"])
+        used_unique = len(unique_ids["used_in_answer"])
+
+        return {
+            "event_counts": event_counts,
+            "unique_memory_counts": {
+                "exposed": exposed_unique,
+                "selected": selected_unique,
+                "used_in_answer": used_unique,
+            },
+            "rates": {
+                "selected_per_exposed": round(selected_unique / max(exposed_unique, 1), 4),
+                "used_per_selected": round(used_unique / max(selected_unique, 1), 4),
+                "used_per_exposed": round(used_unique / max(exposed_unique, 1), 4),
+            },
+            "exposed_by_retrieve_type": {
+                retrieve_type: {
+                    "event_count": int(bucket.get("event_count", 0)),
+                    "unique_memory_count": (
+                        len(bucket["memory_ids"])
+                        if isinstance(bucket.get("memory_ids"), set)
+                        else 0
+                    ),
+                }
+                for retrieve_type, bucket in exposed_by_retrieve_type.items()
+            },
+        }
+
+    @staticmethod
+    def _build_retrieval_text_summary(retrieval_quality: dict, signal_funnel: dict) -> list[str]:
+        """将趋势和漏斗压缩为文本摘要，方便 LLM 快速抓重点。"""
+        query_count = int(retrieval_quality.get("query_count", 0) or 0)
+        if query_count <= 0:
+            return ["最近30天没有检索日志，暂时无法判断检索质量趋势。"]
+
+        overall = retrieval_quality.get("overall", {}) if isinstance(retrieval_quality, dict) else {}
+        trends = retrieval_quality.get("trends", {}) if isinstance(retrieval_quality, dict) else {}
+        stop_reason_dist = (
+            retrieval_quality.get("stop_reason_dist", {}) if isinstance(retrieval_quality, dict) else {}
+        )
+        rates = signal_funnel.get("rates", {}) if isinstance(signal_funnel, dict) else {}
+        unique_counts = signal_funnel.get("unique_memory_counts", {}) if isinstance(signal_funnel, dict) else {}
+        exposed_by_type = (
+            signal_funnel.get("exposed_by_retrieve_type", {}) if isinstance(signal_funnel, dict) else {}
+        )
+
+        def trend_phrase(metric: str) -> str:
+            metric_trend = trends.get(metric, {}) if isinstance(trends, dict) else {}
+            direction = str(metric_trend.get("direction") or "stable")
+            delta = float(metric_trend.get("delta", 0.0) or 0.0)
+            return f"{metric}:{direction}({delta:+.4f})"
+
+        summary = [
+            (
+                f"最近30天共有{query_count}次检索，"
+                f"success_rate={float(overall.get('success_rate', 0.0) or 0.0):.4f}，"
+                f"empty_rate={float(overall.get('empty_rate', 0.0) or 0.0):.4f}，"
+                f"avg_final_score={float(overall.get('avg_final_score', 0.0) or 0.0):.4f}，"
+                f"avg_latency_ms={float(overall.get('avg_latency_ms', 0.0) or 0.0):.1f}。"
+            ),
+            "关键趋势: "
+            + "；".join(
+                [
+                    trend_phrase("success_rate"),
+                    trend_phrase("empty_rate"),
+                    trend_phrase("avg_final_score"),
+                    trend_phrase("supported_result_ratio"),
+                    trend_phrase("avg_latency_ms"),
+                ]
+            ),
+            (
+                "记忆漏斗: exposed="
+                f"{int(unique_counts.get('exposed', 0) or 0)} -> "
+                f"selected={int(unique_counts.get('selected', 0) or 0)} -> "
+                f"used_in_answer={int(unique_counts.get('used_in_answer', 0) or 0)}，"
+                f"selected/exposed={float(rates.get('selected_per_exposed', 0.0) or 0.0):.4f}，"
+                f"used/selected={float(rates.get('used_per_selected', 0.0) or 0.0):.4f}。"
+            ),
+        ]
+
+        if stop_reason_dist:
+            top_reasons = ", ".join(f"{name}={ratio:.2%}" for name, ratio in list(stop_reason_dist.items())[:3])
+            summary.append(f"主要停止原因: {top_reasons}。")
+
+        if exposed_by_type:
+            exposure_mix = ", ".join(
+                (
+                    f"{retrieve_type}:events={int(bucket.get('event_count', 0) or 0)}"
+                    f"/unique={int(bucket.get('unique_memory_count', 0) or 0)}"
+                )
+                for retrieve_type, bucket in sorted(exposed_by_type.items())
+            )
+            summary.append(f"暴露来源分布: {exposure_mix}。")
+
+        return summary
+
+    @staticmethod
+    def _build_optimizer_debug_snapshot(stats: dict, raw: dict, validated: dict, change_limit_summary: dict) -> dict:
+        """生成一份精简且可持久化的调试快照。"""
+        retrieval_quality = stats.get("retrieval_quality", {}) if isinstance(stats, dict) else {}
+        signal_funnel = stats.get("signal_funnel", {}) if isinstance(stats, dict) else {}
+        return {
+            "cycle_trends": stats.get("cycle_trends", {}) if isinstance(stats, dict) else {},
+            "retrieval_quality_overall": (
+                retrieval_quality.get("overall", {}) if isinstance(retrieval_quality, dict) else {}
+            ),
+            "retrieval_quality_trends": (
+                retrieval_quality.get("trends", {}) if isinstance(retrieval_quality, dict) else {}
+            ),
+            "signal_funnel_rates": signal_funnel.get("rates", {}) if isinstance(signal_funnel, dict) else {},
+            "retrieval_text_summary": (
+                stats.get("retrieval_text_summary", []) if isinstance(stats, dict) else []
+            ),
+            "current_params": stats.get("current_params", {}) if isinstance(stats, dict) else {},
+            "llm_reasoning": str(raw.get("reasoning", "") or "") if isinstance(raw, dict) else "",
+            "change_limit_summary": change_limit_summary if isinstance(change_limit_summary, dict) else {},
+            "validated_params": validated if isinstance(validated, dict) else {},
+        }
+
+    @staticmethod
+    def _format_reasoning_with_snapshot(reasoning: str, debug_snapshot: dict) -> str:
+        """将调参理由和 debug snapshot 拼成可落库文本。"""
+        reasoning_text = str(reasoning or "").strip()
+        snapshot_json = json.dumps(debug_snapshot, ensure_ascii=False, indent=2, sort_keys=True)
+        if reasoning_text:
+            return f"{reasoning_text}\n\n[optimizer_debug_snapshot]\n{snapshot_json}"
+        return f"[optimizer_debug_snapshot]\n{snapshot_json}"
+
+    @classmethod
+    def _assess_optimization_evidence(cls, stats: dict) -> tuple[bool, list[str], dict]:
+        """判断当前统计是否足以支撑一次有效调参。"""
+        retrieval_quality = stats.get("retrieval_quality", {}) if isinstance(stats, dict) else {}
+        signal_funnel = stats.get("signal_funnel", {}) if isinstance(stats, dict) else {}
+        retrieval_query_count = int(retrieval_quality.get("query_count", 0) or 0)
+        unique_memory_counts = (
+            signal_funnel.get("unique_memory_counts", {}) if isinstance(signal_funnel, dict) else {}
+        )
+        exposed_unique = int(unique_memory_counts.get("exposed", 0) or 0)
+        selected_unique = int(unique_memory_counts.get("selected", 0) or 0)
+        used_unique = int(unique_memory_counts.get("used_in_answer", 0) or 0)
+        rates = signal_funnel.get("rates", {}) if isinstance(signal_funnel, dict) else {}
+
+        reasons: list[str] = []
+        if retrieval_query_count < cls.OPTIMIZE_MIN_RETRIEVAL_QUERIES:
+            reasons.append(
+                f"retrieval_query_count_below_threshold({retrieval_query_count}<{cls.OPTIMIZE_MIN_RETRIEVAL_QUERIES})"
+            )
+        if exposed_unique < cls.OPTIMIZE_MIN_EXPOSED_MEMORIES:
+            reasons.append(
+                f"exposed_memory_count_below_threshold({exposed_unique}<{cls.OPTIMIZE_MIN_EXPOSED_MEMORIES})"
+            )
+        if selected_unique <= 0:
+            reasons.append("selected_memory_signal_missing")
+
+        evidence_summary = {
+            "retrieval_query_count": retrieval_query_count,
+            "exposed_unique_memories": exposed_unique,
+            "selected_unique_memories": selected_unique,
+            "used_unique_memories": used_unique,
+            "selected_per_exposed": float(rates.get("selected_per_exposed", 0.0) or 0.0),
+            "used_per_selected": float(rates.get("used_per_selected", 0.0) or 0.0),
+        }
+        return not reasons, reasons, evidence_summary
+
+    @classmethod
+    def _apply_param_change_limits(cls, current_params: dict, candidate_params: dict) -> tuple[dict, dict]:
+        """限制单次参数变更幅度，避免一次优化改得过猛。"""
+        base_current = _validate_params(current_params or DEFAULT_PARAMS)
+        base_candidate = _validate_params(candidate_params or DEFAULT_PARAMS)
+        limited: dict = {}
+        limited_changes: list[dict] = []
+
+        for component, defaults in DEFAULT_PARAMS.items():
+            current_component = base_current.get(component, {})
+            candidate_component = base_candidate.get(component, {})
+            max_deltas = PARAM_MAX_DELTAS.get(component, {})
+            limited_component: dict = {}
+
+            for key, default_value in defaults.items():
+                current_value = current_component.get(key, default_value)
+                candidate_value = candidate_component.get(key, default_value)
+                max_delta = max_deltas.get(key)
+                if max_delta is None:
+                    limited_value = candidate_value
+                else:
+                    limited_value = _clamp(candidate_value, current_value - max_delta, current_value + max_delta)
+                    if isinstance(default_value, int) and not isinstance(default_value, bool):
+                        limited_value = int(round(limited_value))
+                    elif isinstance(default_value, float):
+                        limited_value = round(float(limited_value), 6)
+                    if limited_value != candidate_value:
+                        limited_changes.append(
+                            {
+                                "component": component,
+                                "key": key,
+                                "current": current_value,
+                                "candidate": candidate_value,
+                                "limited": limited_value,
+                                "max_delta": max_delta,
+                            }
+                        )
+                limited_component[key] = limited_value
+            limited[component] = limited_component
+
+        validated_limited = _validate_params(limited)
+        return validated_limited, {"limited_change_count": len(limited_changes), "limited_changes": limited_changes}
+
     def _collect_stats(self) -> dict:
         """从数据库收集统计数据，作为 LLM 的输入。"""
         import math
@@ -240,6 +643,7 @@ class ParamOptimizer:
         from models.memory import MemoryBase, MemoryRecord
         from models.memory_learning_log import MemoryLearningLog
         from models.memory_learning_params import MemoryLearningParams
+        from models.memory_retrieval_log import MemoryRetrievalLog, MemoryRetrievalResult
 
         # 1. 最近 30 天的 learning cycle 趋势
         cutoff_30d = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=30)
@@ -441,6 +845,98 @@ class ParamOptimizer:
                 "coverage_ratio": coverage_ratio,
             }
 
+        # 10. 最近 30 天检索质量趋势 + 信号漏斗
+        retrieval_rows: list[dict] = []
+        signal_funnel_rows: list[dict] = []
+        with get_db() as session:
+            retrieval_logs = (
+                session.query(MemoryRetrievalLog)
+                .filter(
+                    MemoryRetrievalLog.user_id == self.user_id,
+                    MemoryRetrievalLog.created_at >= cutoff_30d,
+                )
+                .order_by(MemoryRetrievalLog.created_at.asc())
+                .all()
+            )
+            log_ids = [log.id for log in retrieval_logs]
+            detail_rows = (
+                session.query(
+                    MemoryRetrievalResult.log_id,
+                    MemoryRetrievalResult.final_rank,
+                    MemoryRetrievalResult.evidence_count,
+                    MemoryRetrievalResult.from_expansion,
+                )
+                .filter(MemoryRetrievalResult.log_id.in_(log_ids))
+                .all()
+                if log_ids
+                else []
+            )
+            from models import LearningSignal
+
+            signal_rows = (
+                session.query(LearningSignal.signal_type, LearningSignal.source_id, LearningSignal.context)
+                .filter(
+                    LearningSignal.user_id == self.user_id,
+                    LearningSignal.created_at >= cutoff_30d,
+                    LearningSignal.signal_type.in_(
+                        [
+                            MemorySignalType.MEMORY_EXPOSED.value,
+                            MemorySignalType.MEMORY_SELECTED.value,
+                            MemorySignalType.MEMORY_USED_IN_ANSWER.value,
+                        ]
+                    ),
+                )
+                .all()
+            )
+
+        detail_summary_by_log: dict = {}
+        for detail in detail_rows:
+            log_summary = detail_summary_by_log.setdefault(
+                detail.log_id,
+                {"supported_final": 0, "expansion_final": 0},
+            )
+            if detail.final_rank is None:
+                continue
+            if int(detail.evidence_count or 0) >= 2:
+                log_summary["supported_final"] += 1
+            if bool(detail.from_expansion):
+                log_summary["expansion_final"] += 1
+
+        for log in retrieval_logs:
+            final_count = int(log.final_count or 0)
+            detail_summary = detail_summary_by_log.get(log.id, {})
+            retrieval_rows.append(
+                {
+                    "date": log.created_at.strftime("%Y-%m-%d") if log.created_at else "",
+                    "retrieve_type": log.retrieve_type or "llm",
+                    "success_rate": 1.0 if final_count > 0 else 0.0,
+                    "empty_rate": 1.0 if final_count == 0 else 0.0,
+                    "result_fill_rate": round(final_count / max(int(log.top_k or 1), 1), 4),
+                    "avg_final_score": round(float(log.final_score_avg or 0.0), 4),
+                    "avg_selection_rate": round(float(log.judge_selection_rate or 0.0), 4),
+                    "supported_result_ratio": (
+                        round(int(detail_summary.get("supported_final", 0)) / final_count, 4) if final_count else 0.0
+                    ),
+                    "expansion_result_ratio": (
+                        round(int(detail_summary.get("expansion_final", 0)) / final_count, 4) if final_count else 0.0
+                    ),
+                    "avg_latency_ms": float(log.latency_total_ms or 0.0),
+                    "avg_react_steps": float(log.react_step_count or 0.0),
+                    "react_stop_reason": log.react_stop_reason or "",
+                }
+            )
+        for row in signal_rows:
+            signal_funnel_rows.append(
+                {
+                    "signal_type": row.signal_type,
+                    "source_id": row.source_id,
+                    "context": row.context if isinstance(row.context, dict) else {},
+                }
+            )
+        retrieval_quality = self._compute_retrieval_trends(retrieval_rows)
+        signal_funnel = self._compute_signal_funnel(signal_funnel_rows)
+        retrieval_text_summary = self._build_retrieval_text_summary(retrieval_quality, signal_funnel)
+
         return {
             "recent_cycles": recent_cycles,  # 原始数据（保留供 LLM 参考）
             "cycle_trends": cycle_trends,  # 预计算趋势：前半段 vs 后半段 delta + direction
@@ -452,4 +948,7 @@ class ParamOptimizer:
             "failure_pattern_dist": failure_pattern_dist,
             "routing_efficiency": routing_efficiency,
             "signal_coverage": signal_coverage,
+            "retrieval_quality": retrieval_quality,
+            "signal_funnel": signal_funnel,
+            "retrieval_text_summary": retrieval_text_summary,
         }

@@ -1,6 +1,7 @@
 from abc import ABC
-from enum import StrEnum, Enum
-from typing import Optional, Sequence, Annotated, Union, Literal, Any, Mapping
+from collections.abc import Mapping
+from enum import Enum, StrEnum
+from typing import Annotated, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -15,7 +16,7 @@ class JsonSchemaResponseFormat(BaseModel):
     description: Optional[str] = None
     # schema is the field in openai but that causes conflicts with pydantic so
     # instead use json_schema with an alias
-    json_schema: Optional[dict[str, Any]] = Field(default=None, alias="schema")
+    json_schema: Optional[dict[str, object]] = Field(default=None, alias="schema")
     strict: Optional[bool] = None
 
 
@@ -23,7 +24,7 @@ class StructuralTag(BaseModel):
     begin: str
     # schema is the field, but that causes conflicts with pydantic so
     # instead use structural_tag_schema with an alias
-    structural_tag_schema: Optional[dict[str, Any]] = Field(default=None, alias="schema")
+    structural_tag_schema: Optional[dict[str, object]] = Field(default=None, alias="schema")
     end: str
 
 
@@ -40,6 +41,18 @@ class ResponseFormat(BaseModel):
 
 
 AnyResponseFormat = Union[ResponseFormat, StructuralTagResponseFormat]
+
+
+class ThinkingEffortLevel(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    MAX = "max"
+
+
+class ThinkingType(StrEnum):
+    ENABLED = "enabled"
+    ADAPTIVE = "adaptive"
 
 
 class ThinkingOptions(BaseModel):
@@ -78,8 +91,9 @@ class PromptMessageTool(BaseModel):
 
     name: str
     description: str
-    parameters: dict
-    input_schema: Optional[dict] = None  # openai specific
+    parameters: dict[str, object]
+    input_schema: Optional[dict[str, object]] = None  # openai specific
+
 
 class PromptMessageFunction(BaseModel):
     """
@@ -87,9 +101,9 @@ class PromptMessageFunction(BaseModel):
     """
 
     type: str = "function"
-    function: PromptMessageTool=None
-    name: str=Field(default=None, description="the name of function") # anthropic specific
-    max_usage: Optional[int] = Field(default=None, description="the max usage of function") # anthropic specific
+    function: PromptMessageTool = None
+    name: str = Field(default=None, description="the name of function")  # anthropic specific
+    max_usage: Optional[int] = Field(default=None, description="the max usage of function")  # anthropic specific
 
 
 class PromptMessageNamedFunction(BaseModel):
@@ -99,7 +113,7 @@ class PromptMessageNamedFunction(BaseModel):
 class PromptMessageToolChoiceParam(BaseModel):
     function: PromptMessageNamedFunction
     type: Literal["function"] = "function"
-    name: str=Field(default=None, description="the name of tool choice param")
+    name: str = Field(default=None, description="the name of tool choice param")
 
 
 class PromptMessageContentType(StrEnum):
@@ -112,13 +126,6 @@ class PromptMessageContentType(StrEnum):
     AUDIO = "audio"
     VIDEO = "video"
     DOCUMENT = "document"
-    # claude specific
-    CLAUDE_THINKING = "thinking"
-    CLAUDE_REDACTED_TEXT = "redacted_thinking"
-    CLAUDE_TOOL_USE = "tool_use"
-    CLAUDE_TOOL_RESULT = "tool_result"
-    CLAUDE_MCP_USER = "mcp_use"
-    CLAUDE_MCP_RESULT = "mcp_result"
 
 
 class PromptMessageContent(BaseModel):
@@ -189,41 +196,6 @@ class ClaudeTextPromptMessageContent(PromptMessageContent):
     data: str = Field(default="", description="the text content of prompt message")
     text: str = Field(default="", description="the text content of prompt message")
 
-class ClaudeThinkingPromptMessageContent(PromptMessageContent):
-    type: Literal[PromptMessageContentType.CLAUDE_THINKING] = PromptMessageContentType.CLAUDE_THINKING
-    thinking: Union[str,list[dict[str,Any]]] = Field(default="", description="the thinking content of prompt message")
-    signature: str = Field(default="", description="the signature of thinking content of prompt message")
-
-class ClaudeRedactedTextPromptMessageContent(PromptMessageContent):
-    type: Literal[PromptMessageContentType.CLAUDE_REDACTED_TEXT] = PromptMessageContentType.CLAUDE_REDACTED_TEXT
-    data: str = Field(default="", description="the text content of prompt message")
-
-class ClaudeToolUsePromptMessageContent(PromptMessageContent):
-    type: Literal[PromptMessageContentType.CLAUDE_TOOL_USE] = PromptMessageContentType.CLAUDE_TOOL_USE
-    id: str = Field(default="", description="the id of tool use content of prompt message")
-    input: dict[str, Any] = Field(default={}, description="the input of tool use content of prompt message")
-    name: Optional[str] = Field(default=None, description="the name of tool use content of prompt message")
-
-class ClaudeToolResultPromptMessageContent(PromptMessageContent):
-    type: Literal[PromptMessageContentType.CLAUDE_TOOL_RESULT] = PromptMessageContentType.CLAUDE_TOOL_RESULT
-    tool_use_id: str = Field(default="", description="the tool use id of tool result content of prompt message")
-    content: Union[str,list[dict[str,Any]]] = Field(default="", description="the content of tool result content of prompt message")
-    is_error: Optional[bool] = Field(default=False, description="whether the tool result content is error")
-
-class ClaudeMCPUserPromptMessageContent(PromptMessageContent):
-    type: Literal[PromptMessageContentType.CLAUDE_MCP_USER] = PromptMessageContentType.CLAUDE_MCP_USER
-    id: str = Field(default="", description="the id of mcp user content of prompt message")
-    input: dict[str, Any] = Field(default={}, description="the input of mcp user content of prompt message")
-    name: Optional[str] = Field(default=None, description="the name of mcp user content of prompt message")
-    server_name: Optional[str] = Field(default=None, description="the server name of mcp user content of prompt message")
-
-
-class ClaudeMCPResultPromptMessageContent(PromptMessageContent):
-    type: Literal[PromptMessageContentType.CLAUDE_MCP_RESULT] = PromptMessageContentType.CLAUDE_MCP_RESULT
-    mcp_user_id: str = Field(default="", description="the mcp user id of mcp result content of prompt message")
-    content: Union[str,list[dict[str,Any]]] = Field(default="", description="the content of mcp result content of prompt message")
-    is_error: Optional[bool] = Field(default=False, description="whether the mcp result content is error")
-
 
 PromptMessageContentUnionTypes = Annotated[
     Union[
@@ -232,12 +204,6 @@ PromptMessageContentUnionTypes = Annotated[
         DocumentPromptMessageContent,
         AudioPromptMessageContent,
         VideoPromptMessageContent,
-        ClaudeThinkingPromptMessageContent,
-        ClaudeRedactedTextPromptMessageContent,
-        ClaudeToolUsePromptMessageContent,
-        ClaudeToolResultPromptMessageContent,
-        ClaudeMCPUserPromptMessageContent,
-        ClaudeMCPResultPromptMessageContent,
     ],
     Field(discriminator="type"),
 ]
@@ -248,26 +214,34 @@ CONTENT_TYPE_MAPPING: Mapping[PromptMessageContentType, type[PromptMessageConten
     PromptMessageContentType.AUDIO: AudioPromptMessageContent,
     PromptMessageContentType.VIDEO: VideoPromptMessageContent,
     PromptMessageContentType.DOCUMENT: DocumentPromptMessageContent,
-    PromptMessageContentType.CLAUDE_THINKING: ClaudeThinkingPromptMessageContent,
-    PromptMessageContentType.CLAUDE_REDACTED_TEXT: ClaudeRedactedTextPromptMessageContent,
-    PromptMessageContentType.CLAUDE_TOOL_USE: ClaudeToolUsePromptMessageContent,
-    PromptMessageContentType.CLAUDE_TOOL_RESULT: ClaudeToolResultPromptMessageContent,
-    PromptMessageContentType.CLAUDE_MCP_USER: ClaudeMCPUserPromptMessageContent,
-    PromptMessageContentType.CLAUDE_MCP_RESULT: ClaudeMCPResultPromptMessageContent,
 }
+
+
+class PromptMessageToolCall(BaseModel):
+    """Standalone tool call model (used as base type in PromptMessage.tool_calls)."""
+
+    class ToolCallFunction(BaseModel):
+        name: Optional[str] = None
+        arguments: Optional[str] = None
+
+    index: Optional[int] = Field(default=None, description="the order of the tool call")
+    id: Optional[str] = Field(default=None)
+    type: Optional[str] = Field(default=None)
+    function: Optional[ToolCallFunction] = None
 
 
 class PromptMessage(ABC, BaseModel):
     """
     Model class for prompt message.
     """
+
     model_config = {"extra": "allow", "arbitrary_types_allowed": True}
 
     role: PromptMessageRole
     content: Optional[Union[str, PromptMessageContentUnionTypes, list[PromptMessageContentUnionTypes]]] = None
     name: Optional[str] = None
-    tool_calls: Optional[list[Any]] = None  # to be overridden in AssistantPromptMessage
-    tool_call_id: Optional[str] = None # to be overridden in ToolPromptMessage
+    tool_calls: Optional[list[PromptMessageToolCall]] = None
+    tool_call_id: Optional[str] = None  # to be overridden in ToolPromptMessage
 
     def is_empty(self) -> bool:
         """

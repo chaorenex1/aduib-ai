@@ -1,26 +1,26 @@
-import os
 
 from runtime.tool.base.tool_provider import ToolController
-from runtime.tool.builtin_tool.tool import BuiltinTool
-from runtime.tool.entities import ToolEntity
-from utils import load_single_subclass_from_source, load_yaml_files
+from runtime.tool.skill.tool import SkillTool
 
 
-class BuiltinToolController(ToolController):
+class SKILLToolController(ToolController):
     """
-    A controller for managing built-in tools.
-    This controller provides methods to access and manage built-in tools.
+    A controller for managing skill tool
+    This controller provides methods to access and manage skill tool
     """
 
-    tools: list[BuiltinTool] = []
+    tools: list[SkillTool] = []
+    _skills_instance = None
 
-    def __init__(self) -> None:
+    def __init__(self, app_home: str = "") -> None:
         super().__init__()
+        self._app_home = app_home
+        self._skills_instance = None
         self.tools = self.load_tools()
 
-    def get_tool(self, tool_name: str) -> BuiltinTool:
+    def get_tool(self, tool_name: str) -> SkillTool:
         """
-        Get a specific built-in tool by its name.
+        Get a specific skill tool by its name.
         This method should be implemented to return the tool instance.
         """
         for tool in self.tools:
@@ -28,53 +28,43 @@ class BuiltinToolController(ToolController):
                 return tool
         return None
 
-    def get_tools(self, filter_names: list[str] = None) -> list[BuiltinTool]:
+    def get_tools(self, filter_names: list[str] = None) -> list[SkillTool]:
         """
-        Get all built-in tools.
-        This method should be implemented to return a list of all built-in tools.
+        don't use this method directly
         """
-        if filter_names:
-            return [tool for tool in self.tools if tool.entity.name in filter_names]
-        return self.tools
+        return []
 
     def get_tool_schema(self, tool_name: str) -> dict:
         """
-        Get the schema of a specific built-in tool.
+        Get the schema of a specific skill tool.
         This method should be implemented to return the schema of the specified tool.
         """
         for tool in self.tools:
             if tool.entity.name == tool_name:
-                return
+                return tool.entity.model_json_schema()
         raise ValueError(f"Tool {tool_name} not found.")
 
-    def load_tools(self) -> list[BuiltinTool]:
+    def load_tools(self) -> list[SkillTool]:
         """
-        Load all built-in tools.
-        This method should be implemented to return a list of all built-in tools.
+        Load all skill tools.
+        This method should be implemented to return a list of all skill tools.
         """
+        from pathlib import Path
 
-        tools_dir = os.path.join(os.path.dirname(__file__), "providers")
-        tools_yamls = load_yaml_files(tools_dir)
-        tool_entities = []
-        tools = []
-        if tools_yamls:
-            tool_entities = [ToolEntity(**tool) for tool in tools_yamls]
-        for tool_entity in tool_entities:
-            # get tool class, import the module
-            assistant_tool_class: type[BuiltinTool] = load_single_subclass_from_source(
-                module_name=f"runtime.tool.builtin_tool.providers.{tool_entity.name}.{tool_entity.name}",
-                script_path=os.path.join(
-                    os.path.dirname(os.path.realpath(__file__)),
-                    # "builtin_tool",
-                    "providers",
-                    tool_entity.name,
-                    f"{tool_entity.name}.py",
-                ),
-                parent_type=BuiltinTool,
-            )
-            tools.append(
-                assistant_tool_class(
-                    entity=tool_entity,
-                )
-            )
-        return tools
+        from runtime.agent.skill import LocalSkills, Skills
+
+        loaders = []
+        providers_path = Path(__file__).parent / "providers"
+        if providers_path.exists() and any((p / "SKILL.md").exists() for p in providers_path.iterdir() if p.is_dir()):
+            loaders.append(LocalSkills(str(providers_path), validate=True))
+        if self._app_home:
+            user_skill_path = Path(self._app_home) / "skill"
+            if user_skill_path.exists():
+                loaders.append(LocalSkills(str(user_skill_path), validate=False))
+        if not loaders:
+            return []
+        self._skills_instance = Skills(loaders)
+        return self._skills_instance.get_tools()
+
+    def get_skills_instance(self):
+        return self._skills_instance

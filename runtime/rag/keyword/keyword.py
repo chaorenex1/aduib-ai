@@ -2,7 +2,7 @@ from typing import Any
 
 from component.cache.redis_cache import redis_client
 from models import KnowledgeBase, get_db
-from models.document import KnowledgeKeywords, KnowledgeEmbeddings
+from models.document import KnowledgeEmbeddings, KnowledgeKeywords
 from runtime.entities.document_entities import Document
 from runtime.rag.keyword.jieba import JiebaKeyword
 

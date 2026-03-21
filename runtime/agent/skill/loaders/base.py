@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import List
 
-from agno.skills.skill import Skill
+from runtime.agent.skill.skill import Skill
 
 
 class SkillLoader(ABC):
@@ -15,7 +14,7 @@ class SkillLoader(ABC):
     """
 
     @abstractmethod
-    def load(self) -> List[Skill]:
+    def load(self) -> list[Skill]:
         """Load skills from the source.
 
         Returns:

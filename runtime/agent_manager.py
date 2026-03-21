@@ -1,536 +1,633 @@
 import asyncio
+import json
 import logging
-import time
-import re
-from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional, Sequence, Union, Generator, List
+from collections.abc import AsyncGenerator, Sequence
+from typing import Any, Optional, Union
 
 from component.storage.base_storage import storage_manager
-from models import Agent, get_db, ConversationMessage, McpServer, ToolInfo
-from models.agent import AgentSession
-from runtime.agent.agent_type import AgentRuntimeConfig, AgentTool
-from runtime.agent.memory.agent_memory import AgentMemory
+from models import Agent, get_db
+from runtime.agent.adapters import RequestAdapter, ResponseTextExtractor, ToolCallAdapter
+from runtime.agent.agent_type import AgentExecutionContext
+from runtime.agent.buffered_stream_response import BufferedStreamResponse
+from runtime.agent.memory.prompt_markup import (
+    build_memory_prompt_block,
+    extract_selected_memory_ids_from_prompt,
+    extract_used_memory_ids,
+    sanitize_memory_markup,
+)
+from runtime.agent.memory_manager import MemoryManager
+from runtime.agent.response_generator import ResponseGenerator
+from runtime.agent.session_manager import SessionManager
 from runtime.callbacks.base_callback import Callback
+from runtime.callbacks.message_record_callback import MessageRecordCallback
 from runtime.entities import (
-    TextPromptMessageContent,
-    SystemPromptMessage,
-    PromptMessageRole,
-    UserPromptMessage,
-    AssistantPromptMessage,
-    PromptMessage,
-    PromptMessageFunction,
+    AnthropicMessage,
+    AnthropicMessageRequest,
+    AnthropicMessageResponse,
+    AnthropicStreamEvent,
     ChatCompletionResponse,
     ChatCompletionResponseChunk,
+    PromptMessage,
+    PromptMessageFunction,
+    ResponseOutput,
+    ResponseRequest,
+    ResponseStreamEvent,
 )
-from runtime.entities.llm_entities import ChatCompletionRequest, ChatCompletionResponseChunkDelta
-from runtime.generator.generator import LLMGenerator
+from runtime.entities.llm_entities import ChatCompletionRequest, LLMRequest, LLMResponse, LLMStreamResponse
+from runtime.entities.message_entities import ThinkingOptions
+from runtime.memory.types import MemorySignalType
 from runtime.model_execution import AiModel
-from runtime.model_manager import ModelManager, ModelInstance
+from runtime.model_manager import ModelManager
+from runtime.protocol._openai_anthropic import StreamingToolCallCollector
+from runtime.protocol._openai_responses import ResponsesStreamingToolCallCollector
 from runtime.tool.base.tool import Tool
-from runtime.tool.entities import ToolProviderType, ToolInvokeResult
-from utils import AsyncUtils
+from runtime.tool.entities import ToolInvokeParams, ToolInvokeResult
+from runtime.tool.tool_manager import ToolManager
 
 logger = logging.getLogger(__name__)
-
-
-class SessionManager:
-    """Manages agent sessions and lifecycle"""
-
-    def __init__(self):
-        self._active_sessions: Dict[str, AgentSession] = {}
-
-    async def get_or_create_session(self, agent: Agent) -> str:
-        """Get or create a session ID for the agent"""
-        try:
-            # Use async database operations if available
-            session_id = await self._get_active_session_id(agent)
-            if session_id:
-                return session_id
-
-            return await self._create_new_session(agent)
-        except Exception as e:
-            logger.error(f"Error getting or creating session for agent {agent.id}: {e}")
-            raise
-
-    async def _get_active_session_id(self, agent: Agent) -> Optional[str]:
-        """Get active session ID, checking context length limits"""
-        loop = asyncio.get_event_loop()
-
-        def _sync_get_session():
-            with get_db() as session:
-                active_session = session.query(AgentSession).filter_by(
-                    agent_id=agent.id, status="active"
-                ).first()
-
-                if active_session:
-                    from service import ModelService, ConversationMessageService
-
-                    model = ModelService.get_model_by_id(int(agent.model_id))
-                    current_context_length = ConversationMessageService.get_context_length(
-                        agent.id, active_session.id
-                    )
-
-                    if model and current_context_length >= model.max_tokens:
-                        # Session exceeded context limit, deactivate it
-                        active_session.status = "inactive"
-                        session.commit()
-                        return None
-
-                    return str(active_session.id)
-                return None
-
-        return await loop.run_in_executor(None, _sync_get_session)
-
-    async def _create_new_session(self, agent: Agent) -> str:
-        """Create a new session for the agent"""
-        loop = asyncio.get_event_loop()
-
-        def _sync_create_session():
-            with get_db() as session:
-                new_session = AgentSession(agent_id=agent.id, status="active")
-                session.add(new_session)
-                session.commit()
-                session.refresh(new_session)
-                return str(new_session.id)
-
-        return await loop.run_in_executor(None, _sync_create_session)
-
-
-class MemoryManager:
-    """Manages agent memory operations"""
-
-    def __init__(self):
-        self._agent_memories: Dict[str, AgentMemory] = {}
-
-    def get_or_create_memory(self, agent: Agent, session_id: str) -> AgentMemory:
-        """Get or create agent memory instance"""
-        memory_key = f"{agent.id}_{session_id}"
-        if memory_key not in self._agent_memories:
-            self._agent_memories[memory_key] = AgentMemory(
-                agent=agent, session_id=session_id
-            )
-        return self._agent_memories[memory_key]
-
-    async def retrieve_context(self, memory: AgentMemory, user_message: str) -> Dict:
-        """Retrieve context from memory"""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, memory.retrieve_context, user_message
-        )
-
-    def cleanup_memory(self, session_id: str) -> None:
-        """Clean up memory for a specific session"""
-        keys_to_remove = [
-            key for key in self._agent_memories.keys()
-            if key.endswith(f"_{session_id}")
-        ]
-
-        for key in keys_to_remove:
-            self._agent_memories[key].clear_memory()
-            del self._agent_memories[key]
-
-        logger.info(f"Cleaned up memory for session: {session_id}")
-
-
-class ToolManager:
-    """Manages agent tools and tool execution"""
-
-    def __init__(self):
-        self._tool_cache: Dict[str, List[Tool]] = {}
-
-    def create_agent_runtime_config(self, agent: Agent) -> AgentRuntimeConfig:
-        """Create AgentRuntimeConfig with tools"""
-        agent_tools: List[Tool] = []
-
-        if agent.tools and len(agent.tools) > 0:
-            for tool_data in agent.tools:
-                agent_tool = AgentTool.model_validate(tool_data)
-                tools = self._load_tools_by_type(agent_tool)
-                agent_tools.extend(tools)
-
-        return AgentRuntimeConfig(
-            agent=agent,
-            tools=agent_tools
-        )
-
-    def _load_tools_by_type(self, agent_tool: AgentTool) -> List[Tool]:
-        """Load tools based on provider type"""
-        if agent_tool.tool_provider_type == ToolProviderType.BUILTIN:
-            from runtime.tool.builtin_tool.tool_provider import BuiltinToolController
-            return BuiltinToolController().get_tools()
-
-        elif agent_tool.tool_provider_type == ToolProviderType.MCP:
-            return self._load_mcp_tools(agent_tool)
-
-        return []
-
-    def _load_mcp_tools(self, agent_tool: AgentTool) -> List[Tool]:
-        """Load MCP tools"""
-        loop = asyncio.get_event_loop()
-
-        def _sync_load_mcp_tools():
-            with get_db() as session:
-                tool_info: ToolInfo = session.query(ToolInfo).filter(
-                    ToolInfo.id == int(agent_tool.id)
-                ).first()
-
-                if tool_info:
-                    mcp_server: McpServer = session.query(McpServer).filter(
-                        McpServer.server_code == tool_info.mcp_server_code
-                    ).first()
-
-                    if mcp_server:
-                        from runtime.tool.mcp.tool_provider import McpToolController
-                        return McpToolController(
-                            server_url=mcp_server.server_url
-                        ).get_tools()
-            return []
-
-        return loop.run_until_complete(
-            asyncio.get_event_loop().run_in_executor(None, _sync_load_mcp_tools)
-        )
-
-
-class ResponseGenerator:
-    """Generates responses for agent requests"""
-
-    def __init__(self, model_manager: ModelManager):
-        self.model_manager = model_manager
-
-    async def generate_response(
-        self,
-        agent: Agent,
-        session_id: str,
-        request: ChatCompletionRequest,
-        context: Dict
-    ) -> Any:
-        """Generate response using LLM"""
-        try:
-            enhanced_messages = self._build_enhanced_messages(request, context, agent)
-            request.messages = enhanced_messages
-
-            model_instance = self.model_manager.get_model_instance(model_name=request.model)
-            self._apply_agent_parameters(agent, request, model_instance)
-
-            return model_instance.invoke_llm(
-                prompt_messages=request,
-                callbacks=[
-                    AgentMessageRecordCallback(
-                        agent=agent,
-                        session_id=session_id,
-                        agent_manager=self
-                    )
-                ],
-            )
-        except Exception as e:
-            logger.error(f"Error generating response: {e}")
-            raise
-
-    async def generate_tool_response(
-        self,
-        agent_runtime_config: AgentRuntimeConfig,
-        user_message: str
-    ) -> str:
-        """Generate response using tools"""
-        try:
-            tool_args = LLMGenerator.choice_tool_invoke(
-                agent_runtime_config.tools, user_message
-            )
-            tool_name = tool_args.get("tool_name")
-
-            if not tool_name:
-                return self._extract_tool_response(user_message)
-
-            tool_arguments = tool_args.get("tool_arguments", {})
-            tool_map = {tool.entity.name: tool for tool in agent_runtime_config.tools}
-            tool = tool_map.get(tool_name)
-
-            if tool:
-                tool_invoke_result = tool.invoke(tool_arguments)
-                result: ToolInvokeResult = next(tool_invoke_result)
-
-                if result.success:
-                    # Remove used tool and recursively call again
-                    remaining_tools = [
-                        tool for tool in agent_runtime_config.tools
-                        if tool.entity.name != tool_name
-                    ]
-
-                    updated_config = AgentRuntimeConfig(
-                        agent=agent_runtime_config.agent,
-                        tools=remaining_tools
-                    )
-
-                    tool_response = f"\n<tool_response>\n{str(result.data)}\n</tool_response>"
-                    return await self.generate_tool_response(
-                        updated_config, user_message + tool_response
-                    )
-
-            return ""
-        except Exception as e:
-            logger.error(f"Error generating tool response: {e}")
-            raise
-
-    def _extract_tool_response(self, user_message: str) -> str:
-        """Extract tool response from message"""
-        match = re.search(r"<tool_response>(.*?)</tool_response>", user_message, re.DOTALL)
-        return match.group(1).strip() if match else ""
-
-    def _build_enhanced_messages(
-        self,
-        query: ChatCompletionRequest,
-        context: Dict,
-        agent: Agent
-    ) -> List:
-        """Build enhanced messages with context"""
-        system_message = self._get_system_message(query, agent)
-        last_message = query.messages[-1]
-
-        messages = [system_message, last_message] if system_message else [last_message]
-
-        if agent.enabled_memory == 1:
-            messages = self._add_memory_context(messages, context, agent)
-        else:
-            logger.debug("Memory is disabled for this agent.")
-            messages = query.messages
-
-        return messages
-
-    def _get_system_message(self, query: ChatCompletionRequest, agent: Agent):
-        """Get system message from query or agent template"""
-        first_message = query.messages[0]
-
-        if (first_message.role == PromptMessageRole.SYSTEM and
-            first_message.content):
-            return first_message
-
-        if agent.prompt_template:
-            return SystemPromptMessage(
-                role=PromptMessageRole.SYSTEM,
-                content=agent.prompt_template
-            )
-
-        return None
-
-    def _add_memory_context(self, messages: List, context: Dict, agent: Agent) -> List:
-        """Add memory context to messages"""
-        # Add short-term memory
-        if context.get("short_term") and len(context["short_term"]) > 0:
-            for memory in context["short_term"]:
-                if memory.get("user_message"):
-                    messages.insert(-1, UserPromptMessage(
-                        role=PromptMessageRole.USER,
-                        content=memory["user_message"]
-                    ))
-                if memory.get("assistant_message"):
-                    messages.insert(-1, AssistantPromptMessage(
-                        role=PromptMessageRole.ASSISTANT,
-                        content=memory["assistant_message"]
-                    ))
-
-        # Add long-term memory
-        if context.get("long_term") and len(context["long_term"]) > 0:
-            relevant_memories = context["long_term"]
-            if relevant_memories:
-                context_content = self._format_long_term_memory(relevant_memories)
-                messages = self._add_context_to_system_message(messages, context_content, agent)
-
-        return messages
-
-    def _format_long_term_memory(self, memories: List[Dict]) -> str:
-        """Format long-term memory for context"""
-        memory_entries = []
-        for mem in memories:
-            user_msg = mem.get('user_message', '')
-            assistant_msg = mem.get('assistant_message', '')
-            memory_entries.append(
-                f"<conversation>\n<user>{user_msg}</user>\n"
-                f"<assistant>{assistant_msg}</assistant>\n</conversation>"
-            )
-
-        return (
-            "<historical_conversations>\n" +
-            "\n".join(memory_entries) +
-            "\n</historical_conversations>"
-        )
-
-    def _add_context_to_system_message(
-        self,
-        messages: List,
-        context_content: str,
-        agent: Agent
-    ) -> List:
-        """Add context to system message"""
-        if messages and messages[0].role == PromptMessageRole.SYSTEM:
-            messages[0].content = messages[0].content + "\n\n" + context_content
-        else:
-            system_content = agent.prompt_template + "\n\n" + context_content
-            messages.insert(0, SystemPromptMessage(
-                role=PromptMessageRole.SYSTEM,
-                content=system_content
-            ))
-        return messages
-
-    def _apply_agent_parameters(
-        self,
-        agent: Agent,
-        request: ChatCompletionRequest,
-        model_instance: ModelInstance
-    ) -> None:
-        """Apply agent parameters to request and model"""
-        if not agent.agent_parameters:
-            return
-
-        parameters = agent.agent_parameters
-
-        # Apply request parameters
-        parameter_mapping = {
-            "temperature": "temperature",
-            "top_p": "top_p",
-            "frequency_penalty": "frequency_penalty",
-            "presence_penalty": "presence_penalty",
-            "max_tokens": "max_completion_tokens"
-        }
-
-        for param_key, request_key in parameter_mapping.items():
-            if param_key in parameters:
-                setattr(request, request_key, parameters[param_key])
-
-        # Apply model instance parameters
-        if "api_base" in parameters:
-            model_instance.provider.provider_credential.credentials["api_base"] = \
-                parameters["api_base"]
-
-        if "api_key" in parameters:
-            model_instance.provider.provider_credential.credentials["api_key"] = \
-                parameters["api_key"]
-
-
-class MessageProcessor:
-    """Processes user messages for agent requests"""
-
-    @staticmethod
-    def get_user_message(content: Any) -> str:
-        """Extract user message from content"""
-        if isinstance(content, str):
-            return content
-        elif isinstance(content, TextPromptMessageContent):
-            return content.text
-        elif isinstance(content, list):
-            return "".join([
-                c.text if isinstance(c, TextPromptMessageContent) else str(c)
-                for c in content
-            ])
-        else:
-            raise ValueError("Unsupported message content type")
+SUPERVISOR_AGENT_NAME = "supervisor_agent_v3"
 
 
 class AgentManager:
     """Main agent manager coordinating all components"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        agent_id: Optional[str] = "",
+        auto_manage_context: bool = True,
+        *,
+        agent: Optional["Agent"] = None,
+    ):
+        self.auto_manage_context = auto_manage_context
+        if agent is not None:
+            self.agent: Agent = agent
+        elif agent_id is not None:
+            self.agent: Agent = self.get_agent(agent_id)
+        else:
+            raise ValueError("Either agent_id or agent must be provided")
         self.storage = storage_manager
         self.model_manager = ModelManager()
         self.session_manager = SessionManager()
-        self.memory_manager = MemoryManager()
+        self.memory_manager = MemoryManager(self.agent)
         self.tool_manager = ToolManager()
-        self.response_generator = ResponseGenerator(self.model_manager)
-        self.message_processor = MessageProcessor()
-        self.executor = ThreadPoolExecutor(max_workers=10)
+        self.tools = self.get_agent_tools(self.agent)
+        self.response_generator = ResponseGenerator(self.model_manager, self._build_response_callbacks)
+        self.tool_collector_cache: dict[
+            str, Union[StreamingToolCallCollector, ResponsesStreamingToolCallCollector]
+        ] = {}
 
-    async def handle_agent_request(self, agent: Agent, request: ChatCompletionRequest) -> Any:
-        """Handle agent request with proper error handling"""
+    def _build_response_callbacks(self, agent: Agent) -> list[Callback]:
+        return [
+            MessageRecordCallback(),
+            AgentMessageRecordCallback(
+                agent=agent,
+                agent_manager=self,
+            ),
+        ]
+
+    async def arun_response(
+        self,
+        request: LLMRequest,
+    ) -> Union[LLMResponse, AsyncGenerator[LLMStreamResponse, None]]:
+        """Entry point for processing an agent request and generating a response."""
+        user_id: Optional[str] = None
         try:
-            # Get or create session
-            session_id = await self.session_manager.get_or_create_session(agent)
-            logger.debug("Using session_id: %s for agent_id: %d", session_id, agent.id)
+            from libs.context import get_current_user_id
 
-            # Get or create memory
-            memory = self.memory_manager.get_or_create_memory(agent, session_id)
+            user_id = get_current_user_id()
+        except Exception:
+            pass
+        ctx: AgentExecutionContext = self._build_agent_execution_context(user_id=user_id)
 
-            # Process user message
-            user_message = self.message_processor.get_user_message(
-                request.messages[-1].content
-            )
+        self.inject_agent_system_prompt(request)
+        self._apply_agent_request_overrides(request)
+        await self.inject_memory_into_user_prompt(request, ctx)
 
-            # Create runtime config
-            agent_runtime_config = self.tool_manager.create_agent_runtime_config(agent)
+        # Inject tools into request (protocol-aware, in-place)
+        self.add_tools_to_request(request)
 
-            if agent_runtime_config.tools and len(agent_runtime_config.tools) > 0:
-                return await self._handle_tool_request(
-                    agent_runtime_config, user_message, request
-                )
+        raw_response = await self.arun_agent_loop(request, ctx=ctx)
+
+        return raw_response
+
+    def inject_agent_system_prompt(self, request: LLMRequest) -> None:
+        prompt_template = str(getattr(self.agent, "prompt_template", "") or "").strip()
+        if not prompt_template:
+            return
+        RequestAdapter(request).prepend_system_prompt(prompt_template)
+
+    def _apply_agent_request_overrides(self, request: LLMRequest) -> None:
+        if not self._is_supervisor_agent():
+            return
+        self._force_thinking_mode(request)
+
+    def _is_supervisor_agent(self) -> bool:
+        agent_name = str(getattr(self.agent, "name", "") or "").strip().lower()
+        return agent_name == SUPERVISOR_AGENT_NAME
+
+    def _force_thinking_mode(self, request: LLMRequest) -> None:
+        forced_budget = self._parse_positive_int(
+            self.agent.agent_parameters.get("thinking_budget") or self.agent.agent_parameters.get("budget_tokens")
+        )
+        if isinstance(request, ChatCompletionRequest):
+            request.include_reasoning = True
+            request.enable_thinking = True
+            if forced_budget and request.thinking_budget is None:
+                request.thinking_budget = forced_budget
+            if request.thinking is None:
+                request.thinking = ThinkingOptions(type="enabled", budget_tokens=forced_budget)
             else:
-                return await self._handle_standard_request(
-                    agent, session_id, request, user_message, memory
-                )
+                if not getattr(request.thinking, "type", None):
+                    request.thinking.type = "enabled"
+                if forced_budget and getattr(request.thinking, "budget_tokens", None) is None:
+                    request.thinking.budget_tokens = forced_budget
+            return
 
-        except Exception as e:
-            logger.error(f"Error handling agent request: {e}")
-            raise
+        if isinstance(request, AnthropicMessageRequest):
+            if request.thinking is None:
+                request.thinking = ThinkingOptions(type="adaptive", budget_tokens=forced_budget)
+                from runtime.entities.anthropic_entities import AnthropicOutputConfig
 
-    async def _handle_tool_request(
-        self,
-        agent_runtime_config: AgentRuntimeConfig,
-        user_message: str,
-        request: ChatCompletionRequest
-    ) -> Generator[ChatCompletionResponseChunk, None, None]:
-        """Handle request with tools"""
-        response = await self.response_generator.generate_tool_response(
-            agent_runtime_config, user_message
+                request.output_config = AnthropicOutputConfig(effort="high")
+            else:
+                if not getattr(request.thinking, "type", None):
+                    request.thinking.type = "enabled"
+                if forced_budget and getattr(request.thinking, "budget_tokens", None) is None:
+                    request.thinking.budget_tokens = forced_budget
+
+    @staticmethod
+    def _parse_positive_int(value: object) -> int | None:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed > 0 else None
+
+    async def arun_agent_loop(self, request: LLMRequest, *, ctx: AgentExecutionContext) -> Any:
+        max_rounds = ctx.agent.agent_parameters.get("max_tool_rounds", 20)
+
+        current_request = request.model_copy()
+
+        last_response = await self.response_generator.generate_response(
+            self.agent,
+            ctx,
+            current_request,
         )
 
-        def tool_generator() -> Generator[ChatCompletionResponseChunk, None, None]:
-            yield ChatCompletionResponseChunk(
-                id="chatcmpl-xxxx",
-                object="chat.completion.chunk",
-                created=int(time.time()),
-                model=request.model,
-                prompt_messages=request.messages,
-                choices=[
-                    ChatCompletionResponseChunkDelta(
-                        index=0,
-                        delta=AssistantPromptMessage(
-                            role=PromptMessageRole.ASSISTANT,
-                            content=response
-                        ),
-                        finish_reason="stop"
-                    )
-                ],
+        tool_calls: list[ToolInvokeParams] = []
+        buffered_response: Optional[BufferedStreamResponse] = None
+        if current_request.stream:
+            buffered_response = await self.buffer_stream_response(
+                ctx,
+                current_request,
+                last_response,
+            )
+            last_response = self.replay_stream_response(buffered_response.events)
+            tool_calls = buffered_response.tool_calls
+        else:
+            tool_calls = self.convert_response_to_tools(last_response)
+        logger.info(
+            "[OODA] round=%d/%d tool_calls=%d",
+            ctx.ooda_round,
+            max_rounds,
+            len(tool_calls) if tool_calls else 0,
+        )
+
+        if not tool_calls or len(tool_calls) == 0:
+            return last_response
+
+        tool_results: list[ToolInvokeResult] = await self._execute_tool_calls(
+            tool_calls, ctx=ctx, request=current_request, last_response=last_response
+        )
+        self.add_tool_results_to_request(tool_results, current_request)
+
+        next_response = await self.response_generator.generate_response(
+            self.agent,
+            ctx,
+            current_request,
+        )
+        next_buffered_response: Optional[BufferedStreamResponse] = None
+        if current_request.stream:
+            next_buffered_response = await self.buffer_stream_response(
+                ctx,
+                current_request,
+                next_response,
+                include_tool_calls=False,
+            )
+            last_response = self.replay_stream_response(next_buffered_response.events)
+        else:
+            last_response = next_response
+
+        # Increment round counter before recursive call
+        ctx.ooda_round += 1
+
+        # Check if max rounds already reached (for recursive calls)
+        if ctx.ooda_round > max_rounds:
+            logger.warning("[OODA] max rounds %d reached, returning last response", max_rounds)
+            return last_response
+
+        if current_request.stream:
+            if next_buffered_response and next_buffered_response.text:
+                self.add_assistant_content_to_request(current_request, next_buffered_response.text)
+        else:
+            self.add_assistant_message_to_request(current_request, last_response)
+
+        self.add_tools_to_request(current_request)
+
+        # Recursive call with updated counter
+        last_response = await self.arun_agent_loop(current_request, ctx=ctx)
+
+        return last_response
+
+    async def _execute_tool_calls(
+        self,
+        tool_calls: list[ToolInvokeParams],
+        *,
+        ctx: AgentExecutionContext,
+        request: LLMRequest,
+        last_response: LLMResponse,
+    ) -> list:
+        """Execute native tool_calls from LLM response, return ToolPromptMessage list."""
+
+        results: list[ToolInvokeResult] = []
+        for call in tool_calls:
+            name: str = call.name
+            args = json.loads(call.arguments)
+            args["session_id"] = ctx.session_id
+            args["agent_id"] = ctx.agent_id
+            args["user_id"] = ctx.user_id
+            args["agent_manager"] = self
+            provider_type = call.tool_provider
+
+            result = await self.tool_manager.invoke_tool(
+                tool_name=name,
+                tool_arguments=args,
+                tool_provider=provider_type,
+                tool_call_id=call.tool_call_id,
+                message_id=call.message_id,
+            )
+            results.append(result)
+        return results
+
+    def cleanup_memory(self) -> None:
+        """Clean up memory for a session"""
+        self.memory_manager.cleanup_memory()
+
+    @staticmethod
+    def extract_response_text(raw_response: LLMResponse) -> str:
+        """Extract response text from LLM response."""
+        return ResponseTextExtractor.from_response(raw_response)
+
+    async def _summarize_interaction(self, full_response: str) -> str:
+        try:
+            from runtime.generator.generator import LLMGenerator
+
+            return await LLMGenerator.generate_memory_interaction_summary(
+                full_message=full_response,
+                model_name=self.agent.model_id,
+            )
+        except Exception as ex:
+            logger.warning("Summarize interaction failed: %s", ex)
+            return full_response
+
+    async def manage_post_response_memory(
+        self, session_id: str, user_message: str, response_text: str, last_response: bool = False
+    ) -> None:
+        try:
+            await self.memory_manager.add_memory("User: " + user_message, long_term_memory=False)
+            await self.memory_manager.add_memory("Assistant: " + response_text, long_term_memory=False)
+
+            if last_response:
+                from service import ConversationMessageService, ModelService
+
+                model = ModelService.get_model_by_id(int(self.agent.model_id))
+                current_length = ConversationMessageService.get_context_length(self.agent.id, session_id)
+                remaining_ratio = 1.0 - (current_length / model.max_tokens) if model and model.max_tokens else 1.0
+                if remaining_ratio <= 0.1:
+                    if self.session_manager.inactivate_session(session_id):
+                        full_response_text: str = await self.memory_manager.get_full_response_text()
+                        summary = await self._summarize_interaction(full_response_text)
+                        await self.memory_manager.clear_short_term_memory()
+                        # short term compact session
+                        await self.memory_manager.add_memory(summary, long_term_memory=False, compact_session=True)
+                        # long term memory
+                        if self.agent.enabled_memory != 1:
+                            return
+                        await self.memory_manager.add_memory(response_text, long_term_memory=True, compact_session=True)
+                        logger.info("Memory compacted for session %s due to context length.", session_id)
+        except Exception as ex:
+            logger.warning("Post-response memory management failed: %s", ex)
+
+    def _build_agent_execution_context(self, user_id: str) -> AgentExecutionContext:
+        """Build AgentExecutionContext from AgentInput"""
+        # Get or create session
+        session_id = self.session_manager.create_session(self.agent, user_id=user_id)
+        # Get memory
+        memory = self.memory_manager.get_or_create_memory(session_id)
+        return AgentExecutionContext(
+            agent=self.agent, agent_id=self.agent.id, user_id=user_id, session_id=session_id, memory=memory
+        )
+
+    async def inject_memory_into_user_prompt(self, request: LLMRequest, ctx: AgentExecutionContext) -> None:
+        user_prompt = self.get_latest_user_prompt_text(request)
+        if not user_prompt.strip():
+            return
+
+        try:
+            context = await ctx.memory.retrieve_context(user_prompt, long_term_memory=self.agent.enabled_memory != 1 or ctx.memory is None, compact_session=True)
+            short_term_memory = context.get("short_term", "")
+
+            # Handle compact session memory (direct string from Redis)
+            if short_term_memory and isinstance(short_term_memory, str):
+                memory_block = self._build_compact_memory_block(short_term_memory)
+                if memory_block:
+                    self.append_memory_block_to_latest_user_prompt(request, memory_block)
+                return
+
+            # Handle long-term memory with embeddings
+            long_term_memories = context.get("long_term", [])
+            if not long_term_memories:
+                return
+
+            from service.learning_signal_service import LearningSignalService
+
+            await LearningSignalService.emit_memory_signals(
+                user_id=str(ctx.user_id or self.agent.user_id or self.agent.id),
+                signal_type=MemorySignalType.MEMORY_SELECTED,
+                memory_ids=[memory.memory_id for memory in long_term_memories],
+                value_by_source={memory.memory_id: float(memory.score or 0.0) for memory in long_term_memories},
+                context={"session_id": str(ctx.session_id), "source": "agent_user_prompt"},
             )
 
-        return tool_generator()
+            memory_block = build_memory_prompt_block(long_term_memories)
+            if memory_block:
+                self.append_memory_block_to_latest_user_prompt(request, memory_block)
+        except Exception:
+            logger.warning("Failed to inject memory into user prompt", exc_info=True)
 
-    async def _handle_standard_request(
+    @staticmethod
+    def _build_compact_memory_block(compact_session: str) -> str:
+        """Build a prompt block for compact session memory (direct injection)."""
+        if not compact_session:
+            return ""
+        return f"<system-reminder-compact-session>\nSession Summary:\n{compact_session}\n</system-reminder-compact-session>"
+
+    def get_or_create_tool_collector(
+        self, session_id: str, request: LLMRequest
+    ) -> Union[StreamingToolCallCollector, ResponsesStreamingToolCallCollector]:
+        if session_id in self.tool_collector_cache:
+            return self.tool_collector_cache[session_id]
+        else:
+            if isinstance(request, ChatCompletionRequest) or isinstance(request, ResponseRequest):
+                self.tool_collector_cache[session_id] = ResponsesStreamingToolCallCollector()
+            elif isinstance(request, AnthropicMessageRequest):
+                self.tool_collector_cache[session_id] = StreamingToolCallCollector()
+        return self.tool_collector_cache[session_id]
+
+    def get_agent(self, agent_id: str) -> Agent:
+        """Fetch agent from storage by ID"""
+        # Get agent
+        agent: Agent
+        if agent_id is not None:
+            with get_db() as db:
+                    agent = db.query(Agent).filter(Agent.name == agent_id).first()
+                    if not agent:
+                        raise ValueError(f"Agent with id or name '{agent_id}' not found")
+        else:
+            raise ValueError("agent_id is required in the request")
+        return agent
+
+    def get_agent_tools(self, agent: Agent) -> list[Tool]:
+        """Fetch tools from storage by ID"""
+        tools: list[Tool] = []
+        if agent.tools:
+            for tool_meta in agent.tools:
+                tool_name: str = tool_meta.get("tool_name", "")
+                tool_provider_type = tool_meta.get("tool_provider_type", "")
+                tool: Tool = self.tool_manager.get_tool_provider(tool_provider_type).get_tool(
+                    tool_name
+                )  # Validate tool exists
+                if tool:
+                    tools.append(tool)
+        return tools
+
+    @staticmethod
+    def content_to_text(content: object) -> str:
+        return ResponseTextExtractor.flatten_content(content)
+
+    def get_latest_user_prompt_text(self, request: LLMRequest) -> str:
+        return RequestAdapter(request).latest_user_text()
+
+    def append_memory_block_to_latest_user_prompt(self, request: LLMRequest, memory_block: str) -> None:
+        RequestAdapter(request).append_memory_block_to_latest_user(memory_block)
+
+    def add_tools_to_request(self, request: LLMRequest) -> None:
+        """Inject self.tools into request in protocol-correct format (in-place).
+        CompletionRequest has no tools field and is silently skipped.
+        """
+        RequestAdapter(request).ensure_tools(self.tools)
+
+    @staticmethod
+    def ensure_response_input_list(request: ResponseRequest) -> list:
+        return RequestAdapter.ensure_response_input_list(request)
+
+    @staticmethod
+    def normalize_response_output_to_input_items(response: ResponseOutput | list[object]) -> list:
+        return RequestAdapter.normalize_response_output_to_input_items(response)
+
+    def add_tool_results_to_request(self, tool_results: list[ToolInvokeResult], request: LLMRequest) -> None:
+        """Add tool results to request for next round of LLM processing"""
+        if not tool_results:
+            return
+        for tool_result in tool_results:
+            if isinstance(request, ChatCompletionRequest):
+                from runtime.entities import TextPromptMessageContent, ToolPromptMessage
+
+                content_list: list[TextPromptMessageContent] = [
+                    TextPromptMessageContent(
+                        text=f"Tool {tool_result.name} called status: {tool_result.success}",
+                    )
+                ]
+                if tool_result.success:
+                    content_list.append(TextPromptMessageContent(text=tool_result.to_normal()))
+                else:
+                    content_list.append(TextPromptMessageContent(text=f"Error: {tool_result.error}"))
+                request.messages.append(ToolPromptMessage(tool_call_id=tool_result.tool_call_id, content=content_list))
+
+                self.memory_manager.add_memory(
+                    "Tool Result: " + self.content_to_text(content_list), long_term_memory=False
+                )
+            elif isinstance(request, AnthropicMessageRequest):
+                from runtime.entities import AnthropicTextBlock, AnthropicToolResultBlock
+
+                content_list: list[AnthropicTextBlock] = [
+                    AnthropicTextBlock(
+                        text=f"Tool {tool_result.name} called status: {tool_result.success}",
+                    )
+                ]
+                if tool_result.success:
+                    content_list.append(AnthropicTextBlock(text=tool_result.to_normal()))
+                else:
+                    content_list.append(AnthropicTextBlock(text=f"Error: {tool_result.error}"))
+                request.messages.append(
+                    AnthropicMessage(
+                        role="assistant",
+                        content=[
+                            AnthropicToolResultBlock(
+                                tool_use_id=tool_result.tool_call_id,
+                                content=content_list,
+                                is_error=tool_result.success,
+                            )
+                        ],
+                    )
+                )
+
+                self.memory_manager.add_memory(
+                    "Tool Result: " + self.content_to_text(content_list), long_term_memory=False
+                )
+            elif isinstance(request, ResponseRequest):
+                from runtime.entities import ResponseInputItem, ResponseOutputFunctionCallOutput
+
+                content: str = f"Tool {tool_result.name} called status: {tool_result.success}"
+                if tool_result.success:
+                    content += f"\n{tool_result.to_normal()}"
+                else:
+                    content += f"\n{tool_result.error}"
+                self.ensure_response_input_list(request).append(
+                    ResponseInputItem(
+                        role="assistant",
+                        content=[ResponseOutputFunctionCallOutput(call_id=tool_result.tool_call_id, output=content)],
+                    )
+                )
+
+                self.memory_manager.add_memory("Tool Result: " + content, long_term_memory=False)
+
+    def convert_response_to_tools(self, response: LLMResponse) -> list[ToolInvokeParams]:
+        """Convert response to Tools"""
+        return ToolCallAdapter(self.tool_manager).from_response(response)
+
+    async def convert_stream_response_to_tools(
+        self, ctx: AgentExecutionContext, request: LLMRequest, response: LLMStreamResponse
+    ) -> list[ToolInvokeParams]:
+        """Convert response to Tools"""
+        tool_collector = self.get_or_create_tool_collector(str(ctx.session_id), request)
+        return await ToolCallAdapter(self.tool_manager).from_stream(response, tool_collector)
+
+    @staticmethod
+    async def replay_stream_response(
+        events: list[ResponseStreamEvent | ChatCompletionResponseChunk | AnthropicStreamEvent],
+    ) -> AsyncGenerator[ResponseStreamEvent | ChatCompletionResponseChunk | AnthropicStreamEvent, None]:
+        for event in events:
+            if hasattr(event, "model_copy"):
+                yield event.model_copy(deep=True)
+            else:
+                yield event
+
+    async def buffer_stream_response(
         self,
-        agent: Agent,
-        session_id: str,
-        request: ChatCompletionRequest,
-        user_message: str,
-        memory: AgentMemory
-    ) -> Any:
-        """Handle standard request without tools"""
-        context = await self.memory_manager.retrieve_context(memory, user_message)
-        logger.debug(f"Retrieved context: {context}")
+        ctx: AgentExecutionContext,
+        request: LLMRequest,
+        response: LLMStreamResponse,
+        *,
+        include_tool_calls: bool = True,
+    ) -> BufferedStreamResponse:
+        buffered = BufferedStreamResponse()
+        if not isinstance(response, AsyncGenerator):
+            return buffered
 
-        return await self.response_generator.generate_response(
-            agent, session_id, request, context
-        )
+        async for event in response:
+            buffered.events.append(event)
 
-    def cleanup_memory(self, session_id: str) -> None:
-        """Clean up memory for a session"""
-        self.memory_manager.cleanup_memory(session_id)
+        if include_tool_calls and buffered.events:
+            buffered.tool_calls = await self.convert_stream_response_to_tools(
+                ctx,
+                request,
+                self.replay_stream_response(buffered.events),
+            )
+
+        if buffered.events:
+            buffered.text = await self.extract_stream_response_text(
+                self.replay_stream_response(buffered.events),
+            )
+
+        return buffered
+
+    async def add_stream_assistant_message_to_request(self, current_request: LLMRequest, response: LLMStreamResponse):
+        """Add assistant message to request from stream response"""
+        if not isinstance(response, AsyncGenerator):
+            return
+
+        content_text = await self.extract_stream_response_text(response)
+        if not content_text:
+            return
+        RequestAdapter(current_request).append_assistant_text(content_text)
+
+    @staticmethod
+    async def extract_stream_response_text(
+        response: AsyncGenerator[ResponseStreamEvent | ChatCompletionResponseChunk | AnthropicStreamEvent, None],
+    ) -> str:
+        return await ResponseTextExtractor.from_stream(response)
+
+    def add_assistant_message_to_request(self, current_request: LLMRequest, response: LLMResponse):
+        """Add assistant message to request from non-stream response"""
+        RequestAdapter(current_request).append_assistant_response(response)
+
+    def add_assistant_content_to_request(self, current_request: LLMRequest, content: str):
+        """Add assistant message content to request from non-stream response"""
+        RequestAdapter(current_request).append_assistant_text(content)
+
+    def add_user_message_to_request(self, current_request: LLMRequest, user_prompt: str):
+        """Add user message to request"""
+        RequestAdapter(current_request).append_user_text(user_prompt)
 
 
 class AgentMessageRecordCallback(Callback):
     """Callback for recording agent messages"""
 
-    def __init__(self, agent: Agent, session_id: str, agent_manager: ResponseGenerator):
+    def __init__(self, agent: Agent, agent_manager: AgentManager, ctx: AgentExecutionContext):
         self.user_message = ""
         self.agent = agent
-        self.session_id = session_id
         self.agent_manager = agent_manager
+        self.ctx = ctx
+
+    @staticmethod
+    def _extract_user_message(prompt_messages: Union[list[PromptMessage], str]) -> str:
+        if isinstance(prompt_messages, str):
+            return sanitize_memory_markup(prompt_messages)
+        if not isinstance(prompt_messages, list):
+            return ""
+
+        for message in reversed(prompt_messages):
+            role = getattr(getattr(message, "role", None), "value", None) or getattr(message, "role", None)
+            if role != "user":
+                continue
+            return sanitize_memory_markup(ResponseTextExtractor.flatten_content(getattr(message, "content", None)))
+        return ""
+
+    @staticmethod
+    def _set_response_text(result: LLMResponse, content: str) -> None:
+        from runtime.entities import AnthropicTextBlock
+        from runtime.entities.response_entities import ResponseOutputMessage, TextContentBlock
+
+        if isinstance(result, ChatCompletionResponse):
+            if result.message is not None:
+                result.message.content = content
+            return
+        if isinstance(result, AnthropicMessageResponse):
+            result.content = [AnthropicTextBlock(text=content)]
+            return
+        if isinstance(result, ResponseOutput):
+            for item in result.output:
+                if isinstance(item, ResponseOutputMessage):
+                    item.content = [TextContentBlock(text=content)]
+                    return
+
+    @staticmethod
+    def _log_task_exception(task: asyncio.Task[None]) -> None:
+        try:
+            task.result()
+        except Exception as ex:
+            logger.warning("Post-response memory task failed: %s", ex)
 
     def on_before_invoke(
         self,
@@ -544,42 +641,10 @@ class AgentMessageRecordCallback(Callback):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
-        role: str = ""
-        system_prompt: str = ""
-        content: str = ""
-
-        if isinstance(prompt_messages, list) and prompt_messages:
-            role = prompt_messages[-1].role.value
-            if prompt_messages[-1].content:
-                for c in prompt_messages[-1].content:
-                    if isinstance(c, str):
-                        content += c
-                    else:
-                        content += c.data or c.text
-            system_prompt = prompt_messages[0].content if prompt_messages[0].role.value == "system" else ""
-        elif isinstance(prompt_messages, str):
-            role = "user"
-            content = prompt_messages
-
-        conversation_message = ConversationMessage(
-            message_id=model_parameters.get("message_id"),
-            model_name=model,
-            provider_name=llm_instance.provider_name,
-            role=role,
-            content=content,
-            system_prompt=system_prompt,
-            agent_id=self.agent.id,
-            agent_session_id=int(self.session_id),
-        )
-
-        self.user_message = content
-        from event.event_manager import event_manager_context
-
-        event_manager = event_manager_context.get()
-        AsyncUtils.run_async_gen(
-            event_manager.emit(event="agent_from_conversation_message", message=conversation_message, callback=self)
-        )
+        self.user_message = self._extract_user_message(prompt_messages)
 
     def on_new_chunk(
         self,
@@ -594,6 +659,8 @@ class AgentMessageRecordCallback(Callback):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ):
         pass
 
@@ -610,38 +677,65 @@ class AgentMessageRecordCallback(Callback):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
-        message_id = model_parameters.get("message_id")
-        if not message_id:
+        if agent_session_id is None:
             return
 
-        message_content: str = ""
-        if isinstance(result.message.content, str):
-            message_content = result.message.content
-        elif isinstance(result.message.content, list):
-            message_content = "".join([content.data for content in result.message.content])
+        response_text = self.agent_manager.extract_response_text(result)
+        response_text, used_memory_ids = extract_used_memory_ids(response_text)
+        self._set_response_text(result, response_text)
+        if not self.user_message and not response_text:
+            return
 
-        # Remove <think> and </think> including the content between them
-        message_content = re.sub(r"<think>.*?</think>", "", message_content, flags=re.DOTALL)
+        selected_memory_ids: list[str] = []
+        for prompt_message in prompt_messages:
+            selected_memory_ids.extend(
+                extract_selected_memory_ids_from_prompt(
+                    self.agent_manager.content_to_text(getattr(prompt_message, "content", None))
+                )
+            )
+        selected_memory_id_set = set(selected_memory_ids)
+        adopted_memory_ids = [memory_id for memory_id in used_memory_ids if memory_id in selected_memory_id_set]
 
-        message = ConversationMessage(
-            message_id=message_id,
-            model_name=model,
-            provider_name=llm_instance.provider_name,
-            role=result.message.role.value,
-            content=message_content,
-            system_prompt="",
-            usage=result.usage.model_dump_json(exclude_none=True),
-            state="success",
-            agent_id=self.agent.id,
-            agent_session_id=int(self.session_id),
+        if adopted_memory_ids:
+
+            async def _emit_used_memory_signals() -> None:
+                from service.learning_signal_service import LearningSignalService
+
+                signal_context = {
+                    "session_id": str(agent_session_id),
+                    "user_message": self.user_message[:200],
+                    "response_length": len(response_text),
+                }
+                await LearningSignalService.emit_memory_signals(
+                    user_id=str(user or self.agent.user_id or self.agent.id),
+                    signal_type=MemorySignalType.MEMORY_USED_IN_ANSWER,
+                    memory_ids=adopted_memory_ids,
+                    context=signal_context,
+                )
+                await LearningSignalService.emit_memory_signals(
+                    user_id=str(user or self.agent.user_id or self.agent.id),
+                    signal_type=MemorySignalType.MEMORY_ADOPTION,
+                    memory_ids=adopted_memory_ids,
+                    context={**signal_context, "derived_from": MemorySignalType.MEMORY_USED_IN_ANSWER.value},
+                    value=1.0,
+                )
+
+            signal_task = asyncio.create_task(_emit_used_memory_signals())
+            signal_task.add_done_callback(self._log_task_exception)
+
+        task = asyncio.create_task(
+            self.agent_manager.manage_post_response_memory(
+                str(agent_session_id),
+                self.user_message,
+                response_text,
+                last_response=not tools
+                or self.ctx.ooda_round == self.ctx.agent.agent_parameters.get("max_tool_rounds"),
+            )
         )
-
-        from event.event_manager import event_manager_context
-        event_manager = event_manager_context.get()
-        AsyncUtils.run_async_gen(
-            event_manager.emit(event="agent_from_conversation_message", message=message, callback=self)
-        )
+        task.add_done_callback(self._log_task_exception)
 
     def on_invoke_error(
         self,
@@ -656,5 +750,7 @@ class AgentMessageRecordCallback(Callback):
         stream: bool = True,
         include_reasoning: bool = False,
         user: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        agent_session_id: Optional[int] = None,
     ) -> None:
         pass

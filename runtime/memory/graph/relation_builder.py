@@ -10,7 +10,7 @@ import logging
 from typing import Optional
 
 from runtime.memory.graph.knowledge_graph import KnowledgeGraphLayer, MemoryRef
-from runtime.memory.types.base import Entity, Relation
+from runtime.memory.types import Entity, Relation
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class RelationBuilder:
                     id=memory_id,
                     memory_type="semantic",  # 默认为语义记忆
                     summary="",
-                    importance=0.5
+                    importance=0.5,
                 )
                 await self._graph.add_memory_ref(memory_ref, unique_entity_ids)
 

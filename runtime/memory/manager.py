@@ -1,411 +1,468 @@
 from __future__ import annotations
 
-import inspect
-from datetime import datetime
-from typing import Any, Optional
+import json
+import logging
+from datetime import UTC, datetime
 
-from runtime.memory.classifier import MemoryClassifier
-from runtime.memory.retrieval.engine import RetrievalEngine, RetrievalResult
-from runtime.memory.storage.adapter import StorageAdapter
-from runtime.memory.types.base import Memory, MemoryMetadata, MemoryScope, MemorySource, MemoryType
+from models import KnowledgeBase, MemoryBase
+from runtime.generator.generator import LLMGenerator
+from runtime.memory.retrieval_manager import MemoryRetrievalMixin
+from runtime.memory.types import Memory, MemoryTopicSegment, MemoryTopicSegmentProcessed
+
+logger = logging.getLogger(__name__)
 
 
-class UnifiedMemoryManager:
-    """统一记忆管理器，作为所有记忆操作的入口。"""
+class MemoryManager(MemoryRetrievalMixin):
+    """统一记忆管理器。"""
 
     def __init__(
         self,
-        storage: StorageAdapter,
-        retrieval: Optional[RetrievalEngine] = None,
-        classifier: Optional[MemoryClassifier] = None,
+        user_id: str,
     ) -> None:
-        """初始化记忆管理器。
+        self.user_id = user_id
 
-        Args:
-            storage: 存储适配器实例。
-            retrieval: 检索引擎实例 (可选)。
-            classifier: 分类器实例 (可选)。
-        """
+    @staticmethod
+    def _normalize_topic(name: str) -> str:
+        """规范化话题名称，用于 intra-batch 去重比较。"""
+        return name.strip().lower().replace(" ", "")
 
-        self._storage = storage
-        self._retrieval = retrieval
-        self._classifier = classifier or MemoryClassifier()
+    @staticmethod
+    def _format_memory_content(
+        mem_type: str,
+        mem_domain: str,
+        topic: str,
+        segments: list[str],
+        created_at: datetime | None = None,
+        operation: str = "create",
+        existing_content: str = "",
+    ) -> str:
+        """通过 LLM 推理将话题内容片段格式化为适合 RAG 检索的记忆文档。"""
+        timestamp = ""
+        if created_at is not None:
+            aware = created_at if created_at.tzinfo else created_at.replace(tzinfo=UTC)
+            timestamp = aware.strftime("%Y-%m-%d %H:%M UTC")
+
+        return LLMGenerator.generate_memory_format(
+            mem_type=mem_type,
+            mem_domain=mem_domain,
+            topic=topic,
+            segments=segments,
+            timestamp=timestamp,
+            operation=operation,
+            existing_content=existing_content,
+        )
+
+    @staticmethod
+    def _format_full_memory_content(mem_type: str, mem_domain: str, topic: str, mem_content: str) -> str:
+        return "\n".join(
+            [
+                f"memory_type: {mem_type}",
+                f"memory_domain: {mem_domain}",
+                f"memory_topic: {topic}",
+                "",
+                mem_content.strip(),
+            ]
+        ).strip()
+
+    @staticmethod
+    def _sync_memory_tag_associations(session, memory_id: str, tag_ids: list[str]) -> None:
+        """同步 MemoryRecord.tags 与 memory_tag_associations，移除陈旧关联。"""
+        from models.memory_tags import MemoryTagAssociation, UserCustomTag
+
+        deduplicated_tag_ids = list(dict.fromkeys(tag_ids))
+        desired_tag_ids = set(deduplicated_tag_ids)
+
+        existing_associations = (
+            session.query(MemoryTagAssociation).filter(MemoryTagAssociation.memory_id == memory_id).all()
+        )
+        existing_tag_ids = {str(assoc.tag_id) for assoc in existing_associations}
+
+        touched_tag_ids = list(existing_tag_ids | desired_tag_ids)
+        tags_by_id: dict[str, UserCustomTag] = {}
+        if touched_tag_ids:
+            tags = session.query(UserCustomTag).filter(UserCustomTag.id.in_(touched_tag_ids)).all()
+            tags_by_id = {str(tag.id): tag for tag in tags}
+
+        for assoc in existing_associations:
+            tag_id = str(assoc.tag_id)
+            if tag_id in desired_tag_ids:
+                continue
+            session.delete(assoc)
+            tag = tags_by_id.get(tag_id)
+            if tag and (tag.usage_count or 0) > 0:
+                tag.usage_count -= 1
+
+        for tag_id in deduplicated_tag_ids:
+            if tag_id in existing_tag_ids:
+                continue
+            session.add(
+                MemoryTagAssociation(
+                    memory_id=memory_id,
+                    tag_id=tag_id,
+                    assigned_by="",
+                )
+            )
+            tag = tags_by_id.get(tag_id)
+            if tag:
+                tag.usage_count = (tag.usage_count or 0) + 1
 
     async def store(self, memory: Memory) -> str:
-        """存储记忆。
+        """存储记忆。"""
+        domain, kb = await self.generate_memory_domain(memory)
+        segment_list: list[MemoryTopicSegmentProcessed] = await self.generate_memory_topic(memory, domain, kb)
+        tag_list: list[str] = await self.generate_memory_tags(memory, kb)
+        mem_ids: list[str] = await self.create_memory(memory, domain, segment_list, tag_list)
+        await self.update_memory_graph(memory, mem_ids, domain, segment_list, tag_list)
+        return mem_ids[0] if mem_ids else ""
 
-        Args:
-            memory: 记忆实体。
-
-        Returns:
-            记忆 ID。
-        """
-
-        if memory.embedding is None:
-            embedding = await self._generate_embedding(memory.content)
-            if embedding:
-                memory.embedding = embedding
-
-        await self._apply_classification(memory)
-
-        now = datetime.now()
-        memory.updated_at = now
-        memory.accessed_at = now
-
-        memory_id = await self._storage.save(memory)
-        memory.id = memory_id
-        return memory_id
-
-    async def retrieve(
-        self,
-        query: str,
-        memory_types: Optional[list[MemoryType]] = None,
-        scope: Optional[MemoryScope] = None,
-        time_range: Optional[tuple[datetime, datetime]] = None,
-        limit: int = 10,
-    ) -> list[Memory]:
-        """检索记忆。
-
-        Args:
-            query: 查询字符串。
-            memory_types: 记忆类型过滤。
-            scope: 作用域过滤。
-            time_range: 时间范围过滤。
-            limit: 返回数量限制。
-
-        Returns:
-            匹配的记忆列表。
-        """
-
-        if self._retrieval is None:
-            raise NotImplementedError("未配置检索引擎，无法执行检索。")
-
-        results = await self._retrieval.search(
-            query=query,
-            memory_types=memory_types,
-            scope=scope,
-            time_range=time_range,
-            limit=limit,
-        )
-
-        memories = [result.memory for result in results]
-        memories = self._filter_memories(
-            memories=memories,
-            memory_types=memory_types,
-            scope=scope,
-            time_range=time_range,
-        )
-
-        await self._touch_memories(memories)
-        return memories[:limit]
-
-    async def update(self, memory_id: str, updates: dict[str, Any]) -> Optional[Memory]:
-        """更新记忆。
-
-        Args:
-            memory_id: 记忆 ID。
-            updates: 更新字段。
-
-        Returns:
-            更新后的记忆，不存在返回 None。
-        """
-
-        payload = dict(updates)
-        payload["updated_at"] = datetime.now()
-        return await self._storage.update(memory_id, payload)
-
-    async def forget(self, memory_id: str) -> bool:
-        """遗忘/删除记忆。
-
-        Args:
-            memory_id: 记忆 ID。
-
-        Returns:
-            是否删除成功。
-        """
-
-        return await self._storage.delete(memory_id)
-
-    async def get(self, memory_id: str) -> Optional[Memory]:
-        """根据 ID 获取单个记忆。
-
-        Args:
-            memory_id: 记忆 ID。
-
-        Returns:
-            记忆实体，不存在返回 None。
-        """
-
-        memory = await self._storage.get(memory_id)
-        if memory is None:
-            return None
-
-        now = datetime.now()
-        memory.accessed_at = now
-        updated = await self._storage.update(memory_id, {"accessed_at": now})
-        return updated or memory
-
-    async def search(
-        self,
-        query: str,
-        memory_types: Optional[list[MemoryType]] = None,
-        scope: Optional[MemoryScope] = None,
-        entity_filter: Optional[list[str]] = None,
-        time_range: Optional[tuple[datetime, datetime]] = None,
-        limit: int = 10,
-        min_score: float = 0.0,
-    ) -> list[RetrievalResult]:
-        """高级搜索，返回带评分的结果。
-
-        Args:
-            query: 查询字符串。
-            memory_types: 记忆类型过滤。
-            scope: 作用域过滤。
-            entity_filter: 实体 ID 过滤。
-            time_range: 时间范围过滤。
-            limit: 返回数量限制。
-            min_score: 最低相关性得分。
-
-        Returns:
-            带评分的检索结果列表。
-        """
-
-        if self._retrieval is None:
-            raise NotImplementedError("未配置检索引擎，无法执行搜索。")
-
-        if entity_filter:
-            results = await self._retrieval.search_by_entities(entity_filter, limit=limit)
-            results = self._filter_results(
-                results=results,
-                memory_types=memory_types,
-                scope=scope,
-                entity_filter=entity_filter,
-                time_range=time_range,
-                min_score=min_score,
-            )
+    async def generate_memory_domain(self, memory: Memory) -> tuple[MemoryBase, KnowledgeBase]:
+        """根据记忆内容生成领域。"""
+        if not memory.summary_enabled:
+            classification = LLMGenerator.generate_memory_classification(memory.content)
+            domain: str = classification["domain"]
+            memory_type: str = classification["type"]
         else:
-            results = await self._retrieval.search(
-                query=query,
-                memory_types=memory_types,
-                scope=scope,
-                time_range=time_range,
-                limit=limit,
-                min_score=min_score,
+            domain = memory.domain
+            memory_type = memory.type
+
+        from models.engine import get_db
+
+        with get_db() as session:
+            existing: MemoryBase = (
+                session.query(MemoryBase)
+                .filter(MemoryBase.user_id == self.user_id, MemoryBase.domain == domain)
+                .first()
             )
+            if existing:
+                kb: KnowledgeBase = session.query(KnowledgeBase).filter(KnowledgeBase.id == existing.mem_kb_id).first()
+                session.expunge(kb)
+                return existing, kb
+            from service.knowledge_base_service import KnowledgeBaseService
 
-        await self._touch_memories([result.memory for result in results])
-        return results[:limit]
+            kb = KnowledgeBaseService.create_knowledge_base(
+                f"{self.user_id}_{domain}_kb",
+                "paragraph",
+                0,
+                self.user_id,
+                500,
+                0,
+            )
+            new_record = MemoryBase(
+                user_id=self.user_id,
+                domain=domain,
+                type=memory_type,
+                mem_kb_id=str(kb.id),
+            )
+            session.add(new_record)
+            session.commit()
+            session.refresh(new_record)
+        return new_record, kb
 
-    async def consolidate(self, session_id: str) -> list[Memory]:
-        """整合会话记忆。
+    async def generate_memory_topic(
+        self, memory: Memory, domain: MemoryBase, kb: KnowledgeBase
+    ) -> list[MemoryTopicSegmentProcessed]:
+        """根据记忆内容生成话题。"""
+        if memory.summary_enabled:
+            return [MemoryTopicSegmentProcessed(topic=memory.topic, topic_content_segment=[memory.content])]
 
-        将会话中的工作记忆整合为情景/语义记忆。
+        json_schema: str = LLMGenerator.generate_memory_topic(memory.content, MemoryTopicSegment.json_schema())
+        topic_segments: list[MemoryTopicSegment] = MemoryTopicSegment.parse_list(json_schema)
 
-        Args:
-            session_id: 会话 ID。
+        return [
+            MemoryTopicSegmentProcessed(
+                topic=segment.topic,
+                topic_content_segment=segment.topic_content_segment,
+            )
+            for segment in topic_segments
+        ]
 
-        Returns:
-            整合后产生的新记忆列表。
-        """
+    async def generate_memory_tags(self, memory: Memory, kb: KnowledgeBase) -> list[str]:
+        """根据记忆内容生成标签。"""
+        from configs import config
+        from runtime.model_manager import ModelManager
+        from runtime.rag.embeddings.cache_embeddings import CacheEmbeddings
+        from service.tag_service import TagService
 
-        memories = await self._storage.list_by_session(session_id)
-        working_memories = [memory for memory in memories if memory.type == MemoryType.WORKING]
-        if not working_memories:
-            return []
+        json_schema: str = LLMGenerator.generate_memory_tags(memory.content)
+        raw_tags: list[str] = json.loads(json_schema)
 
-        summary = self._build_summary(working_memories)
-        metadata = self._build_consolidated_metadata(session_id, working_memories)
-        consolidated = Memory(
-            type=MemoryType.EPISODIC,
-            content=summary,
-            metadata=metadata,
+        seen: set[str] = set()
+        unique_tags: list[str] = []
+        for tag in raw_tags:
+            key = tag.strip().lower()
+            if key not in seen:
+                seen.add(key)
+                unique_tags.append(key)
+
+        embedding_model = ModelManager().get_model_instance(
+            model_name=kb.embedding_model_provider + "/" + kb.embedding_model
         )
+        embeddings = CacheEmbeddings(embedding_model)
+        tag_vecs = embeddings.embed_documents(unique_tags)
+        result_tags: list[str] = []
 
-        await self.store(consolidated)
-        return [consolidated]
-
-    async def exists(self, memory_id: str) -> bool:
-        """检查记忆是否存在。"""
-
-        return await self._storage.exists(memory_id)
-
-    async def list_by_session(self, session_id: str) -> list[Memory]:
-        """列出会话的所有记忆。"""
-
-        return await self._storage.list_by_session(session_id)
-
-    async def _touch_memories(self, memories: list[Memory]) -> None:
-        """批量更新记忆的访问时间。"""
-
-        if not memories:
-            return
-
-        now = datetime.now()
-        for memory in memories:
-            memory.accessed_at = now
-
-        for memory in memories:
-            await self._storage.update(memory.id, {"accessed_at": now})
-
-    async def _apply_classification(self, memory: Memory) -> None:
-        """根据分类器结果补充元数据。"""
-
-        if self._classifier is None:
-            return
-
-        source = self._resolve_source(memory.metadata)
-        context = self._build_classification_context(memory)
-        classification = await self._classifier.classify(memory.content, source, context=context)
-
-        memory.metadata.tags = self._merge_tags(memory.metadata.tags, classification.tags)
-        if memory.metadata.scope == MemoryScope.PERSONAL and classification.scope != MemoryScope.PERSONAL:
-            memory.metadata.scope = classification.scope
-
-        if "classification" not in memory.metadata.extra:
-            memory.metadata.extra["classification"] = classification.model_dump(mode="python")
-
-    async def _generate_embedding(self, content: str) -> Optional[list[float]]:
-        """尝试通过检索引擎生成 embedding。"""
-
-        if self._retrieval is None:
-            return None
-
-        for attr in ("embed", "encode", "generate_embedding", "get_embedding", "embedding"):
-            handler = getattr(self._retrieval, attr, None)
-            if handler is None or not callable(handler):
+        for tag, vec in zip(unique_tags, tag_vecs):
+            if vec is None:
+                user_custom_tag = TagService.get_or_create(name=tag, user_id=self.user_id)
+                result_tags.append(str(user_custom_tag.id))
                 continue
+            similar = TagService.find_similar(
+                vector=vec, user_id=self.user_id, threshold=config.MEMORY_GATE_DUPLICATE_SIMILARITY
+            )
+            if similar is None:
+                user_custom_tag = TagService.get_or_create(name=tag, user_id=self.user_id, vector=vec)
+                result_tags.append(str(user_custom_tag.id))
+            else:
+                result_tags.append(str(similar.id))
+                logger.debug(
+                    "Tag '%s' similar to '%s' (threshold=%.2f), reusing",
+                    tag,
+                    similar,
+                    config.MEMORY_GATE_DUPLICATE_SIMILARITY,
+                )
 
-            try:
-                result = handler(content)
-            except TypeError:
-                continue
+        return result_tags
 
-            if inspect.isawaitable(result):
-                result = await result
+    async def create_memory(
+        self,
+        memory: Memory,
+        domain: MemoryBase,
+        segment_list: list[MemoryTopicSegmentProcessed],
+        tag_list: list[str],
+    ) -> list[str]:
+        """创建记忆。"""
+        from models.engine import get_db
+        from models.memory import MemoryRecord
+        from service.knowledge_base_service import KnowledgeBaseService
 
-            if isinstance(result, list) and result:
-                return result
+        mem_ids: list[str] = []
+        deduplicated_tag_list = list(dict.fromkeys(tag_list))
 
-        return None
+        for segment in segment_list:
+            with get_db() as session:
+                existing_record = (
+                    session.query(MemoryRecord)
+                    .filter(
+                        MemoryRecord.user_id == self.user_id,
+                        MemoryRecord.domain == domain.domain,
+                        MemoryRecord.topic == segment.topic,
+                        MemoryRecord.deleted == 0,
+                    )
+                    .order_by(MemoryRecord.created_at.desc())
+                    .first()
+                )
+                existing_record_id = str(existing_record.id) if existing_record else None
+                existing_doc_id = (
+                    str(existing_record.kb_doc_id) if existing_record and existing_record.kb_doc_id else None
+                )
 
-    @staticmethod
-    def _merge_tags(*tag_groups: list[str]) -> list[str]:
-        """合并标签并去重。"""
+            existing_content = ""
+            operation = "create"
+            if existing_doc_id:
+                existing_content = KnowledgeBaseService.get_memory_doc_content(existing_doc_id)
+                operation = "append"
 
-        merged: list[str] = []
-        for tags in tag_groups:
-            for tag in tags:
-                if tag and tag not in merged:
-                    merged.append(tag)
-        return merged
+            formatted = self._format_memory_content(
+                mem_type=domain.type,
+                mem_domain=domain.domain,
+                topic=segment.topic,
+                segments=segment.topic_content_segment,
+                created_at=memory.created_at,
+                operation=operation,
+                existing_content=existing_content,
+            )
+            from utils import inject_frontmatter
 
-    @staticmethod
-    def _resolve_source(metadata: MemoryMetadata) -> MemorySource:
-        """从元数据解析来源枚举。"""
+            formatted = inject_frontmatter(formatted, source=memory.source, project_id=memory.project_id)
+            if existing_doc_id:
+                doc_id = KnowledgeBaseService.update_memory_doc(existing_doc_id, formatted, self.user_id)
+            else:
+                doc_id = KnowledgeBaseService.paragraph_rag_from_memory(
+                    formatted,
+                    user_id=self.user_id,
+                    mem_kb_id=str(domain.mem_kb_id),
+                    agent_id=memory.agent_id,
+                    project_id=memory.project_id,
+                    source=memory.source,
+                )
 
-        if metadata.source:
-            try:
-                return MemorySource(metadata.source)
-            except ValueError:
-                pass
-        return MemorySource.CHAT
+            with get_db() as session:
+                if existing_record_id:
+                    record: MemoryRecord | None = (
+                        session.query(MemoryRecord).filter(MemoryRecord.id == existing_record_id).first()
+                    )
+                    if record is None:
+                        raise ValueError(f"MemoryRecord not found during upsert: {existing_record_id}")
+                    action = "Updated"
+                else:
+                    record = MemoryRecord(
+                        user_id=memory.user_id,
+                        type=domain.type,
+                        memory_base_id=domain.id,
+                        domain=domain.domain,
+                        source=memory.source,
+                        topic=segment.topic,
+                        tags=deduplicated_tag_list,
+                        kb_doc_id=doc_id,
+                    )
+                    session.add(record)
+                    action = "Created"
 
-    @staticmethod
-    def _build_classification_context(memory: Memory) -> dict[str, Any]:
-        """构建分类器上下文。"""
+                record.memory_base_id = domain.id
+                record.user_id = memory.user_id
+                record.type = domain.type
+                record.domain = domain.domain
+                record.topic = segment.topic
+                record.tags = deduplicated_tag_list
+                record.source = memory.source
+                record.kb_doc_id = doc_id
 
-        context: dict[str, Any] = dict(memory.metadata.extra)
-        if memory.metadata.tags:
-            context.setdefault("tags", memory.metadata.tags)
-        if memory.metadata.session_id:
-            context.setdefault("session_id", memory.metadata.session_id)
-        if memory.metadata.agent_id:
-            context.setdefault("agent_id", memory.metadata.agent_id)
-        if memory.metadata.user_id:
-            context.setdefault("user_id", memory.metadata.user_id)
-        return context
+                session.flush()
+                session.refresh(record)
 
-    @staticmethod
-    def _build_summary(memories: list[Memory]) -> str:
-        """构建会话记忆的基础摘要。"""
+                memory_id = str(record.id)
+                self._sync_memory_tag_associations(session, memory_id, deduplicated_tag_list)
+                session.commit()
 
-        lines = []
-        for memory in memories:
-            content = memory.content.strip()
-            if content:
-                lines.append(content)
-        return "\n".join(lines)
+            logger.info("%s memory: id=%s, domain=%s, topic=%s", action, memory_id, domain.domain, segment.topic)
+            mem_ids.append(memory_id)
 
-    @staticmethod
-    def _build_consolidated_metadata(session_id: str, memories: list[Memory]) -> MemoryMetadata:
-        """构建整合后的元数据。"""
+        return mem_ids
 
-        scope = MemoryScope.PERSONAL
-        tags: list[str] = []
-        for memory in memories:
-            if memory.metadata.scope != MemoryScope.PERSONAL:
-                scope = memory.metadata.scope
-            tags.extend(memory.metadata.tags)
+    async def update_memory_graph(
+        self,
+        memory: Memory,
+        mem_ids: list[str],
+        domain: MemoryBase,
+        segment_list: list[MemoryTopicSegmentProcessed],
+        tag_list: list[str],
+    ) -> None:
+        """创建记忆图谱：将新记忆写入图谱节点，并与历史记忆建立关联边。"""
+        from component.graph.base_graph import GraphManager
+        from models.engine import get_db
+        from models.memory import MemoryRecord
+        from runtime.memory.graph.knowledge_graph import KnowledgeGraphLayer, MemoryRef
 
-        return MemoryMetadata(
-            session_id=session_id,
-            scope=scope,
-            tags=UnifiedMemoryManager._merge_tags(tags),
-            source=MemorySource.CHAT.value,
+        graph_store = GraphManager(graph_name=f"{self.user_id}_memory_graph")
+        knowledge_graph = KnowledgeGraphLayer(graph_store=graph_store)
+
+        for memory_id, segment in zip(mem_ids, segment_list):
+            await knowledge_graph.add_memory_ref(
+                MemoryRef(
+                    id=memory_id,
+                    memory_type=domain.type,
+                    user_id=self.user_id,
+                    project_id=memory.project_id,
+                    agent_id=memory.agent_id,
+                    memory_domain=domain.domain,
+                    summary=segment.topic,
+                )
+            )
+        logger.debug("Memory graph: created %d MemoryRef nodes", len(mem_ids))
+
+        if domain.domain == "relationship":
+            from runtime.memory.graph.entity_extractor import EntityExtractor
+            from runtime.memory.graph.relation_builder import RelationBuilder
+
+            extractor = EntityExtractor()
+            builder = RelationBuilder(knowledge_graph)
+            for memory_id, segment in zip(mem_ids, segment_list):
+                text = "\n".join(segment.topic_content_segment)
+                if not text.strip():
+                    continue
+                entities_added, relations_added = await builder.build_from_text(text, extractor, memory_id=memory_id)
+                logger.debug(
+                    "Memory graph: entity extraction memory_id=%s, topic=%s, entities=%d, relations=%d",
+                    memory_id,
+                    segment.topic,
+                    entities_added,
+                    relations_added,
+                )
+
+        for memory_id, segment in zip(mem_ids, segment_list):
+            with get_db() as session:
+                peers = (
+                    session.query(MemoryRecord.id)
+                    .filter(
+                        MemoryRecord.user_id == self.user_id,
+                        MemoryRecord.topic == segment.topic,
+                        MemoryRecord.deleted == 0,
+                        MemoryRecord.id.notin_(mem_ids),
+                    )
+                    .limit(20)
+                    .all()
+                )
+            for (peer_id,) in peers:
+                await knowledge_graph.link_memory_refs(
+                    source_id=memory_id,
+                    target_id=str(peer_id),
+                    rel_type="SHARES_TOPIC",
+                    properties={"topic": segment.topic, "weight": 1.0},
+                )
+            if peers:
+                logger.debug(
+                    "Memory graph: linked memory_id=%s to %d topic peers (topic=%s)",
+                    memory_id,
+                    len(peers),
+                    segment.topic,
+                )
+
+        if tag_list:
+            tag_set = set(tag_list)
+            with get_db() as session:
+                candidates = (
+                    session.query(MemoryRecord)
+                    .filter(
+                        MemoryRecord.memory_base_id == str(domain.id),
+                        MemoryRecord.deleted == 0,
+                        MemoryRecord.id.notin_(mem_ids),
+                    )
+                    .order_by(MemoryRecord.created_at.desc())
+                    .limit(50)
+                    .all()
+                )
+                tag_peers: list[tuple[str, set, float]] = []
+                for candidate in candidates:
+                    peer_tags = set(candidate.tags or [])
+                    shared = tag_set & peer_tags
+                    if shared:
+                        union = tag_set | peer_tags
+                        jaccard = len(shared) / len(union)
+                        tag_peers.append((str(candidate.id), shared, jaccard))
+
+            for memory_id in mem_ids:
+                for peer_id, shared_tags, weight in tag_peers:
+                    await knowledge_graph.link_memory_refs(
+                        source_id=memory_id,
+                        target_id=peer_id,
+                        rel_type="SHARES_TAG",
+                        properties={"shared_tags": list(shared_tags), "weight": weight},
+                    )
+
+            if tag_peers:
+                logger.debug(
+                    "Memory graph: linked %d new memories to %d tag peers",
+                    len(mem_ids),
+                    len(tag_peers),
+                )
+
+        logger.info(
+            "Memory graph updated: user=%s, domain=%s, memories=%d",
+            self.user_id,
+            domain.domain,
+            len(mem_ids),
         )
 
-    @staticmethod
-    def _filter_memories(
-        memories: list[Memory],
-        memory_types: Optional[list[MemoryType]] = None,
-        scope: Optional[MemoryScope] = None,
-        time_range: Optional[tuple[datetime, datetime]] = None,
-    ) -> list[Memory]:
-        """按条件过滤记忆列表。"""
+    def delete_memories_by_agent(self, user_id: str):
+        """删除指定 agent_id 相关的记忆（软删除）。"""
+        from models.engine import get_db
+        from models.memory import MemoryRecord
 
-        filtered = memories
-        if memory_types:
-            type_set = set(memory_types)
-            filtered = [memory for memory in filtered if memory.type in type_set]
+        with get_db() as session:
+            session.query(MemoryRecord).filter(
+                MemoryRecord.user_id == user_id,
+                MemoryRecord.deleted == 0,
+            ).update({MemoryRecord.deleted: 1}, synchronize_session=False)
+            session.commit()
 
-        if scope:
-            filtered = [memory for memory in filtered if memory.metadata.scope == scope]
-
-        if time_range:
-            start, end = time_range
-            if start > end:
-                start, end = end, start
-            filtered = [memory for memory in filtered if start <= memory.created_at <= end]
-
-        return filtered
-
-    @staticmethod
-    def _filter_results(
-        results: list[RetrievalResult],
-        memory_types: Optional[list[MemoryType]] = None,
-        scope: Optional[MemoryScope] = None,
-        entity_filter: Optional[list[str]] = None,
-        time_range: Optional[tuple[datetime, datetime]] = None,
-        min_score: float = 0.0,
-    ) -> list[RetrievalResult]:
-        """按条件过滤检索结果。"""
-
-        filtered = [result for result in results if result.score >= min_score]
-        memories = UnifiedMemoryManager._filter_memories(
-            [result.memory for result in filtered],
-            memory_types=memory_types,
-            scope=scope,
-            time_range=time_range,
-        )
-        memory_ids = {memory.id for memory in memories}
-        filtered = [result for result in filtered if result.memory.id in memory_ids]
-
-        if entity_filter:
-            entity_set = set(entity_filter)
-            filtered = [
-                result
-                for result in filtered
-                if {entity.id for entity in result.memory.entities}.intersection(entity_set)
-            ]
-
-        return filtered
+        logger.info("Deleted memories for user=%s", user_id)

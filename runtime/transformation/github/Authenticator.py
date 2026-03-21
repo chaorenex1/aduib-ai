@@ -4,10 +4,11 @@ import os
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import httpx
 
+from ...clients.httpx_client import get_httpx_client
 from .error import (
     APIKeyExpiredError,
     GetAccessTokenError,
@@ -15,7 +16,6 @@ from .error import (
     GetDeviceCodeError,
     RefreshAPIKeyError,
 )
-from ...clients.httpx_client import get_httpx_client
 
 # Constants
 GITHUB_CLIENT_ID = "Iv1.b507a08c87ecfe98"
@@ -54,25 +54,25 @@ class Authenticator:
             GetAccessTokenError: If unable to obtain an access token after retries.
         """
         try:
-            with open(self.access_token_file, "r") as f:
+            with open(self.access_token_file) as f:
                 access_token = f.read().strip()
                 if access_token:
                     return access_token
-        except IOError:
+        except OSError:
             verbose_logger.warning("No existing access token found or error reading file")
 
         for attempt in range(3):
-            verbose_logger.debug(f"Access token acquisition attempt {attempt + 1}/3")
+            verbose_logger.debug("%Access token acquisition attempt {attempt + 1}/3")
             try:
                 access_token = self._login()
                 try:
                     with open(self.access_token_file, "w") as f:
                         f.write(access_token)
-                except IOError:
-                    verbose_logger.error("Error saving access token to file")
+                except OSError:
+                    verbose_logger.exception("Error saving access token to file")
                 return access_token
             except (GetDeviceCodeError, GetAccessTokenError, RefreshAPIKeyError) as e:
-                verbose_logger.warning(f"Failed attempt {attempt + 1}: {str(e)}")
+                verbose_logger.warning("%Failed attempt {attempt + 1}: {str(e)}")
                 continue
 
         raise GetAccessTokenError(
@@ -91,7 +91,7 @@ class Authenticator:
             GetAPIKeyError: If unable to obtain an API key.
         """
         try:
-            with open(self.api_key_file, "r") as f:
+            with open(self.api_key_file) as f:
                 api_key_info = json.load(f)
                 if api_key_info.get("expires_at", 0) > datetime.now().timestamp():
                     return api_key_info.get("token")
@@ -101,10 +101,10 @@ class Authenticator:
                         message="API key expired",
                         status_code=401,
                     )
-        except IOError:
+        except OSError:
             verbose_logger.warning("No API key file found or error opening file")
         except (json.JSONDecodeError, KeyError) as e:
-            verbose_logger.warning(f"Error reading API key from file: {str(e)}")
+            verbose_logger.warning("%Error reading API key from file: {str(e)}")
         except APIKeyExpiredError:
             pass  # Already logged in the try block
 
@@ -120,8 +120,8 @@ class Authenticator:
                     message="API key response missing token",
                     status_code=401,
                 )
-        except IOError as e:
-            verbose_logger.error(f"Error saving API key to file: {str(e)}")
+        except OSError as e:
+            verbose_logger.exception("Error saving API key to file: {str(e)}")
             raise GetAPIKeyError(
                 message=f"Failed to save API key: {str(e)}",
                 status_code=500,
@@ -140,16 +140,16 @@ class Authenticator:
             Optional[str]: The GitHub Copilot API endpoint, or None if not found.
         """
         try:
-            with open(self.api_key_file, "r") as f:
+            with open(self.api_key_file) as f:
                 api_key_info = json.load(f)
                 endpoints = api_key_info.get("endpoints", {})
                 api_endpoint = endpoints.get("api")
                 return api_endpoint
-        except (IOError, json.JSONDecodeError, KeyError) as e:
-            verbose_logger.warning(f"Error reading API endpoint from file: {str(e)}")
+        except (OSError, json.JSONDecodeError, KeyError) as e:
+            verbose_logger.warning("%Error reading API endpoint from file: {str(e)}")
             return None
 
-    def get_models(self) -> Optional[Dict[str, Any]]:
+    def get_models(self) -> Optional[dict[str, Any]]:
         """
         Get the models from the models.json file.
 
@@ -157,14 +157,14 @@ class Authenticator:
             Optional[Dict[str, Any]]: The models information, or None if not found.
         """
         try:
-            with open(self.models_file, "r") as f:
+            with open(self.models_file) as f:
                 models_info = json.load(f)
                 return models_info
-        except (IOError, json.JSONDecodeError, KeyError) as e:
-            verbose_logger.warning(f"Error reading models from file: {str(e)}")
+        except (OSError, json.JSONDecodeError, KeyError) as e:
+            verbose_logger.warning("%Error reading models from file: {str(e)}")
             return None
 
-    def _refresh_api_key(self) -> Dict[str, Any]:
+    def _refresh_api_key(self) -> dict[str, Any]:
         """
         Refresh the API key using the access token.
 
@@ -189,11 +189,13 @@ class Authenticator:
                 if "token" in response_json:
                     return response_json
                 else:
-                    verbose_logger.warning(f"API key response missing token: {response_json}")
+                    verbose_logger.warning("API key response missing token: %s", response_json)
             except httpx.HTTPStatusError as e:
-                verbose_logger.error(f"HTTP error refreshing API key (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                verbose_logger.exception(
+                    "HTTP error refreshing API key (attempt %s/%s)", attempt + 1, max_retries
+                )
             except Exception as e:
-                verbose_logger.error(f"Unexpected error refreshing API key: {str(e)}")
+                verbose_logger.exception("Unexpected error refreshing API key")
 
         raise RefreshAPIKeyError(
             message="Failed to refresh API key after maximum retries",
@@ -205,7 +207,7 @@ class Authenticator:
         if not os.path.exists(self.token_dir):
             os.makedirs(self.token_dir, exist_ok=True)
 
-    def get_github_headers(self, access_token: Optional[str] = None) -> Dict[str, str]:
+    def get_github_headers(self, access_token: Optional[str] = None) -> dict[str, str]:
         """
         Generate standard GitHub headers for API requests.
 
@@ -233,7 +235,7 @@ class Authenticator:
 
         return headers
 
-    def get_copilot_headers(self, vision: bool = False) -> Dict[str, str]:
+    def get_copilot_headers(self, vision: bool = False) -> dict[str, str]:
         """
         Get headers for GitHub Copilot API requests.
 
@@ -258,10 +260,10 @@ class Authenticator:
                 headers["copilot-vision-request"] = "true"
             return headers
         except GetAPIKeyError as e:
-            verbose_logger.error(f"Error getting API key: {str(e)}")
+            verbose_logger.exception("Error getting API key: {str(e)}")
             raise e
 
-    def _get_device_code(self) -> Dict[str, str]:
+    def _get_device_code(self) -> dict[str, str]:
         """
         Get a device code for GitHub authentication.
 
@@ -283,7 +285,7 @@ class Authenticator:
 
             required_fields = ["device_code", "user_code", "verification_uri"]
             if not all(field in resp_json for field in required_fields):
-                verbose_logger.error(f"Response missing required fields: {resp_json}")
+                verbose_logger.exception("Response missing required fields: {resp_json}")
                 raise GetDeviceCodeError(
                     message="Response missing required fields",
                     status_code=400,
@@ -291,19 +293,19 @@ class Authenticator:
 
             return resp_json
         except httpx.HTTPStatusError as e:
-            verbose_logger.error(f"HTTP error getting device code: {str(e)}")
+            verbose_logger.exception("HTTP error getting device code: {str(e)}")
             raise GetDeviceCodeError(
                 message=f"Failed to get device code: {str(e)}",
                 status_code=400,
             )
         except json.JSONDecodeError as e:
-            verbose_logger.error(f"Error decoding JSON response: {str(e)}")
+            verbose_logger.exception("Error decoding JSON response: {str(e)}")
             raise GetDeviceCodeError(
                 message=f"Failed to decode device code response: {str(e)}",
                 status_code=400,
             )
         except Exception as e:
-            verbose_logger.error(f"Unexpected error getting device code: {str(e)}")
+            verbose_logger.exception("Unexpected error getting device code: {str(e)}")
             raise GetDeviceCodeError(
                 message=f"Failed to get device code: {str(e)}",
                 status_code=400,
@@ -343,23 +345,23 @@ class Authenticator:
                     verbose_logger.info("Authentication successful!")
                     return resp_json["access_token"]
                 elif "error" in resp_json and resp_json.get("error") == "authorization_pending":
-                    verbose_logger.debug(f"Authorization pending (attempt {attempt + 1}/{max_attempts})")
+                    verbose_logger.debug("%Authorization pending (attempt {attempt + 1}/{max_attempts})")
                 else:
-                    verbose_logger.warning(f"Unexpected response: {resp_json}")
+                    verbose_logger.warning("%Unexpected response: {resp_json}")
             except httpx.HTTPStatusError as e:
-                verbose_logger.error(f"HTTP error polling for access token: {str(e)}")
+                verbose_logger.exception("HTTP error polling for access token: {str(e)}")
                 raise GetAccessTokenError(
                     message=f"Failed to get access token: {str(e)}",
                     status_code=400,
                 )
             except json.JSONDecodeError as e:
-                verbose_logger.error(f"Error decoding JSON response: {str(e)}")
+                verbose_logger.exception("Error decoding JSON response: {str(e)}")
                 raise GetAccessTokenError(
                     message=f"Failed to decode access token response: {str(e)}",
                     status_code=400,
                 )
             except Exception as e:
-                verbose_logger.error(f"Unexpected error polling for access token: {str(e)}")
+                verbose_logger.exception("Unexpected error polling for access token: {str(e)}")
                 raise GetAccessTokenError(
                     message=f"Failed to get access token: {str(e)}",
                     status_code=400,
@@ -389,7 +391,7 @@ class Authenticator:
         user_code = device_code_info["user_code"]
         verification_uri = device_code_info["verification_uri"]
 
-        print(  # noqa: T201
+        print(
             f"Please visit {verification_uri} and enter code {user_code} to authenticate.",
             # When this is running in docker, it may not be flushed immediately
             # so we force flush to ensure the user sees the message

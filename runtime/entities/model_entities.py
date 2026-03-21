@@ -134,6 +134,9 @@ class PriceConfig(BaseModel):
 
     input: Decimal
     output: Optional[Decimal] = None
+    thinking: Optional[Decimal] = None
+    cache_read: Optional[Decimal] = None
+    cache_write: Optional[Decimal] = None
     unit: Decimal = Decimal("1.0")
     currency: str = "USD"
 
@@ -158,6 +161,9 @@ class PriceType(Enum):
 
     INPUT = "input"
     OUTPUT = "output"
+    THINKING = "thinking"
+    CACHE_READ = "cache_read"
+    CACHE_WRITE = "cache_write"
 
 
 class PriceInfo(BaseModel):

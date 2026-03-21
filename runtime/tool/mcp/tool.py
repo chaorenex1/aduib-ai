@@ -1,13 +1,14 @@
 import logging
+from collections.abc import Generator
 from datetime import timedelta
-from typing import Any, Union, Generator
+from typing import Any, Union
 
 import mcp.types as mcp_types
 
 import runtime.mcp.types as runtime_mcp_types
-from utils import AsyncUtils
+
 from ..base.tool import Tool, ToolInvokeResult
-from ..entities import ToolProviderType, ToolEntity
+from ..entities import ToolEntity, ToolProviderType
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class McpTool(Tool):
     def tool_provider_type(self) -> ToolProviderType:
         return ToolProviderType.MCP
 
-    def _invoke(
+    async def _invoke(
         self, tool_parameters: dict[str, Any], message_id: str | None = None
     ) -> Union[ToolInvokeResult, Generator[ToolInvokeResult, None, None]]:
         """Invoke the tool with the given parameters."""
@@ -30,17 +31,12 @@ class McpTool(Tool):
             from .tool_provider import fast_mcp
 
             try:
-                # async def invoke_tool():
-                #     async with await fast_mcp.call_tool(self.entity.name, tool_parameters) as result:
-                #         return ToolInvokeResult(name=self.entity.name, data=self.convert_content(result.content), meta=result.meta)
-                #
-                # return AsyncUtils.run_async(invoke_tool())
-                result = AsyncUtils.run_async(fast_mcp.call_tool(self.entity.name, tool_parameters))
+                result = await fast_mcp.call_tool(self.entity.name, tool_parameters)
                 return ToolInvokeResult(
                     name=self.entity.name, data=self.convert_content(result.content), meta=result.meta
                 )
             except Exception as e:
-                logger.error(f"Failed to invoke tool: {e}")
+                logger.exception("Failed to invoke tool: {e}")
                 return ToolInvokeResult(
                     name=self.entity.name, error=f"Error: {str(e)}", success=False, meta=tool_parameters
                 )
@@ -51,24 +47,18 @@ class McpTool(Tool):
                 self.entity.configs["credential_type"] = self.entity.credentials
                 client = McpClient.build_client(server_url=self.server_url, mcp_config=self.entity.configs)
 
-                async def invoke_tool():
-                    tool_result = None
-                    async for client_session in client.get_client_session():
-                        await client_session.initialize()
-                        tool_result = await client_session.call_tool(
-                            self.entity.name, tool_parameters, read_timeout_seconds=timedelta(seconds=60)
-                        )
-                    return ToolInvokeResult(
-                        name=self.entity.name, data=self.convert_content(tool_result.content), meta=tool_result.meta
+                tool_result = None
+                async for client_session in client.get_client_session():
+                    await client_session.initialize()
+                    tool_result = await client_session.call_tool(
+                        self.entity.name, tool_parameters, read_timeout_seconds=timedelta(seconds=60)
                     )
+                return ToolInvokeResult(
+                    name=self.entity.name, data=self.convert_content(tool_result.content), meta=tool_result.meta
+                )
 
-                return AsyncUtils.run_async(invoke_tool())
-                # client = McpClient.build_client(server_url=self.server_url,mcp_config=self.entity.configs)
-                # client_session = AsyncUtils.run_async(client.get_client_session())
-                # result=AsyncUtils.run_async(client_session.call_tool(self.entity.name, tool_parameters, read_timeout_seconds=60))
-                # return ToolInvokeResult(name=self.entity.name, data=self.convert_content(result.content),meta=result.meta)
             except Exception as e:
-                logger.error(f"Failed to invoke remote MCP tool: {e}")
+                logger.exception("Failed to invoke remote MCP tool: {e}")
                 return ToolInvokeResult(
                     name=self.entity.name, error=f"Error: {str(e)}", success=False, meta=tool_parameters
                 )

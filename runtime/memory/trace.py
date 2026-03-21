@@ -11,6 +11,7 @@ from uuid import uuid4
 class ResultDetail:
     memory_id: str
     hit_count: int = 1  # 被几条子查询命中
+    evidence_count: int = 1  # 被几轮 ReAct 动作验证
     rag_score: float = 0.0  # graph-boost 后、LLM 融合前的原始 score
     from_expansion: bool = False  # 来自图谱邻居扩展
     judge_rank: int | None = None  # LLM judge 给出的排序位（None = 未入选 judge 输出）
@@ -19,15 +20,27 @@ class ResultDetail:
     memory_domain: str = ""
     memory_type: str = ""
     memory_source: str = ""
+    retrieval_sources: list[str] = field(default_factory=list)
 
 
 @dataclass
-class SubQueryStat:
-    query_hash: str
-    candidate_count: int = 0
+class ReActStepTrace:
+    step_index: int
+    action_type: str
+    query_hash: str = ""
+    retrieval_method: str = ""
+    score_threshold: float | None = None
+    input_candidate_count: int = 0
+    output_candidate_count: int = 0
+    new_candidate_count: int = 0
     graph_prefetch_count: int = 0
     graph_boost_count: int = 0
     graph_expansion_count: int = 0
+    latency_ms: int = 0
+    strategy_reason: str = ""
+    threshold_reason: str = ""
+    stop_reason: str = ""
+    reason_summary: str = ""
 
 
 @dataclass
@@ -46,17 +59,12 @@ class RetrievalTrace:
     ms_topic_count: int = 0  # 注入的 topic 数
     latency_step0_ms: int = 0
 
-    # ── Step 1: Sub-query Generation ──────────────
-    sub_query_count: int = 0
-    sub_query_failed: bool = False  # LLM 调用失败，降级为单 query
+    # ── Step 1: Planner / Retrieval Orchestration ─
     latency_step1_ms: int = 0
 
-    # ── Step 2: Parallel RAG ──────────────────────
-    sub_query_stats: list[SubQueryStat] = field(default_factory=list)
+    # ── Step 2: Retrieval Execution ───────────────
     candidate_total_raw: int = 0  # merge 前总数（含跨子查询重复）
     candidate_total_unique: int = 0  # merge 后唯一 memory_id 数
-    multi_hit_count: int = 0  # 被 ≥2 条子查询命中的 ID 数
-    multi_hit_max: int = 0  # 单条记忆最大命中次数
     latency_step2_ms: int = 0
 
     # ── Step 3: LLM Judge ─────────────────────────
@@ -64,7 +72,18 @@ class RetrievalTrace:
     judge_output_count: int = 0
     judge_selection_rate: float = 0.0
     judge_failed: bool = False  # 降级为 score 排序
+    judge_score_weights: dict[str, float] = field(default_factory=dict)
+    judge_weight_reason: str = ""
     latency_step3_ms: int = 0
+
+    # ── ReAct Loop ────────────────────────────────
+    react_enabled: bool = False
+    react_step_count: int = 0
+    react_stop_reason: str = ""
+    react_repeated_action_count: int = 0
+    react_total_new_candidates: int = 0
+    react_unique_action_query_count: int = 0
+    react_steps: list[ReActStepTrace] = field(default_factory=list)
 
     # ── Final Results ──────────────────────────────
     final_count: int = 0

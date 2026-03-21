@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from runtime.task.types import TaskExecutionResult
+from runtime.tasks.types import TaskExecutionResult
 from runtime.tool.builtin_tool.providers._workspace import (
     DEFAULT_MAX_OUTPUT_CHARS,
     WorkspaceToolError,

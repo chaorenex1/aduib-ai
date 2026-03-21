@@ -3,7 +3,7 @@ from typing import Optional
 
 from runtime.entities.document_entities import Document
 from runtime.entities.rerank_entities import RerankRequest
-from runtime.model_manager import ModelManager, ModelInstance
+from runtime.model_manager import ModelInstance, ModelManager
 from runtime.rag.retrieve.rerank_base import BaseRerankRunner
 
 logger = logging.getLogger(__name__)
@@ -92,8 +92,7 @@ class RankerModelRunner(BaseRerankRunner):
                 if not reranking_provider_name or not reranking_model_name:
                     return None
                 rerank_model_instance = model_manager.get_model_instance(
-                    model_name=reranking_model_name,
-                    provider_name=reranking_provider_name,
+                    model_name=reranking_provider_name+"/"+reranking_model_name
                 )
                 return rerank_model_instance
             except Exception as e:

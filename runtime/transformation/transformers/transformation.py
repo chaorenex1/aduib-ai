@@ -1,15 +1,18 @@
 import logging
 import os
-from typing import Union, Generator
 
-from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
+from runtime.entities.llm_entities import (
+    ChatCompletionRequest,
+    LLMRequest,
+    LLMResponse,
+)
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse, RerankResult, RerankUsage
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.transformation import OpenAILikeTransformation
 from runtime.transformation.transformers.transformers_manager import (
-    TransformersManager,
-    ReRankTransformersLoader,
     EmbeddingTransformersLoader,
+    ReRankTransformersLoader,
+    TransformersManager,
 )
 
 logger = logging.getLogger("transformers")
@@ -54,10 +57,10 @@ class TransformersTransformation(OpenAILikeTransformation):
 
             manager.start_worker(loader)
             cls._initialized_models.add(model_name)
-            logger.info(f"Model {model_name} loaded successfully")
+            logger.info("%Model {model_name} loaded successfully")
 
         except Exception as e:
-            logger.error(f"Failed to load model {model_name}: {e}")
+            logger.exception("Failed to load model {model_name}: {e}")
             raise
 
     @classmethod
@@ -120,7 +123,7 @@ class TransformersTransformation(OpenAILikeTransformation):
             )
 
         except Exception as e:
-            logger.error(f"Error in rerank transformation: {e}")
+            logger.exception("Error in rerank transformation: {e}")
             # Fallback to parent implementation
             raise e
 
@@ -178,18 +181,18 @@ class TransformersTransformation(OpenAILikeTransformation):
             )
 
         except Exception as e:
-            logger.error(f"Error in embeddings transformation: {e}")
+            logger.exception("Error in embeddings transformation: {e}")
             # Fallback to parent implementation
             raise e
 
     @classmethod
     def transform_message(
-            cls,
-            model_params: dict,
-            prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
-            credentials: dict,
-            stream: bool = None,
-    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
+        cls,
+        model_params: dict,
+        prompt_messages: LLMRequest,
+        credentials: dict,
+        stream: bool = None,
+    ) -> LLMResponse:
         """Transform chat completion request using transformers manager"""
         try:
             # Extract model information
@@ -227,7 +230,7 @@ class TransformersTransformation(OpenAILikeTransformation):
             return response.data["response"]
 
         except Exception as e:
-            logger.error(f"Error in message transformation: {e}")
+            logger.exception("Error in message transformation: {e}")
             # Fallback to parent implementation
             raise e
 

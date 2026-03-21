@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import TypeVar, Generator
+from collections.abc import Generator
+from typing import TypeVar
 
 import requests
 from pydantic import BaseModel

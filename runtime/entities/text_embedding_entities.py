@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -15,7 +15,7 @@ class EmbeddingRequest(BaseModel):
 
 
 class EmbeddingsResponse(BaseModel):
-    embedding: Optional[List[float]] | Optional[str] | Optional[List[str]] = None
+    embedding: Optional[list[float]] | Optional[str] | Optional[list[str]] = None
     index: int = 0
     object: str = "embedding"
     encoding_format: Optional[str] = "float"  # base64
@@ -45,4 +45,4 @@ class TextEmbeddingResult(BaseModel):
     embeddings: list[list[float]] = []
     usage: EmbeddingUsage = None
     object: str = ""
-    data: List[EmbeddingsResponse] = []
+    data: list[EmbeddingsResponse] = []

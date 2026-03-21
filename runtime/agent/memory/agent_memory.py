@@ -1,7 +1,6 @@
-import threading
+from typing import Any
 
 from models import Agent
-from runtime.agent.agent_type import Message
 from runtime.agent.memory.embeddings_memory import LongTermEmbeddingsMemory
 from runtime.agent.memory.redis_memory import ShortTermRedisMemory
 
@@ -9,54 +8,44 @@ from runtime.agent.memory.redis_memory import ShortTermRedisMemory
 class AgentMemory:
     """AgentMemory is used to store the context of the agent."""
 
-    _locks = {}  # 类级别的锁字典
-    _locks_lock = threading.Lock()  # 保护锁字典的锁
-
     def __init__(self, agent: Agent, session_id: str):
         self.agent_id = agent.id
+        self.user_id = str(agent.user_id or agent.id)
         self.session_id = session_id
         # 从 agent 参数中获取 turns，默认为 20
         self.turns = agent.agent_parameters.get("turns", 20)
-        self.short_term_memory = ShortTermRedisMemory(self.session_id, self.turns)
+        self.short_term_memory = ShortTermRedisMemory(self.session_id)
         self.long_term_memory = LongTermEmbeddingsMemory(
-            str(self.agent_id),
-            agent.agent_parameters.get("chunk_size", 500),
-            agent.agent_parameters.get("chunk_overlap", 50),
-            agent.agent_parameters.get("top_k", 40),
-            agent.agent_parameters.get("score_threshold", 0.5),
+            user_id=self.user_id,
+            agent_id=str(self.agent_id),
+            top_k=agent.agent_parameters.get("top_k", 5),
+            score_threshold=agent.agent_parameters.get("score_threshold", 0.8),
         )
 
-        # 获取或创建基于 session_id 的锁
-        with AgentMemory._locks_lock:
-            if session_id not in AgentMemory._locks:
-                AgentMemory._locks[session_id] = threading.RLock()
-            self._lock = AgentMemory._locks[session_id]
+    async def add_memory(self, message: str, long_term_memory: bool = False, compact_session: bool = False) -> str:
+        """Add memory to the agent's memory. If the number of turns exceeds the limit, add to long term memory."""
+        if not long_term_memory:
+            await self.short_term_memory.add_memory(message, compact_session)
+        else:
+            await self.long_term_memory.add_memory(message)
 
-    def add_interaction(self, message: Message) -> None:
-        """Add interaction to memory."""
-        with self._lock:
-            memory = self.short_term_memory.add_memory(message)
-            if memory:
-                memorys = self.short_term_memory.get_memory("")
-                memorys_ = [Message(**m) for m in memorys]
-                for m in memorys_:
-                    if m.assistant_message:
-                        self.long_term_memory.add_memory(m)
-                self.short_term_memory.delete_memory()
-                self.short_term_memory.add_memory(Message(**memory))
-
-    def retrieve_context(self, query: str) -> dict:
+    async def retrieve_context(
+        self, query: str, long_term_memory: bool = True, compact_session: bool = False
+    ) -> dict[str, Any]:
         """Retrieve context from memory."""
-        with self._lock:
-            short_term_context = self.short_term_memory.get_memory(query)
-            if len(short_term_context) > 0:
-                long_term_context = self.long_term_memory.get_memory(query)
-                return {"short_term": short_term_context, "long_term": long_term_context}
-            else:
-                return {"short_term": [], "long_term": []}
+        context: dict[str, Any] = {
+            "short_term": await self.short_term_memory.get_short_term_memory(compact_session=compact_session),
+            "long_term": [],
+        }
+        if long_term_memory:
+            context["long_term"] = await self.long_term_memory.get_long_term_memory(query=query)
+        return context
 
-    def clear_memory(self) -> None:
+    async def clear_memory(self) -> None:
         """Clear memory."""
-        with self._lock:
-            self.short_term_memory.delete_memory()
-            self.long_term_memory.delete_memory()
+        await self.short_term_memory.delete_memory()
+        await self.long_term_memory.delete_memory()
+
+    async def clear_short_term_memory(self):
+        """Clear interaction memory."""
+        await self.short_term_memory.delete_memory()

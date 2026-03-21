@@ -9,13 +9,14 @@ import time
 import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import zmq
 from pydantic import BaseModel
+
 try:
     import torch
-    from transformers import AutoTokenizer, AutoModelForCausalLM
+    from transformers import AutoModelForCausalLM, AutoTokenizer
 except ImportError:
     ...
 logger = logging.getLogger("transformers")
@@ -32,12 +33,12 @@ class TransformersConfig:
 
 class TaskReq(BaseModel):
     worker_id: Optional[str] = None
-    data: Optional[Dict[str, Any]] = None
+    data: Optional[dict[str, Any]] = None
 
 
 class TaskResp(BaseModel):
     worker_id: Optional[str] = None
-    data: Optional[Dict[str, Any]] = None
+    data: Optional[dict[str, Any]] = None
     success: bool = False
 
 
@@ -94,16 +95,16 @@ class EmbeddingTransformersLoader(TransformersLoader):
             if self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
 
-            logger.warning(f"Initializing Embedding model: {self.model} from {self.model_path} on {self.device}")
+            logger.warning("%Initializing Embedding model: {self.model} from {self.model_path} on {self.device}")
 
         except Exception as e:
-            logger.error(f"Failed to initialize embedding model: {e}")
+            logger.exception("Failed to initialize embedding model: {e}")
             raise
 
     def transform(self, data: TaskReq) -> TaskResp:
         """Transform the input data using the Embedding model"""
         try:
-            logger.info(f"Transforming data with Embedding model: {self.model}")
+            logger.info("%Transforming data with Embedding model: {self.model}")
 
             # Extract data
             request_data = data.data
@@ -136,10 +137,10 @@ class EmbeddingTransformersLoader(TransformersLoader):
             )
 
         except Exception as e:
-            logger.error(f"Error in Embedding transform: {e}")
+            logger.exception("Error in Embedding transform: {e}")
             return TaskResp(worker_id=str(self.worker_id), data={"error": str(e)}, success=False)
 
-    def _adaptive_batch_size(self, total_items: int, available_memory_mb: int = None) -> int:
+    def _adaptive_batch_size(self, total_items: int, available_memory_mb: int | None = None) -> int:
         """根据可用内存动态调整批大小"""
         if available_memory_mb is None:
             # 获取可用GPU内存
@@ -160,7 +161,7 @@ class EmbeddingTransformersLoader(TransformersLoader):
 
     @torch.no_grad()
     def _generate_embeddings(
-        self, texts: list, normalize: bool = True, batch_size: int = 32, target_dimension: int = None
+        self, texts: list, normalize: bool = True, batch_size: int = 32, target_dimension: int | None = None
     ) -> list:
         """Generate embeddings using transformers model with batching"""
         batch_size = self._adaptive_batch_size(batch_size)
@@ -229,9 +230,7 @@ class EmbeddingTransformersLoader(TransformersLoader):
         # Common embedding model patterns
         if any(name in model_name for name in ["sentence-transformers", "all-minilm", "all-mpnet"]):
             return "mean"
-        elif any(name in model_name for name in ["bert", "roberta", "deberta"]):
-            return "cls"
-        elif "bge" in model_name:
+        elif any(name in model_name for name in ["bert", "roberta", "deberta"]) or "bge" in model_name:
             return "cls"
         else:
             return "mean"  # Default to mean pooling
@@ -263,7 +262,7 @@ class EmbeddingTransformersLoader(TransformersLoader):
     def _encode_embeddings_base64(self, embeddings: list) -> list:
         """Encode embeddings to base64 format"""
         import base64
-        import struct
+
         import numpy as np
 
         encoded_embeddings = []
@@ -301,7 +300,7 @@ class EmbeddingTransformersLoader(TransformersLoader):
                 return test_embedding.size(-1)
 
         except Exception as e:
-            logger.warning(f"Failed to determine embedding dimension: {e}")
+            logger.warning("%Failed to determine embedding dimension: {e}")
             return 1024  # Default BERT-like dimension
 
 
@@ -323,7 +322,7 @@ class ReRankTransformersLoader(TransformersLoader):
         if not self.instruction:
             self.instruction = self._get_default_instruction()
 
-        logger.warning(f"Initializing ReRank model: {self.model} from {self.model_path} on {self.device}")
+        logger.warning("%Initializing ReRank model: {self.model} from {self.model_path} on {self.device}")
 
     def _get_default_instruction(self) -> str:
         """Get default rerank instruction"""
@@ -339,7 +338,7 @@ class ReRankTransformersLoader(TransformersLoader):
     def transform(self, data: TaskReq) -> TaskResp:
         """Transform the input data using the ReRank model"""
         try:
-            logger.info(f"Transforming data with ReRank model: {self.model}")
+            logger.info("%Transforming data with ReRank model: {self.model}")
 
             # Get task instruction
             task = self.instruction if self.instruction else self._get_default_instruction()
@@ -367,7 +366,7 @@ class ReRankTransformersLoader(TransformersLoader):
             )
 
         except Exception as e:
-            logger.error(f"Error in ReRank transform: {e}")
+            logger.exception("Error in ReRank transform: {e}")
             return TaskResp(worker_id=str(self.worker_id), data={"error": str(e)}, success=False)
 
     @torch.no_grad()
@@ -573,7 +572,7 @@ class ZMQBroker:
             self._broker_loop()
 
         except Exception as e:
-            logger.error(f"Failed to start broker: {e}")
+            logger.exception("Failed to start broker: {e}")
             self.cleanup()
             raise
 
@@ -591,7 +590,7 @@ class ZMQBroker:
                     self._handle_worker_message()
 
             except Exception as e:
-                logger.error(f"Error in broker loop: {e}")
+                logger.exception("Error in broker loop: {e}")
                 break
 
     def _handle_client_message(self):
@@ -606,7 +605,7 @@ class ZMQBroker:
                 task_req = TaskReq.model_validate(message_json)
             except Exception as e:
                 traceback.print_exc()
-                logger.error(f"Failed to parse client message: {e}")
+                logger.exception("Failed to parse client message: {e}")
                 # 发送错误响应给客户端
                 error_resp = TaskResp(worker_id="", data={"error": f"Invalid message format: {str(e)}"}, success=False)
                 self.frontend.send_multipart([client_id, b"", error_resp.model_dump_json().encode("utf-8")])
@@ -625,10 +624,10 @@ class ZMQBroker:
             # 转发消息给指定的worker
             self.backend.send_multipart([target_worker.encode("utf-8"), b"", message_data])
 
-            logger.debug(f"Routed message from client {client_id.decode()} to worker {target_worker}")
+            logger.debug("%Routed message from client {client_id.decode()} to worker {target_worker}")
 
         except Exception as e:
-            logger.error(f"Error handling client message: {e}")
+            logger.exception("Error handling client message: {e}")
 
     def _handle_worker_message(self):
         """Handle message from worker"""
@@ -638,24 +637,24 @@ class ZMQBroker:
 
             # 将响应转发回对应的客户端
             worker_id_key = worker_id.decode("utf-8")
-            client_id = self._client_worker_mapping.get(worker_id_key, "client".encode("utf-8"))
+            client_id = self._client_worker_mapping.get(worker_id_key, b"client")
             self.frontend.send_multipart([client_id, b"", response_data])
 
             # 清理映射关系
             if worker_id_key in self._client_worker_mapping:
                 del self._client_worker_mapping[worker_id_key]
 
-            logger.debug(f"Forwarded response from worker {worker_id.decode('utf-8')} to client {client_id}")
+            logger.debug("%Forwarded response from worker {worker_id.decode('utf-8')} to client {client_id}")
 
         except Exception as e:
             traceback.print_exc()
-            logger.error(f"Error handling worker message: {e}")
+            logger.exception("Error handling worker message: {e}")
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
 
         def stop_handler(signum, frame):
-            logger.info(f"Broker stopping...")
+            logger.info("Broker stopping...")
             self.stop()
             sys.exit(0)
 
@@ -705,7 +704,7 @@ class ZMQWorker:
             self._running = True
             self._ready = True
 
-            logger.info(f"Worker {self.transformer_loader.worker_id} started and ready")
+            logger.info("%Worker {self.transformer_loader.worker_id} started and ready")
             self.poller = zmq.Poller()
             self.poller.register(self.socket, zmq.POLLIN)
             self.socket.send_multipart(
@@ -723,7 +722,7 @@ class ZMQWorker:
             self._run_loop()
 
         except Exception as e:
-            logger.error(f"Failed to start worker: {e}")
+            logger.exception("Failed to start worker: {e}")
             self._ready = False
             self.cleanup()
             raise
@@ -748,7 +747,7 @@ class ZMQWorker:
                         self.socket.send_multipart([b"", response.model_dump_json().encode("utf-8")])
 
                     except Exception as e:
-                        logger.error(f"Error processing task: {e}")
+                        logger.exception("Error processing task: {e}")
                         error_resp = TaskResp(
                             worker_id=self.transformer_loader.worker_id, data={"error": str(e)}, success=False
                         )
@@ -757,7 +756,7 @@ class ZMQWorker:
             except zmq.Again:
                 continue
             except Exception as e:
-                logger.error(f"Error in worker loop: {e}")
+                logger.exception("Error in worker loop: {e}")
                 break
 
     def _process_task(self, task_req: TaskReq) -> TaskResp:
@@ -774,10 +773,12 @@ class ZMQWorker:
             # 检查worker ID匹配
             if task_req.worker_id != self.transformer_loader.worker_id:
                 logger.warning(
-                    f"Worker ID mismatch: expected {self.transformer_loader.worker_id}, got {task_req.worker_id}"
+                    "Worker ID mismatch: expected %s, got %s",
+                    self.transformer_loader.worker_id,
+                    task_req.worker_id,
                 )
                 return TaskResp(
-                    worker_id=self.transformer_loader.worker_id, data={"error": f"Worker ID mismatch"}, success=False
+                    worker_id=self.transformer_loader.worker_id, data={"error": "Worker ID mismatch"}, success=False
                 )
 
             # 检查worker是否就绪
@@ -792,7 +793,7 @@ class ZMQWorker:
             return self.transformer_loader.transform(task_req)
 
         except Exception as e:
-            logger.error(f"Error processing task: {e}")
+            logger.exception("Error processing task: {e}")
             return TaskResp(worker_id=self.transformer_loader.worker_id, data={"error": str(e)}, success=False)
 
     def _get_backend_address(self):
@@ -803,7 +804,7 @@ class ZMQWorker:
         """Setup signal handlers for graceful shutdown"""
 
         def stop_handler(signum, frame):
-            logger.info(f"Worker {self.transformer_loader.worker_id} stopping...")
+            logger.info("%Worker {self.transformer_loader.worker_id} stopping...")
             self.stop()
             sys.exit(0)
 
@@ -836,7 +837,7 @@ class ZMQClient:
         try:
             self.ctx = zmq.Context()
             self.socket = self.ctx.socket(zmq.DEALER)
-            self.socket.setsockopt(zmq.IDENTITY, "client".encode("utf-8"))
+            self.socket.setsockopt(zmq.IDENTITY, b"client")
             self.socket.setsockopt(zmq.RCVTIMEO, TransformersConfig.CONNECTION_TIMEOUT)
             self.socket.setsockopt(zmq.SNDTIMEO, TransformersConfig.CONNECTION_TIMEOUT)
             self.socket.connect(TransformersConfig.FRONTEND_TCP_ADDRESS)
@@ -851,17 +852,18 @@ class ZMQClient:
             _, data = self.socket.recv_multipart()
             resp = TaskResp.model_validate(json.loads(data.decode("utf-8")))
             if resp.worker_id == message.worker_id:
-                logger.debug(f"Received valid response from worker {resp.worker_id}")
+                logger.debug("%Received valid response from worker {resp.worker_id}")
                 return resp
             else:
                 logger.debug(
-                    "filtered invalid response due to worker_id mismatch, req_worker_id="
-                    f"{message.worker_id}, resp_worker_id={resp.worker_id}"
+                    "filtered invalid response due to worker_id mismatch, req_worker_id=%s, resp_worker_id=%s",
+                    message.worker_id,
+                    resp.worker_id,
                 )
         except zmq.Again:
             raise TimeoutError("Request timeout")
         except Exception as e:
-            logger.error(f"Error in send_and_receive: {e}")
+            logger.exception("Error in send_and_receive: {e}")
             raise
 
     def cleanup(self):
@@ -900,7 +902,7 @@ class TransformersManager:
                 logger.info("Broker process started")
 
             except Exception as e:
-                logger.error(f"Failed to start broker process: {e}")
+                logger.exception("Failed to start broker process: {e}")
 
     def start_worker(self, loader: TransformersLoader, timeout: int = 300):
         """Start worker process and wait for it to be ready"""
@@ -908,7 +910,7 @@ class TransformersManager:
             if loader.model in self._worker_processes:
                 process = self._worker_processes[loader.model]
                 if process.is_alive():
-                    logger.warning(f"Worker process for model {loader.model} already running")
+                    logger.warning("%Worker process for model {loader.model} already running")
                     return
                 else:
                     # Clean up dead process
@@ -922,21 +924,21 @@ class TransformersManager:
                 self._worker_processes[loader.model] = process
                 self._worker_ready_status[loader.model] = False
 
-                logger.warning(f"Worker process started for model {loader.model}, waiting for ready...")
+                logger.warning("%Worker process started for model {loader.model}, waiting for ready...")
 
                 # 等待worker就绪
                 if self._wait_for_worker_ready(loader.model, timeout):
                     self._worker_ready_status[loader.model] = True
                     time.sleep(1)  # 确保worker稳定
-                    logger.info(f"Worker for model {loader.model} is ready")
+                    logger.info("%Worker for model {loader.model} is ready")
                 else:
                     # 如果worker没有在超时时间内就绪，清理进程
-                    logger.error(f"Worker for model {loader.model} failed to become ready within {timeout} seconds")
+                    logger.exception("Worker for model {loader.model} failed to become ready within {timeout} seconds")
                     self._cleanup_worker(loader.model)
                     raise RuntimeError(f"Worker for model {loader.model} failed to start process")
 
             except Exception as e:
-                logger.error(f"Failed to start worker process for {loader.model}: {e}")
+                logger.exception("Failed to start worker process for {loader.model}: {e}")
                 if loader.model in self._worker_processes:
                     self._cleanup_worker(loader.model)
                 raise
@@ -955,11 +957,11 @@ class TransformersManager:
 
                     if response.success and response.data.get("status") == "ready":
                         self._worker_ready_status[model] = True
-                        logger.warning(f"Health check passed for worker {model}")
+                        logger.warning("%Health check passed for worker {model}")
                         return True
 
             except Exception as e:
-                logger.debug(f"Health check failed for {model}: {e}")
+                logger.debug("%Health check failed for {model}: {e}")
 
             time.sleep(1)  # 每秒检查一次
 
@@ -981,7 +983,7 @@ class TransformersManager:
         if model in self._worker_ready_status:
             del self._worker_ready_status[model]
 
-    def send_task(self, model: str, task_data: Dict[str, Any]) -> TaskResp:
+    def send_task(self, model: str, task_data: dict[str, Any]) -> TaskResp:
         """Send task to specific model worker"""
         if model not in self._worker_processes:
             raise ValueError(f"Worker for model {model} not started")
@@ -1020,7 +1022,7 @@ class TransformersManager:
         """Stop specific worker process"""
         with self._lock:
             self._cleanup_worker(model)
-            logger.info(f"Worker for model {model} stopped")
+            logger.info("%Worker for model {model} stopped")
 
     def stop_all(self):
         """Stop all processes"""
@@ -1047,7 +1049,7 @@ class TransformersManager:
         """Check if worker is ready"""
         return self._worker_ready_status.get(model, False)
 
-    def get_worker_status(self) -> Dict[str, Dict[str, bool]]:
+    def get_worker_status(self) -> dict[str, dict[str, bool]]:
         """Get status of all workers"""
         with self._lock:
             return {

@@ -2,7 +2,6 @@ from fastapi import APIRouter
 
 from controllers.common.base import BaseResponse, catch_exceptions
 from controllers.params import CreateModelRequest, CreateProviderRequest
-from libs.deps import CurrentApiKeyDep
 from service.model_service import ModelService
 from service.provider_service import ProviderService
 

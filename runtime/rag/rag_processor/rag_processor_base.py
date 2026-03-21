@@ -1,12 +1,12 @@
 import re
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from typing import Optional
 
 from models.document import KnowledgeBase
 from runtime.entities.document_entities import Document
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 from runtime.rag.splitter.base_splitter import BaseTextSplitter
-from runtime.rag.splitter.text_splitter import RecursiveTextSplitter, FixedRecursiveTextSplitter
+from runtime.rag.splitter.text_splitter import FixedRecursiveTextSplitter, RecursiveTextSplitter
 
 
 class BaseRAGProcessor(ABC):
@@ -35,7 +35,10 @@ class BaseRAGProcessor(ABC):
         knowledge: KnowledgeBase,
         top_k: int,
         score_threshold: float,
+        reranking_mode: str,
         reranking_model: dict,
+        weights: Optional[dict] = None,
+        **kwargs
     ) -> list[Document]:
         raise NotImplementedError
 

@@ -2,7 +2,7 @@
 
 import unicodedata
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 # Constants per Agent Skills Spec
 MAX_SKILL_NAME_LENGTH = 64
@@ -20,7 +20,7 @@ ALLOWED_FIELDS = {
 }
 
 
-def _validate_name(name: str, skill_dir: Optional[Path] = None) -> List[str]:
+def _validate_name(name: str, skill_dir: Optional[Path] = None) -> list[str]:
     """Validate skill name format and directory match.
 
     Skill names support alphanumeric characters plus hyphens.
@@ -66,7 +66,7 @@ def _validate_name(name: str, skill_dir: Optional[Path] = None) -> List[str]:
     return errors
 
 
-def _validate_description(description: str) -> List[str]:
+def _validate_description(description: str) -> list[str]:
     """Validate description format.
 
     Args:
@@ -87,7 +87,7 @@ def _validate_description(description: str) -> List[str]:
     return errors
 
 
-def _validate_compatibility(compatibility: str) -> List[str]:
+def _validate_compatibility(compatibility: str) -> list[str]:
     """Validate compatibility format.
 
     Args:
@@ -108,7 +108,7 @@ def _validate_compatibility(compatibility: str) -> List[str]:
     return errors
 
 
-def _validate_license(license_val: str) -> List[str]:
+def _validate_license(license_val: str) -> list[str]:
     """Validate license field.
 
     Args:
@@ -117,7 +117,7 @@ def _validate_license(license_val: str) -> List[str]:
     Returns:
         List of validation error messages. Empty list means valid.
     """
-    errors: List[str] = []
+    errors: list[str] = []
 
     if not isinstance(license_val, str):
         errors.append("Field 'license' must be a string")
@@ -125,7 +125,7 @@ def _validate_license(license_val: str) -> List[str]:
     return errors
 
 
-def _validate_allowed_tools(allowed_tools) -> List[str]:
+def _validate_allowed_tools(allowed_tools) -> list[str]:
     """Validate allowed-tools field.
 
     Args:
@@ -146,7 +146,7 @@ def _validate_allowed_tools(allowed_tools) -> List[str]:
     return errors
 
 
-def _validate_metadata_value(metadata_val) -> List[str]:
+def _validate_metadata_value(metadata_val) -> list[str]:
     """Validate metadata field value.
 
     Args:
@@ -163,7 +163,7 @@ def _validate_metadata_value(metadata_val) -> List[str]:
     return errors
 
 
-def _validate_metadata_fields(metadata: Dict) -> List[str]:
+def _validate_metadata_fields(metadata: dict) -> list[str]:
     """Validate that only allowed fields are present in frontmatter.
 
     Args:
@@ -184,7 +184,7 @@ def _validate_metadata_fields(metadata: Dict) -> List[str]:
     return errors
 
 
-def validate_metadata(metadata: Dict, skill_dir: Optional[Path] = None) -> List[str]:
+def validate_metadata(metadata: dict, skill_dir: Optional[Path] = None) -> list[str]:
     """Validate parsed skill metadata.
 
     This is the core validation function that works on already-parsed metadata.
@@ -224,7 +224,7 @@ def validate_metadata(metadata: Dict, skill_dir: Optional[Path] = None) -> List[
     return errors
 
 
-def validate_skill_directory(skill_dir: Path) -> List[str]:
+def validate_skill_directory(skill_dir: Path) -> list[str]:
     """Validate a skill directory structure and contents.
 
     Args:
@@ -235,7 +235,7 @@ def validate_skill_directory(skill_dir: Path) -> List[str]:
     """
     import yaml
 
-    from agno.skills.errors import SkillParseError
+    from runtime.agent.skill.errors import SkillParseError
 
     skill_dir = Path(skill_dir)
 

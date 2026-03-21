@@ -1,5 +1,6 @@
 import json
-from typing import Union, Mapping, Generator
+from collections.abc import Generator, Mapping
+from typing import Union
 
 from sse_starlette import EventSourceResponse
 from starlette.responses import JSONResponse, Response

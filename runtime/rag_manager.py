@@ -7,10 +7,9 @@ from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import select
 
 from component.storage.base_storage import storage_manager
-from models import KnowledgeBase, get_db, FileResource, KnowledgeEmbeddings
+from models import FileResource, KnowledgeBase, KnowledgeEmbeddings, get_db
 from models.document import KnowledgeDocument, KnowledgeKeywords
 from runtime.entities.document_entities import Document
-from runtime.generator.generator import LLMGenerator
 from runtime.model_manager import ModelManager
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 from runtime.rag.extractor.entity.extraction_source_type import ExtractionSourceType
@@ -26,7 +25,7 @@ class RagManager:
         self.storage = storage_manager
         self.model_manager = ModelManager()
 
-    def run(self, knowledge_docs: list[KnowledgeDocument]):
+    def run(self, knowledge_docs: list[KnowledgeDocument], **kwargs):
         """Run the RAG process."""
         with get_db() as session:
             for knowledge_doc in knowledge_docs:
@@ -38,7 +37,7 @@ class RagManager:
                     rag_type = knowledge_doc.rag_type
                     rag_processor = RAGProcessorFactory.get_rag_processor(rag_type)
                     # extract
-                    docs = self._extract(rag_processor, knowledge_doc, kb)
+                    docs = self._extract(rag_processor, knowledge_doc, kb, **kwargs)
 
                     # transform
                     documents = self._transform(rag_processor, knowledge_doc, kb, docs)
@@ -59,7 +58,7 @@ class RagManager:
                     knowledge_doc.stopped_at = datetime.datetime.now()
                     session.commit()
 
-    def clean(self,knowledge_docs: list[KnowledgeDocument]):
+    def clean(self, knowledge_docs: list[KnowledgeDocument]):
         """Clean the RAG data."""
         with get_db() as session:
             for knowledge_doc in knowledge_docs:
@@ -71,7 +70,7 @@ class RagManager:
                     rag_type = knowledge_doc.rag_type
                     rag_processor = RAGProcessorFactory.get_rag_processor(rag_type)
 
-                    rag_processor.clean(kb, [str(knowledge_doc.id)],with_keywords=True)
+                    rag_processor.clean(kb, [str(knowledge_doc.id)], with_keywords=True)
 
                     session.query(KnowledgeEmbeddings).filter_by(document_id=knowledge_doc.id).delete()
                     session.query(KnowledgeKeywords).filter_by(document_id=knowledge_doc.id).delete()
@@ -84,7 +83,7 @@ class RagManager:
                     session.commit()
 
     def _extract(
-        self, rag_processor: BaseRAGProcessor, knowledge_doc: KnowledgeDocument, knowledge_base: KnowledgeBase
+        self, rag_processor: BaseRAGProcessor, knowledge_doc: KnowledgeDocument, knowledge_base: KnowledgeBase, **kwargs
     ) -> list[Document]:
         # load file
         processing_rule = knowledge_base.data_process_rule
@@ -111,7 +110,7 @@ class RagManager:
             if _knowledge_doc:
                 # name, language = LLMGenerator.generate_conversation_name(doc_content)
                 # knowledge_doc.doc_language = language
-                _knowledge_doc.content = LLMGenerator.generate_blog_transform(doc_content)
+                _knowledge_doc.content = doc_content
                 _knowledge_doc.rag_status = "extracting"
                 _knowledge_doc.word_count = sum(len(doc.content) for doc in text_docs)
                 _knowledge_doc.extracted_at = datetime.datetime.now()
@@ -125,7 +124,9 @@ class RagManager:
             for text_doc in text_docs:
                 if text_doc.metadata is not None:
                     text_doc.metadata["knowledge_id"] = str(_knowledge_doc.id)
-
+            text_doc.metadata["user_id"] = _knowledge_doc.user_id
+            if kwargs:
+                text_doc.metadata.update(kwargs)
         return text_docs
 
     def _transform(
@@ -136,7 +137,7 @@ class RagManager:
         docs: list[Document],
     ) -> list[Document]:
         embedding_model_instance = self.model_manager.get_model_instance(
-            model_name=knowledge_base.embedding_model, provider_name=knowledge_base.embedding_model_provider
+            model_name=knowledge_base.embedding_model_provider+"/"+knowledge_base.embedding_model
         )
         documents = rag_processor.transform(
             documents=docs,
@@ -154,7 +155,7 @@ class RagManager:
         with get_db() as session:
             docs = []
             # clean duplicate hash
-            documents=list({doc.metadata["doc_hash"]: doc for doc in documents}.values())
+            documents = list({doc.metadata["doc_hash"]: doc for doc in documents}.values())
             for document in documents:
                 hash_ = document.metadata["doc_hash"]
                 count_ = session.query(KnowledgeEmbeddings).filter(KnowledgeEmbeddings.hash == hash_).one_or_none()
@@ -195,8 +196,7 @@ class RagManager:
         """
 
         embedding_model_instance = self.model_manager.get_model_instance(
-            model_name=knowledge_base.embedding_model,
-            provider_name=knowledge_base.embedding_model_provider,
+            model_name=knowledge_base.embedding_model_provider+"/"+knowledge_base.embedding_model,
         )
 
         # chunk nodes by chunk size

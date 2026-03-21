@@ -1,9 +1,10 @@
+from collections.abc import Sequence
 from enum import Enum
-from typing import Sequence, Optional
+from typing import Optional
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .model_entities import ModelType, AIModelEntity
+from .model_entities import AIModelEntity, ModelType
 
 
 class ProviderSDKType(Enum):

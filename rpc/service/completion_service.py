@@ -3,10 +3,10 @@ from aduib_rpc.server.rpc_execution.service_call import service
 
 @service(service_name="CompletionService")
 class CompletionService:
-
-    async def generate_completion(self, prompt,temperature=0.0) -> str:
+    async def generate_completion(self, prompt, temperature=0.0) -> str:
         """
         # Simulate a call to a language model to generate text completion
         """
         from runtime.generator.generator import LLMGenerator
-        return LLMGenerator.generate_content(prompt,temperature)
+
+        return LLMGenerator.generate_content(prompt, temperature)

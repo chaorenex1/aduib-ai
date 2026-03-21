@@ -91,14 +91,12 @@ async def init_tools(server_code: str):
         mcp_client = McpClient.build_client(mcp_server.server_url, mcp_config)
         try:
             async with mcp_client.get_client_session() as client_session:
-                await client_session.initialize()
                 tools_response = await client_session.list_tools()
                 if tools_response is None:
                     raise ServiceError(message="failed to fetch tools from mcp server")
 
-                from runtime.tool.mcp.tool_provider import ToolProviderType, CredentialType
-
                 from models import ToolInfo
+                from runtime.tool.mcp.tool_provider import ToolProviderType
 
                 tools_infos: list[ToolInfo] = []
                 for tool in tools_response.tools:
@@ -111,7 +109,7 @@ async def init_tools(server_code: str):
                         provider=mcp_server.name,
                         credentials=mcp_server.credentials,
                         configs=mcp_server.configs,
-                        mcp_server_code=mcp_server.server_code,
+                        mcp_server_url=mcp_server.server_url,
                     )
                     existing_tool = (
                         db.query(ToolInfo)
@@ -148,14 +146,12 @@ async def init_servers(server: MCPServerCreate):
         mcp_client = McpClient.build_client(db_server.server_url, mcp_config)
         try:
             async with mcp_client.get_client_session() as client_session:
-                await client_session.initialize()
                 tools_response = await client_session.list_tools()
                 if tools_response is None:
                     raise ServiceError(message="failed to fetch tools from mcp server")
 
-                from runtime.tool.mcp.tool_provider import ToolProviderType, CredentialType
-
                 from models import ToolInfo
+                from runtime.tool.mcp.tool_provider import ToolProviderType
 
                 tools_infos: list[ToolInfo] = []
                 for tool in tools_response.tools:
@@ -168,6 +164,7 @@ async def init_servers(server: MCPServerCreate):
                         provider=db_server.name,
                         credentials=db_server.credentials,
                         configs=db_server.configs,
+                        mcp_server_url=db_server.server_url,
                     )
                     existing_tool = (
                         db.query(ToolInfo)

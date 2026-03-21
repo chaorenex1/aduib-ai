@@ -26,6 +26,7 @@ class RetrievalDocuments(BaseModel):
 
 class CosineWeight(BaseModel):
     """Cosine weight."""
+
     vector_weight: float
     keyword_weight: float
     embedding_provider_name: str
@@ -37,3 +38,10 @@ class RerankMode(StrEnum):
 
     WEIGHTED_SCORE = "weighted_score"
     RERANKING_MODEL = "reranking_model"
+
+
+class RetrievalMethod(StrEnum):
+    """Retrieval method."""
+    SEMANTICS = "semantics"
+    FULL_TEXT = "full_text"
+    VECTOR = "vector"

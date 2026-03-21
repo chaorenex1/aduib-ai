@@ -1,8 +1,6 @@
-from typing import Union, Generator, List
-
 from runtime.clients.handler.llm_http_handler import LLMHttpHandler
 from runtime.entities import PromptMessage
-from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest, CompletionResponse
+from runtime.entities.llm_entities import LLMRequest, LLMResponse
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
 from runtime.transformation.base import LLMTransformation
@@ -35,32 +33,32 @@ class GithubCopilotTransformation(LLMTransformation):
         }
 
     @classmethod
-    def _transform_message(
+    async def _transform_message(
         cls,
         model_params: dict,
-        prompt_messages: Union[ChatCompletionRequest, CompletionRequest],
+        prompt_messages: LLMRequest,
         credentials: dict,
         stream: bool = None,
-    ) -> Union[CompletionResponse, Generator[CompletionResponse, None, None]]:
+    ) -> LLMResponse:
         # credentials["headers"]["X-User-Initiator"] = cls._determine_initiator(prompt_messages.messages)
         # credentials["headers"]["X-Initiator"] = cls._determine_initiator(prompt_messages.messages)
         llm_http_handler = LLMHttpHandler("/chat/completions", credentials, stream)
-        return llm_http_handler.completion_request(prompt_messages)
+        return await llm_http_handler.completion_request(prompt_messages)
         # data = jsonable_encoder(prompt_messages, exclude_unset=True, exclude_none=True)
         # print("Request to Github Copilot:", json.dumps(data, indent=2))
         # return None
 
     @classmethod
-    def transform_embeddings(cls, texts: EmbeddingRequest, credentials: dict) -> TextEmbeddingResult:
+    async def transform_embeddings(cls, texts: EmbeddingRequest, credentials: dict) -> TextEmbeddingResult:
         llm_http_handler = LLMHttpHandler("/embeddings", credentials, False)
-        return llm_http_handler.embedding_request(texts)
+        return await llm_http_handler.embedding_request(texts)
 
     @classmethod
-    def transform_rerank(cls, query: RerankRequest, credentials: dict) -> RerankResponse:
+    async def transform_rerank(cls, query: RerankRequest, credentials: dict) -> RerankResponse:
         llm_http_handler = LLMHttpHandler("/rerank", credentials, False)
-        return llm_http_handler.rerank_request(query)
+        return await llm_http_handler.rerank_request(query)
 
-    def _determine_initiator(self, messages: List[PromptMessage]) -> str:
+    def _determine_initiator(self, messages: list[PromptMessage]) -> str:
         """
         Determine if request is user or agent initiated based on message roles.
         Returns 'agent' if any message has role 'tool' or 'assistant', otherwise 'user'.

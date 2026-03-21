@@ -1,5 +1,6 @@
 import os
-from typing import Optional, List, Any, Sequence
+from collections.abc import Sequence
+from typing import Any, Optional
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -10,7 +11,7 @@ from runtime.rag.splitter.base_splitter import BaseTextSplitter
 class RecursiveTextSplitter(BaseTextSplitter):
     """RecursiveTextSplitter."""
 
-    def __init__(self, separators: Optional[List[str]] = None, **kwargs: Any):
+    def __init__(self, separators: Optional[list[str]] = None, **kwargs: Any):
         super().__init__(**kwargs)
         if "TIKTOKEN_CACHE_DIR" not in os.environ:
             os.environ["TIKTOKEN_CACHE_DIR"] = os.path.expanduser("~/.cache/tiktoken")

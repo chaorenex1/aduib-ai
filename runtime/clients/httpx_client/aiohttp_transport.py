@@ -1,10 +1,10 @@
 import asyncio
 import contextlib
 import logging
-import os
 import typing
 import urllib.request
-from typing import Callable, Dict, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 import aiohttp
 import aiohttp.client_exceptions
@@ -15,7 +15,7 @@ from aiohttp.client import ClientResponse, ClientSession
 verbose_logger = logging.getLogger("verbose")
 
 
-AIOHTTP_EXC_MAP: Dict = {
+AIOHTTP_EXC_MAP: dict = {
     # Order matters here, most specific exception first
     # Timeout related exceptions
     aiohttp.ServerTimeoutError: httpx.TimeoutException,
@@ -89,13 +89,13 @@ class AiohttpResponseStream(httpx.AsyncByteStream):
         ) as e:
             # Handle incomplete transfers more gracefully
             # Log the error but don't re-raise if we've already yielded some data
-            verbose_logger.debug(f"Transfer incomplete, but continuing: {e}")
+            verbose_logger.debug("%Transfer incomplete, but continuing: {e}")
             # If the error is due to incomplete transfer encoding, we can still
             # return what we've received so far, similar to how httpx handles it
             return
         except aiohttp.http_exceptions.TransferEncodingError as e:
             # Handle transfer encoding errors gracefully
-            verbose_logger.debug(f"Transfer encoding error, but continuing: {e}")
+            verbose_logger.debug("%Transfer encoding error, but continuing: {e}")
             return
         except Exception:
             # For other exceptions, use the normal mapping
@@ -167,7 +167,7 @@ class LLMAiohttpTransport(AiohttpTransport):
                     # The session will be garbage collected
                     pass
                 except Exception as e:
-                    verbose_logger.debug(f"Error closing old session: {e}")
+                    verbose_logger.debug("%Error closing old session: {e}")
                     pass
 
                 # Create a new session in the current event loop
@@ -236,7 +236,7 @@ class LLMAiohttpTransport(AiohttpTransport):
         try:
             proxy = self._proxy_from_env(request.url)
         except Exception as e:  # pragma: no cover - best effort
-            verbose_logger.debug(f"Error reading proxy env: {e}")
+            verbose_logger.debug("%Error reading proxy env: {e}")
 
         return proxy
 

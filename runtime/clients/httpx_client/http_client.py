@@ -3,7 +3,8 @@ import logging
 import os
 import ssl
 import time
-from typing import Any, Callable, Dict, List, Mapping, Optional, Union
+from collections.abc import Callable, Mapping
+from typing import Any, Optional, Union
 
 import certifi
 import httpx
@@ -18,9 +19,9 @@ from runtime.clients.httpx_client.aiohttp_transport import LLMAiohttpTransport
 # 更新默认超时配置，避免请求过早超时
 _DEFAULT_TIMEOUT = httpx.Timeout(
     timeout=300.0,  # 总超时 5分钟
-    connect=10.0,    # 连接超时 10秒
-    read=300.0,      # 读取超时 5分钟
-    write=30.0       # 写入超时 30秒
+    connect=10.0,  # 连接超时 10秒
+    read=300.0,  # 读取超时 5分钟
+    write=30.0,  # 写入超时 30秒
 )
 _DEFAULT_TTL_FOR_HTTPX_CLIENTS = 1800  # 减少到30分钟，避免缓存过期连接
 
@@ -167,7 +168,7 @@ class AsyncHTTPHandler:
     def __init__(
         self,
         timeout: Optional[Union[float, httpx.Timeout]] = None,
-        event_hooks: Optional[Mapping[str, List[Callable[..., Any]]]] = None,
+        event_hooks: Optional[Mapping[str, list[Callable[..., Any]]]] = None,
         concurrent_limit=1000,
         client_alias: Optional[str] = None,  # name for client in logs
         ssl_verify: Optional[VerifyTypes] = None,
@@ -186,7 +187,7 @@ class AsyncHTTPHandler:
         self,
         timeout: Optional[Union[float, httpx.Timeout]],
         concurrent_limit: int,
-        event_hooks: Optional[Mapping[str, List[Callable[..., Any]]]],
+        event_hooks: Optional[Mapping[str, list[Callable[..., Any]]]],
         ssl_verify: Optional[VerifyTypes] = None,
     ) -> httpx.AsyncClient:
         # Get unified SSL configuration
@@ -307,13 +308,13 @@ class AsyncHTTPHandler:
             raise e
         except httpx.HTTPStatusError as e:
             if stream is True:
-                setattr(e, "message", await e.response.aread())
-                setattr(e, "text", await e.response.aread())
+                e.message = await e.response.aread()
+                e.text = await e.response.aread()
             else:
-                setattr(e, "message", mask_sensitive_info(e.response.text))
-                setattr(e, "text", mask_sensitive_info(e.response.text))
+                e.message = mask_sensitive_info(e.response.text)
+                e.text = mask_sensitive_info(e.response.text)
 
-            setattr(e, "status_code", e.response.status_code)
+            e.status_code = e.response.status_code
 
             raise e
         except Exception as e:
@@ -369,11 +370,11 @@ class AsyncHTTPHandler:
 
             raise e
         except httpx.HTTPStatusError as e:
-            setattr(e, "status_code", e.response.status_code)
+            e.status_code = e.response.status_code
             if stream is True:
-                setattr(e, "message", await e.response.aread())
+                e.message = await e.response.aread()
             else:
-                setattr(e, "message", e.response.text)
+                e.message = e.response.text
             raise e
         except Exception as e:
             raise e
@@ -428,11 +429,11 @@ class AsyncHTTPHandler:
 
             raise e
         except httpx.HTTPStatusError as e:
-            setattr(e, "status_code", e.response.status_code)
+            e.status_code = e.response.status_code
             if stream is True:
-                setattr(e, "message", await e.response.aread())
+                e.message = await e.response.aread()
             else:
-                setattr(e, "message", e.response.text)
+                e.message = e.response.text
             raise e
         except Exception as e:
             raise e
@@ -478,11 +479,11 @@ class AsyncHTTPHandler:
             finally:
                 await new_client.aclose()
         except httpx.HTTPStatusError as e:
-            setattr(e, "status_code", e.response.status_code)
+            e.status_code = e.response.status_code
             if stream is True:
-                setattr(e, "message", await e.response.aread())
+                e.message = await e.response.aread()
             else:
-                setattr(e, "message", e.response.text)
+                e.message = e.response.text
             raise e
         except Exception as e:
             raise e
@@ -557,7 +558,7 @@ class AsyncHTTPHandler:
     def _get_ssl_connector_kwargs(
         ssl_verify: Optional[bool] = None,
         ssl_context: Optional[ssl.SSLContext] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Helper method to get SSL connector initialization arguments for aiohttp TCPConnector.
 
@@ -568,7 +569,7 @@ class AsyncHTTPHandler:
         Returns:
             Dict with appropriate SSL configuration for TCPConnector
         """
-        connector_kwargs: Dict[str, Any] = {
+        connector_kwargs: dict[str, Any] = {
             "local_addr": ("0.0.0.0", 0),
         }
 
@@ -681,7 +682,7 @@ class HTTPHandler:
         return response
 
     @staticmethod
-    def extract_query_params(url: str) -> Dict[str, str]:
+    def extract_query_params(url: str) -> dict[str, str]:
         """
         Parse a URL’s query-string into a dict.
 
@@ -697,7 +698,7 @@ class HTTPHandler:
         self,
         url: str,
         data: Optional[Union[dict, str, bytes]] = None,
-        json: Optional[Union[dict, str, List]] = None,
+        json: Optional[Union[dict, str, list]] = None,
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
         stream: bool = False,
@@ -736,14 +737,14 @@ class HTTPHandler:
             raise te
         except httpx.HTTPStatusError as e:
             if stream is True:
-                setattr(e, "message", mask_sensitive_info(e.response.read()))
-                setattr(e, "text", mask_sensitive_info(e.response.read()))
+                e.message = mask_sensitive_info(e.response.read())
+                e.text = mask_sensitive_info(e.response.read())
             else:
                 error_text = mask_sensitive_info(e.response.text)
-                setattr(e, "message", error_text)
-                setattr(e, "text", error_text)
+                e.message = error_text
+                e.text = error_text
 
-            setattr(e, "status_code", e.response.status_code)
+            e.status_code = e.response.status_code
             verbose_logger.error(f"HTTPStatusError error: {e.message},{e.text}")
             raise e
         except Exception as e:
@@ -786,14 +787,14 @@ class HTTPHandler:
             raise te
         except httpx.HTTPStatusError as e:
             if stream is True:
-                setattr(e, "message", mask_sensitive_info(e.response.read()))
-                setattr(e, "text", mask_sensitive_info(e.response.read()))
+                e.message = mask_sensitive_info(e.response.read())
+                e.text = mask_sensitive_info(e.response.read())
             else:
                 error_text = mask_sensitive_info(e.response.text)
-                setattr(e, "message", error_text)
-                setattr(e, "text", error_text)
+                e.message = error_text
+                e.text = error_text
 
-            setattr(e, "status_code", e.response.status_code)
+            e.status_code = e.response.status_code
 
             raise e
         except Exception as e:
@@ -873,14 +874,14 @@ class HTTPHandler:
             raise te
         except httpx.HTTPStatusError as e:
             if stream is True:
-                setattr(e, "message", mask_sensitive_info(e.response.read()))
-                setattr(e, "text", mask_sensitive_info(e.response.read()))
+                e.message = mask_sensitive_info(e.response.read())
+                e.text = mask_sensitive_info(e.response.read())
             else:
                 error_text = mask_sensitive_info(e.response.text)
-                setattr(e, "message", error_text)
-                setattr(e, "text", error_text)
+                e.message = error_text
+                e.text = error_text
 
-            setattr(e, "status_code", e.response.status_code)
+            e.status_code = e.response.status_code
 
             raise e
         except Exception as e:
@@ -932,11 +933,11 @@ def get_async_httpx_client(
         _new_client = AsyncHTTPHandler(
             timeout=httpx.Timeout(
                 timeout=600.0,  # 总超时 10分钟（LLM请求可能较长）
-                connect=10.0,    # 连接超时 10秒
-                read=600.0,      # 读取超时 10分钟
-                write=30.0       # 写入超时 30秒
+                connect=10.0,  # 连接超时 10秒
+                read=600.0,  # 读取超时 10分钟
+                write=30.0,  # 写入超时 30秒
             ),
-            concurrent_limit=1000  # 限制并发连接数
+            concurrent_limit=1000,  # 限制并发连接数
         )
 
     in_memory_llm_clients_cache.set_cache(
@@ -975,11 +976,11 @@ def get_httpx_client(params: Optional[dict] = None) -> HTTPHandler:
         _new_client = HTTPHandler(
             timeout=httpx.Timeout(
                 timeout=600.0,  # 总超时 10分钟（LLM请求可能较长）
-                connect=10.0,    # 连接超时 10秒
-                read=600.0,      # 读取超时 10分钟
-                write=30.0       # 写入超时 30秒
+                connect=10.0,  # 连接超时 10秒
+                read=600.0,  # 读取超时 10分钟
+                write=30.0,  # 写入超时 30秒
             ),
-            concurrent_limit=1000  # 限制并发连接数
+            concurrent_limit=1000,  # 限制并发连接数
         )
 
     in_memory_llm_clients_cache.set_cache(

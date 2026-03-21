@@ -9,9 +9,10 @@ Key improvements:
 - Better debugging and repr
 """
 
-from contextvars import ContextVar, Token
-from typing import Generic, TypeVar, Optional, Generator, Any
+from collections.abc import Generator
 from contextlib import contextmanager
+from contextvars import ContextVar, Token
+from typing import Any, Generic, Optional, TypeVar
 
 T = TypeVar("T")
 

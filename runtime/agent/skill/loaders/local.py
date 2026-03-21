@@ -1,12 +1,14 @@
+import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
-from agno.skills.errors import SkillValidationError
-from agno.skills.loaders.base import SkillLoader
-from agno.skills.skill import Skill
-from agno.skills.validator import validate_skill_directory
-from agno.utils.log import log_debug, log_warning
+from runtime.agent.skill.errors import SkillValidationError
+from runtime.agent.skill.loaders.base import SkillLoader
+from runtime.agent.skill.skill import Skill
+from runtime.agent.skill.validator import validate_skill_directory
+
+logger = logging.getLogger(__name__)
 
 
 class LocalSkills(SkillLoader):
@@ -26,7 +28,7 @@ class LocalSkills(SkillLoader):
         self.path = Path(path).resolve()
         self.validate = validate
 
-    def load(self) -> List[Skill]:
+    def load(self) -> list[Skill]:
         """Load skills from the local filesystem.
 
         Returns:
@@ -38,7 +40,7 @@ class LocalSkills(SkillLoader):
         if not self.path.exists():
             raise FileNotFoundError(f"Skills path does not exist: {self.path}")
 
-        skills: List[Skill] = []
+        skills: list[Skill] = []
 
         # Check if this is a single skill folder or a directory of skills
         skill_md_path = self.path / "SKILL.md"
@@ -57,9 +59,9 @@ class LocalSkills(SkillLoader):
                         if skill:
                             skills.append(skill)
                     else:
-                        log_debug(f"Skipping directory without SKILL.md: {item}")
+                        logger.debug("%Skipping directory without SKILL.md: {item}")
 
-        log_debug(f"Loaded {len(skills)} skills from {self.path}")
+        logger.debug("%Loaded {len(skills)} skills from {self.path}")
         return skills
 
     def _load_skill_from_folder(self, folder: Path) -> Optional[Skill]:
@@ -121,10 +123,10 @@ class LocalSkills(SkillLoader):
         except SkillValidationError:
             raise  # Re-raise validation errors
         except Exception as e:
-            log_warning(f"Error loading skill from {folder}: {e}")
+            logger.warning("%Error loading skill from {folder}: {e}")
             return None
 
-    def _parse_skill_md(self, content: str) -> Tuple[Dict[str, Any], str]:
+    def _parse_skill_md(self, content: str) -> tuple[dict[str, Any], str]:
         """Parse SKILL.md content into frontmatter and instructions.
 
         Args:
@@ -133,7 +135,7 @@ class LocalSkills(SkillLoader):
         Returns:
             A tuple of (frontmatter_dict, instructions_body).
         """
-        frontmatter: Dict[str, Any] = {}
+        frontmatter: dict[str, Any] = {}
         instructions = content
 
         # Check for YAML frontmatter (between --- delimiters)
@@ -152,12 +154,12 @@ class LocalSkills(SkillLoader):
                 # Fallback: simple key-value parsing if yaml not available
                 frontmatter = self._parse_simple_frontmatter(frontmatter_text)
             except Exception as e:
-                log_warning(f"Error parsing YAML frontmatter: {e}")
+                logger.warning("%Error parsing YAML frontmatter: {e}")
                 frontmatter = self._parse_simple_frontmatter(frontmatter_text)
 
         return frontmatter, instructions
 
-    def _parse_simple_frontmatter(self, text: str) -> Dict[str, Any]:
+    def _parse_simple_frontmatter(self, text: str) -> dict[str, Any]:
         """Simple fallback frontmatter parser for basic key: value pairs.
 
         Args:
@@ -166,7 +168,7 @@ class LocalSkills(SkillLoader):
         Returns:
             A dictionary of parsed key-value pairs.
         """
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         for line in text.strip().split("\n"):
             if ":" in line:
                 key, value = line.split(":", 1)
@@ -175,7 +177,7 @@ class LocalSkills(SkillLoader):
                 result[key] = value
         return result
 
-    def _discover_scripts(self, folder: Path) -> List[str]:
+    def _discover_scripts(self, folder: Path) -> list[str]:
         """Discover script files in the scripts/ subdirectory.
 
         Args:
@@ -188,14 +190,14 @@ class LocalSkills(SkillLoader):
         if not scripts_dir.exists() or not scripts_dir.is_dir():
             return []
 
-        scripts: List[str] = []
+        scripts: list[str] = []
         for item in scripts_dir.iterdir():
             if item.is_file() and not item.name.startswith("."):
                 scripts.append(item.name)
 
         return sorted(scripts)
 
-    def _discover_references(self, folder: Path) -> List[str]:
+    def _discover_references(self, folder: Path) -> list[str]:
         """Discover reference files in the references/ subdirectory.
 
         Args:
@@ -208,7 +210,7 @@ class LocalSkills(SkillLoader):
         if not refs_dir.exists() or not refs_dir.is_dir():
             return []
 
-        references: List[str] = []
+        references: list[str] = []
         for item in refs_dir.iterdir():
             if item.is_file() and not item.name.startswith("."):
                 references.append(item.name)
