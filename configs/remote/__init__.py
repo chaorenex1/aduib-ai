@@ -16,7 +16,9 @@ class RemoteSettingsSourceConfig(NacosConfig):
 class DiscoveryConfig(BaseSettings):
     DISCOVERY_SERVICE_ENABLED: bool = Field(default=False, description="Enable service discovery")
     DISCOVERY_SERVICE_TYPE: str = Field(default="nacos", description="Type of service discovery")
-    SERVICE_TRANSPORT_SCHEME: str = Field(default="jsonrpc", description="Service transport scheme, e.g., http or https")
+    SERVICE_TRANSPORT_SCHEME: str = Field(
+        default="jsonrpc", description="Service transport scheme, e.g., http or https"
+    )
 
 
-__all__ = ["RemoteSettingsSource", "RemoteSettingsSourceConfig", "RemoteSettingsSourceName", "DiscoveryConfig"]
+__all__ = ["DiscoveryConfig", "RemoteSettingsSource", "RemoteSettingsSourceConfig", "RemoteSettingsSourceName"]

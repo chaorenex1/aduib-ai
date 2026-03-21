@@ -25,7 +25,11 @@ class DeploymentConfig(BaseSettings):
     SSL_CERTFILE: str = Field(default="", description="Path to the SSL certificate file")
     SSL_KEYFILE: str = Field(default="", description="Path to the SSL key file")
     DEBUG: bool = Field(default=True, description="Enable debug mode")
-    API_TIME_OUT: int = Field(default=2*60*60, description="API request timeout in seconds")
+    SWAGGER_ENABLED: bool = Field(
+        default=True,
+        description="Enable Swagger UI and ReDoc documentation endpoints. Set to False in production.",
+    )
+    API_TIME_OUT: int = Field(default=2 * 60 * 60, description="API request timeout in seconds")
 
     @property
     def url(self) -> str:

@@ -18,16 +18,16 @@ class RemoteSettingsSource:
         return value
 
 
-
 class NacosSettingsSource(RemoteSettingsSource):
     """
     A settings source that retrieves configuration settings from Nacos
     """
+
     client: NacosClient
     data_id: str | None = None
     configs: Mapping[str, Any]
 
-    def __init__(self, configs:Mapping[str, Any]):
+    def __init__(self, configs: Mapping[str, Any]):
         super().__init__(configs)
         self.data_id = None
         self.configs = configs

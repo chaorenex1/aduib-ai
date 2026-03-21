@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 
 from .auth import AuthConfig
 from .cache.redis_config import RedisConfig
+from .clickhouse.clickhouse_config import ClickhouseConfig
 from .db import DBConfig
 from .deploy import DeploymentConfig, ServiceConfig
 from .graph import GraphConfig
@@ -18,10 +19,11 @@ from .ops.celery_config import CeleryConfig
 from .rag import RagConfig
 from .remote import DiscoveryConfig, RemoteSettingsSource, RemoteSettingsSourceConfig, RemoteSettingsSourceName
 from .remote.base import NacosSettingsSource
+from .speculation import SpeculationConfig
 from .storage import StorageConfig
 from .storage.s3_storage_config import S3StorageConfig
-from .task_grade.task_grade import TaskGradeConfig
-from .speculation import SpeculationConfig
+from .tool import ToolConfig
+from .tool_choice import ToolChoiceConfig
 from .vdb import VectorStoreConfig
 from .vdb.milvus.milvus_config import MilvusConfig
 
@@ -70,6 +72,7 @@ class AduibAiConfig(
     LoggingConfig,
     IdConfig,
     DBConfig,
+    ClickhouseConfig,
     VectorStoreConfig,
     MilvusConfig,
     GraphConfig,
@@ -85,8 +88,7 @@ class AduibAiConfig(
     CeleryConfig,
     MemorySettingsConfig,
     AuthConfig,
-    TaskGradeConfig,
-    SpeculationConfig,
+    ToolConfig,
 ):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./aduib_ai/)

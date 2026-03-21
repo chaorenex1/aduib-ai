@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from pydantic import BeforeValidator, AnyUrl
+from pydantic import AnyUrl, BeforeValidator
 from pydantic_settings import BaseSettings
 
 

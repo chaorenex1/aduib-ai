@@ -1,6 +1,7 @@
 """
 Task Cache Configuration for P2 Performance Optimization
 """
+
 from pydantic_settings import BaseSettings
 
 
