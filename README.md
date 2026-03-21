@@ -1,5 +1,3 @@
-<div align="center">
-
 # Memex-OS
 
 **让 AI 拥有记忆能力 —— 企业级 LLM 应用平台**
@@ -322,21 +320,3 @@ uv run pytest tests/completion -v
 ## 📄 License
 
 Apache License 2.0
-
----
-
-## 🙏 致谢
-
-- [Vannevar Bush](https://en.wikipedia.org/wiki/Vannevar_Bush) - "As We May Think"
-- [FastAPI](https://fastapi.tiangolo.com/) - 现代 Python Web 框架
-- [Anthropic](https://www.anthropic.com/) - Claude 模型
-- [Milvus](https://milvus.io/) - 向量数据库
-- [LangChain](https://www.langchain.com/) - LLM 应用框架启发
-
----
-
-<div align="center">
-
-**如果 Memex-OS 对你有帮助，请给个 ⭐**
-
-</div>
