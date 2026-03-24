@@ -13,6 +13,7 @@ from runtime.entities.rerank_entities import (
     RerankUsage,
 )
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
+from runtime.entities.asr_entities import ASRRequest, ASRResponse
 from runtime.transformation.base import LLMTransformation
 
 logger = logging.getLogger(__name__)
@@ -201,4 +202,32 @@ Scores must be between 0.0 and 1.0. Only return the JSON array."""
             model=model or "unknown",
             usage=RerankUsage(total_tokens=total_tokens),
             results=results,
+        )
+
+    @classmethod
+    async def transform_audio2text(cls, asr_request: ASRRequest, credentials: dict) -> ASRResponse:
+        """
+        Transform ASR request for Ollama API.
+
+        Note: Ollama does not natively support audio transcription via API.
+        Ollama's /api/generate endpoint is for text generation only.
+
+        This method raises NotImplementedError to indicate that ASR is not
+        supported with Ollama provider. Consider using OpenAI Whisper API
+        or another ASR provider instead.
+
+        Args:
+            asr_request: ASR request containing model and audio data
+            credentials: API credentials
+
+        Returns:
+            Never returns - always raises NotImplementedError
+
+        Raises:
+            NotImplementedError: Ollama does not support audio transcription
+        """
+        raise NotImplementedError(
+            "Ollama does not support audio-to-text transcription. "
+            "Please use an ASR provider with native audio transcription support "
+            "(e.g., OpenAI Whisper, DeepGram, Azure Speech-to-Text)."
         )

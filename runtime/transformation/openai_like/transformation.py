@@ -1,7 +1,11 @@
+from typing import Optional
+
 from runtime.clients.handler.llm_http_handler import LLMHttpHandler
 from runtime.entities.llm_entities import LLMRequest, LLMResponse
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
+from runtime.entities.tts_entities import TTSRequest, TTSResponse, TTSVoice
+from runtime.entities.asr_entities import ASRRequest, ASRResponse
 from runtime.transformation.base import LLMTransformation
 
 
@@ -52,3 +56,18 @@ class OpenAILikeTransformation(LLMTransformation):
     async def transform_rerank(cls, query: RerankRequest, credentials: dict) -> RerankResponse:
         llm_http_handler = LLMHttpHandler("/v1/rerank", credentials, False)
         return await llm_http_handler.rerank_request(query)
+
+    @classmethod
+    async def transform_tts(cls, tts_request: TTSRequest, credentials: dict) -> TTSResponse:
+        llm_http_handler = LLMHttpHandler("/v1/audio/speech", credentials, False)
+        return await llm_http_handler.tts_request(tts_request)
+
+    @classmethod
+    async def transform_tts_voices(cls, model: str, credentials: dict, language: Optional[str] = None) -> list[dict]:
+        llm_http_handler = LLMHttpHandler("/v1/audio/voices", credentials, False)
+        return await llm_http_handler.tts_voices_request(model, language)
+
+    @classmethod
+    async def transform_audio2text(cls, asr_request: ASRRequest, credentials: dict) -> ASRResponse:
+        llm_http_handler = LLMHttpHandler("/v1/audio/transcriptions", credentials, False)
+        return await llm_http_handler.audio2text_request(asr_request)

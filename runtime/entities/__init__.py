@@ -143,7 +143,9 @@ from .response_entities import (
     TextContentBlock,
     parse_response_sse_event,
 )
+from .asr_entities import ASRRequest, ASRResponse
 from .protocol_entities import AnyProtocolRequest, AnyProtocolResponse, AnyProtocolStreamEvent, ExternalProtocol
+from .tts_entities import TTSRequest, TTSResponse, TTSVoice
 
 __all__ = [
     # llm_entities
@@ -279,4 +281,11 @@ __all__ = [
     "AnyProtocolRequest",
     "AnyProtocolResponse",
     "AnyProtocolStreamEvent",
+    # tts_entities
+    "TTSRequest",
+    "TTSResponse",
+    "TTSVoice",
+    # asr_entities
+    "ASRRequest",
+    "ASRResponse",
 ]

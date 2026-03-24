@@ -11,6 +11,8 @@ from runtime.entities.llm_entities import (
 )
 from runtime.entities.rerank_entities import RerankRequest, RerankResponse
 from runtime.entities.text_embedding_entities import EmbeddingRequest, TextEmbeddingResult
+from runtime.entities.tts_entities import TTSRequest, TTSResponse, TTSVoice
+from runtime.entities.asr_entities import ASRRequest, ASRResponse
 
 logger = logging.getLogger(__name__)
 
@@ -95,4 +97,35 @@ class LLMTransformation:
     @classmethod
     async def transform_rerank(cls, query: RerankRequest, credentials: dict) -> RerankResponse:
         """Transform rerank."""
+        ...
+
+    @classmethod
+    async def transform_tts(cls, tts_request: TTSRequest, credentials: dict) -> TTSResponse:
+        """
+        Transform TTS request and return audio content.
+        :param tts_request: The TTS request to be transformed.
+        :param credentials: The credentials required for transformation.
+        :return: TTSResponse containing audio data.
+        """
+        ...
+
+    @classmethod
+    async def transform_tts_voices(cls, model: str, credentials: dict, language: Optional[str] = None) -> list[dict]:
+        """
+        Transform TTS voices request and return available voices.
+        :param model: The TTS model name.
+        :param credentials: The credentials required for transformation.
+        :param language: Optional language code to filter voices.
+        :return: List of voice dictionaries.
+        """
+        ...
+
+    @classmethod
+    async def transform_audio2text(cls, asr_request: ASRRequest, credentials: dict) -> ASRResponse:
+        """
+        Transform ASR request and return transcription.
+        :param asr_request: The ASR request to be transformed.
+        :param credentials: The credentials required for transformation.
+        :return: ASRResponse containing transcribed text.
+        """
         ...
