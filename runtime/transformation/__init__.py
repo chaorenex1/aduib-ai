@@ -1,6 +1,7 @@
 from runtime.transformation.anthropic.transformation import AnthropicTransformation
 from runtime.transformation.deepseek.transformation import DeepseekTransformation
 from runtime.transformation.github.transformation import GithubCopilotTransformation
+from runtime.transformation.ollama.transformation import OllamaTransformation
 from runtime.transformation.openai_like.transformation import OpenAILikeTransformation
 
 try:
@@ -14,6 +15,7 @@ __all__ = [
     "DeepseekTransformation",
     "GithubCopilotTransformation",
     "AnthropicTransformation",
+    "OllamaTransformation",
     "TransformersTransformation" if TransformersTransformation else "",
     "get_llm_transformation",
 ]

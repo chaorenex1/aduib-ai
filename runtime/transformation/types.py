@@ -3,6 +3,7 @@ from runtime.transformation.anthropic.transformation import AnthropicTransformat
 from runtime.transformation.base import LLMTransformation
 from runtime.transformation.deepseek.transformation import DeepseekTransformation
 from runtime.transformation.github.transformation import GithubCopilotTransformation
+from runtime.transformation.ollama.transformation import OllamaTransformation
 from runtime.transformation.openai.transformation import OpenaiResponseTransformation
 from runtime.transformation.openai_like.transformation import OpenAILikeTransformation
 from runtime.transformation.openrouter.transformation import OpenRouterTransformation
@@ -14,6 +15,7 @@ LLMTransformations: dict[ProviderSDKType, type[LLMTransformation]] = {
     ProviderSDKType.ANTHROPIC: AnthropicTransformation,
     ProviderSDKType.OPENROUTER: OpenRouterTransformation,
     ProviderSDKType.OPENAI: OpenaiResponseTransformation,
+    ProviderSDKType.OLLAMA: OllamaTransformation,
 }
 
 try:

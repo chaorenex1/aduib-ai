@@ -522,6 +522,7 @@ class LlMModel(AiModel):
             ProviderSDKType.OPENROUTER,
             ProviderSDKType.GITHUB,
             ProviderSDKType.GITHUB_COPILOT,
+            ProviderSDKType.OLLAMA,
         }:
             return ExternalProtocol.OPENAI_CHAT
         return None
