@@ -37,11 +37,11 @@ class DocumentService:
     def rerank(cls, query: RerankRequest) -> RerankResponse:
         """Rerank documents based on the request."""
         from configs import config
-        from runtime.rag.retrieve.retrieve import RerankMode
+        from runtime.rag.retrieve.methods import RerankMode
 
         if config.rerank_method == RerankMode.WEIGHTED_SCORE:
             from runtime.rag.retrieve.cosine_rerank import CosineWeightRerankRunner
-            from runtime.rag.retrieve.retrieve import CosineWeight
+            from runtime.rag.retrieve.methods import CosineWeight
 
             weights = CosineWeight(
                 vector_weight=config.vector_weight,

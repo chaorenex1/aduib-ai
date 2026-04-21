@@ -3,6 +3,7 @@ import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 
 from sqlalchemy import select
 
@@ -10,10 +11,11 @@ from component.storage.base_storage import storage_manager
 from models import FileResource, KnowledgeBase, KnowledgeEmbeddings, get_db
 from models.document import KnowledgeDocument, KnowledgeKeywords
 from runtime.entities.document_entities import Document
+from runtime.rag.profiles import build_indexing_profile, build_transform_context
 from runtime.model_manager import ModelManager
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 from runtime.rag.extractor.entity.extraction_source_type import ExtractionSourceType
-from runtime.rag.keyword.keyword import Keyword
+from runtime.rag.indexing.indexing_service import IndexingService
 from runtime.rag.rag_processor.rag_processor_base import BaseRAGProcessor
 from runtime.rag.rag_processor.rag_processor_factory import RAGProcessorFactory
 
@@ -46,7 +48,6 @@ class RagManager:
 
                     # load
                     self._load(
-                        rag_processor=rag_processor,
                         knowledge_doc=knowledge_doc,
                         knowledge_base=kb,
                         documents=documents,
@@ -64,13 +65,11 @@ class RagManager:
             for knowledge_doc in knowledge_docs:
                 try:
                     kb = session.query(KnowledgeBase).filter_by(id=knowledge_doc.knowledge_base_id).one_or_none()
-                    processing_rule = kb.data_process_rule
-                    if not processing_rule:
-                        raise ValueError("no process rule found")
-                    rag_type = knowledge_doc.rag_type
-                    rag_processor = RAGProcessorFactory.get_rag_processor(rag_type)
+                    if not kb:
+                        raise ValueError("no knowledge base found")
 
-                    rag_processor.clean(kb, [str(knowledge_doc.id)], with_keywords=True)
+                    indexing_profile = build_indexing_profile(kb, with_keywords=True)
+                    IndexingService.clean_documents(kb, [str(knowledge_doc.id)], profile=indexing_profile)
 
                     session.query(KnowledgeEmbeddings).filter_by(document_id=knowledge_doc.id).delete()
                     session.query(KnowledgeKeywords).filter_by(document_id=knowledge_doc.id).delete()
@@ -139,8 +138,13 @@ class RagManager:
         embedding_model_instance = self.model_manager.get_model_instance(
             model_name=knowledge_base.embedding_model_provider+"/"+knowledge_base.embedding_model
         )
+        transform_context = build_transform_context(
+            knowledge_base,
+            doc_language=knowledge_doc.doc_language,
+        )
         documents = rag_processor.transform(
             documents=docs,
+            context=transform_context,
             embedding_model_instance=embedding_model_instance,
             split_rule=knowledge_base.data_process_rule,
             doc_language=knowledge_doc.doc_language,
@@ -186,7 +190,6 @@ class RagManager:
 
     def _load(
         self,
-        rag_processor: BaseRAGProcessor,
         knowledge_doc: KnowledgeDocument,
         knowledge_base: KnowledgeBase,
         documents: list[Document],
@@ -198,16 +201,18 @@ class RagManager:
         embedding_model_instance = self.model_manager.get_model_instance(
             model_name=knowledge_base.embedding_model_provider+"/"+knowledge_base.embedding_model,
         )
+        indexing_profile = build_indexing_profile(knowledge_base, with_keywords=True)
 
         # chunk nodes by chunk size
         indexing_start_at = time.perf_counter()
         tokens = 0
         create_keyword_thread = None
-        create_keyword_thread = threading.Thread(
-            target=self._process_keyword_index,
-            args=(knowledge_base.id, documents),  # type: ignore
-        )
-        create_keyword_thread.start()
+        if indexing_profile.with_keywords:
+            create_keyword_thread = threading.Thread(
+                target=self._process_keyword_index,
+                args=(knowledge_base.id, documents),  # type: ignore
+            )
+            create_keyword_thread.start()
 
         max_workers = 10
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -227,9 +232,9 @@ class RagManager:
                 futures.append(
                     executor.submit(
                         self._process_chunk,
-                        rag_processor,
                         chunk_documents,
                         knowledge_base,
+                        replace(indexing_profile, with_keywords=False),
                         embedding_model_instance,
                     )
                 )
@@ -256,10 +261,9 @@ class RagManager:
             knowledge_base = session.query(KnowledgeBase).filter_by(id=knowledge_base_id).first()
             if not knowledge_base:
                 raise ValueError("no knowledge_base found")
-            keyword = Keyword(knowledge_base)
-            keyword.add_texts(documents)
+            IndexingService.index_keywords(knowledge_base, documents)
 
-    def _process_chunk(self, rag_processor, chunk_documents, dataset, embedding_model_instance):
+    def _process_chunk(self, chunk_documents, dataset, indexing_profile, embedding_model_instance):
         # check document is paused
         tokens = 0
         if embedding_model_instance:
@@ -267,6 +271,6 @@ class RagManager:
             tokens += embedding_model_instance.get_text_embedding_num_tokens(page_content_list)
 
         # load index
-        rag_processor.load(dataset, chunk_documents, with_keywords=False)
+        IndexingService.index_documents(dataset, chunk_documents, profile=indexing_profile)
 
         return tokens

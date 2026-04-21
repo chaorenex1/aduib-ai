@@ -21,6 +21,62 @@ def _is_valid_uuid(value: str) -> bool:
 
 
 class MemoryRagRetrievalMixin:
+    def _build_kb_retrieval_context(
+        self,
+        kb,
+        *,
+        top_k: int,
+        score_threshold: float,
+        retrieval_method: str,
+        weights: dict | None = None,
+        reranking_mode: str | None = None,
+    ):
+        from runtime.rag.profiles import build_retrieval_context
+
+        return build_retrieval_context(
+            kb,
+            top_k=top_k,
+            score_threshold=score_threshold,
+            retrieval_method=retrieval_method,
+            reranking_mode=reranking_mode,
+            weights=weights,
+        )
+
+    def _run_kb_retrieval(self, context, request):
+        from runtime.rag.retrieve.facade import RetrievalFacade
+
+        return RetrievalFacade.retrieve(context, request)
+
+    async def _retrieve_kb_documents(
+        self,
+        kb,
+        retrieve: MemoryRetrieve,
+        *,
+        score_threshold: float,
+        retrieval_method: str,
+        weights: dict | None = None,
+        reranking_mode: str | None = None,
+    ) -> list:
+        from runtime.rag.retrieve.requests import RetrieveRequest
+
+        context = self._build_kb_retrieval_context(
+            kb,
+            top_k=retrieve.top_k * 2,
+            score_threshold=score_threshold,
+            retrieval_method=retrieval_method,
+            reranking_mode=reranking_mode,
+            weights=weights,
+        )
+        request = RetrieveRequest(
+            query=retrieve.query,
+            top_k=retrieve.top_k * 2,
+            score_threshold=score_threshold,
+            retrieval_method=retrieval_method,
+            reranking_mode=reranking_mode,
+            weights=weights,
+        )
+        return self._run_kb_retrieval(context, request)
+
     async def _retrieve_rag(self, retrieve: MemoryRetrieve) -> list[MemoryRetrieveResult]:
         """RAG 被动式检索：向量匹配 → MemoryRecord 反查 → 排序截断。"""
         import asyncio
@@ -28,16 +84,12 @@ class MemoryRagRetrievalMixin:
         from models.document import KnowledgeBase
         from models.engine import get_db
         from models.memory import MemoryBase, MemoryRecord
-        from service.knowledge_base_service import KnowledgeBaseService
 
         filters = dict(retrieve.filters or {})
         score_threshold: float = float(filters.get("score_threshold", retrieve.score_threshold or 0.0))
         retrieval_method = str(filters.get("retrieval_method") or "semantics").strip().lower()
-        retrieval_kwargs: dict[str, object] = {"retrieval_method": retrieval_method}
-        if filters.get("weights"):
-            retrieval_kwargs["weights"] = filters["weights"]
-        if filters.get("reranking_mode"):
-            retrieval_kwargs["reranking_mode"] = filters["reranking_mode"]
+        weights = filters.get("weights")
+        reranking_mode = filters.get("reranking_mode")
 
         with get_db() as session:
             q = session.query(MemoryBase).filter(MemoryBase.user_id == self.user_id, MemoryBase.deleted == 0)
@@ -60,12 +112,13 @@ class MemoryRagRetrievalMixin:
             return []
 
         tasks = [
-            KnowledgeBaseService.retrieve_from_kb(
+            self._retrieve_kb_documents(
                 kb=kb,
-                query=retrieve.query,
-                top_k=retrieve.top_k * 2,
+                retrieve=retrieve,
                 score_threshold=score_threshold,
-                **retrieval_kwargs,
+                retrieval_method=retrieval_method,
+                weights=weights,
+                reranking_mode=reranking_mode,
             )
             for kb in kbs
         ]

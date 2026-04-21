@@ -3,19 +3,15 @@ import logging
 import re
 import threading
 import uuid
-from typing import Optional
 
-from component.vdb.vector_factory import Vector
-from models.document import KnowledgeBase
 from runtime.entities.document_entities import Document
 from runtime.generator.generator import LLMGenerator
-from runtime.rag.clean.clean_processor import CleanProcessor
 from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 from runtime.rag.extractor.extractor_runner import ExtractorRunner
-from runtime.rag.keyword.keyword import Keyword
-from runtime.rag.rag_config import AUTOMATIC_RULES, SplitterRule
 from runtime.rag.rag_processor.rag_processor_base import BaseRAGProcessor
-from runtime.rag.retrieve.retrieval_service import RetrievalService
+from runtime.rag.retrieve.facade import RetrievalFacade
+from runtime.rag.retrieve.requests import RetrievalContext, RetrieveRequest
+from runtime.rag.transform.context import TransformContext
 
 logger = logging.getLogger(__name__)
 
@@ -27,56 +23,18 @@ class QARAGProcessor(BaseRAGProcessor):
         text_docs = ExtractorRunner.extract(extraction_setting=extract_setting)
         return text_docs
 
-    def transform(self, documents: list[Document], **kwargs) -> list[Document]:
-        splitter_rule_dict = kwargs.get("split_rule")
-        if not splitter_rule_dict:
-            raise ValueError("No splitter rule found.")
-        if splitter_rule_dict.get("mode") == "automatic":
-            rule = SplitterRule(**AUTOMATIC_RULES)
-        else:
-            if not splitter_rule_dict.get("rules"):
-                raise ValueError("No rules found in splitter rule.")
-            rule = SplitterRule(**splitter_rule_dict.get("rules"))
-        if not rule.segmentation:
-            raise ValueError("No segmentation rule found in splitter rule.")
-        splitter = self.get_splitter(
-            process_rule_mode=splitter_rule_dict.get("mode"),
-            chunk_size=rule.segmentation.max_tokens,
-            chunk_overlap=rule.segmentation.chunk_overlap,
-            separator=rule.segmentation.separator,
-        )
-        all_documents = []
-        for document in documents:
-            # document clean
-            document_text = CleanProcessor.clean(document.content, kwargs.get("split_rule", {}))
-            document.content = document_text
-            # parse document to nodes
-            document_nodes = splitter.split_documents([document])
-            split_documents = []
-            for document_node in document_nodes:
-                if document_node.content.strip():
-                    doc_id = str(uuid.uuid4())
-                    hash = hashlib.sha256(document_node.content.encode("utf-8")).hexdigest()
-                    if document_node.metadata is not None:
-                        document_node.metadata["doc_id"] = doc_id
-                        document_node.metadata["doc_hash"] = hash
-                    # delete Splitter character
-                    content = self.remove_leading_symbols(document_node.content).strip()
-                    if len(content) > 0:
-                        document_node.content = content
-                        split_documents.append(document_node)
-            all_documents.extend(split_documents)
+    def post_transform(self, documents: list[Document], *, context: TransformContext, **kwargs) -> list[Document]:
         all_qa_documents = []
-        for i in range(0, len(all_documents), 10):
+        for i in range(0, len(documents), 10):
             threads = []
-            sub_documents = all_documents[i : i + 10]
+            sub_documents = documents[i : i + 10]
             for doc in sub_documents:
                 document_format_thread = threading.Thread(
                     target=self._format_qa_document,
                     kwargs={
                         "document_node": doc,
                         "all_qa_documents": all_qa_documents,
-                        "document_language": kwargs.get("doc_language", "English"),
+                        "document_language": context.doc_language or "English",
                     },
                 )
                 threads.append(document_format_thread)
@@ -85,47 +43,10 @@ class QARAGProcessor(BaseRAGProcessor):
                 thread.join()
         return all_qa_documents
 
-    def load(self, knowledge: KnowledgeBase, documents: list[Document], with_keywords: bool = True, **kwargs):
-        vector = Vector(knowledge)
-        vector.create(documents)
-
-        if with_keywords:
-            keywords_list = kwargs.get("keywords_list")
-            keyword = Keyword(knowledge)
-            if keywords_list and len(keywords_list) > 0:
-                keyword.add_texts(documents, keywords_list=keywords_list)
-            else:
-                keyword.add_texts(documents)
-
-    def clean(self, knowledge: KnowledgeBase, node_ids: Optional[list[str]], with_keywords: bool = True, **kwargs):
-        vector = Vector(knowledge)
-        if node_ids and len(node_ids) > 0:
-            vector.delete_by_ids(node_ids)
-        else:
-            vector.delete_all()
-        if with_keywords:
-            keyword = Keyword(knowledge)
-            if node_ids and len(node_ids) > 0:
-                keyword.delete_by_ids(node_ids)
-            else:
-                keyword.delete()
-
-    def retrieve(self, retrieval_method: str, query: str, knowledge: KnowledgeBase, top_k: int, score_threshold: float,
-                 reranking_mode: str,
-                 reranking_model: dict,weights: Optional[dict] = None, **kwargs) -> list[Document]:
-        # Set search parameters.
-        results = RetrievalService.retrieve(
-            knowledge_base_id=knowledge.id,
-            query=query,
-            top_k=top_k,
-            score_threshold=score_threshold,
-            reranking_mode=reranking_mode,
-            reranking_model=reranking_model,
-            weights=weights,
-            **kwargs
-        )
-        # Organize results.
+    def retrieve(self, request: RetrieveRequest, context: RetrievalContext) -> list[Document]:
+        results = RetrievalFacade.retrieve(context, request)
         docs = []
+        score_threshold = request.score_threshold if request.score_threshold is not None else context.score_threshold
         for result in results:
             metadata = result.metadata
             score = metadata["score"]

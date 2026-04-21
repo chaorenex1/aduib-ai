@@ -6,11 +6,11 @@ from sqlalchemy import Float, bindparam, desc, func, select
 from sqlalchemy import text as sql_text
 
 from component.vdb.base_vector import BaseVector
-from component.vdb.vector_factory import AbstractVectorFactory
+from component.vdb.vector_store_factory import AbstractVectorStoreFactory
 from component.vdb.vector_type import VectorType
 from models import KnowledgeBase, KnowledgeEmbeddings, get_db
 from runtime.entities.document_entities import Document
-from runtime.rag.embeddings.embeddings import Embeddings
+from runtime.rag.retrieve.interfaces import EmbeddingProvider
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +53,12 @@ class PGVectoRS(BaseVector):
         #     if redis_client.get(collection_exist_cache_key):
         #         return
         #     with get_db() as session:
-        #         alter_statement = sql_text(f"""
-        #             ALTER TABLE {self._collection_name} ALTER COLUMN vector TYPE VECTOR({dimension}) USING vector::vector({dimension});
-        #         """)
+        #         alter_statement = sql_text(
+        #             f"""
+        #             ALTER TABLE {self._collection_name}
+        #             ALTER COLUMN vector TYPE VECTOR({dimension}) USING vector::vector({dimension});
+        #         """
+        #         )
         #         session.execute(alter_statement)
         #         session.commit()
         #     redis_client.set(collection_exist_cache_key, 1, ex=3600)
@@ -91,7 +94,11 @@ class PGVectoRS(BaseVector):
                     vector_str = "[]"
 
                 update_stmt = sql_text(
-                    f"""UPDATE {self._collection_name} SET content = :content, meta = :metadata, vector = :vector WHERE id = :id;"""
+                    f"""
+                    UPDATE {self._collection_name}
+                    SET content = :content, meta = :metadata, vector = :vector
+                    WHERE id = :id;
+                    """
                 )
                 session.execute(
                     update_stmt,
@@ -252,11 +259,24 @@ class PGVectoRS(BaseVector):
             return docs
 
 
-class PGVectoRSFactory(AbstractVectorFactory):
-    def init_vector(self, knowledge: KnowledgeBase, attributes: list, embeddings: Embeddings) -> PGVectoRS:
-        dim = len(embeddings.embed_query("pgvecto_rs"))
+class PGVectoRSFactory(AbstractVectorStoreFactory):
+    def create_store(
+        self,
+        *,
+        knowledge: KnowledgeBase | None = None,
+        attributes: list | None = None,
+        embedding_provider: EmbeddingProvider | None = None,
+    ) -> PGVectoRS:
+        if embedding_provider is None:
+            raise ValueError("embedding_provider is required to create a PGVectoRS store.")
+        dim = len(embedding_provider.embed_query("pgvecto_rs"))
 
         return PGVectoRS(
             collection_name=KnowledgeEmbeddings.__tablename__,
             dim=dim,
         )
+
+    def init_vector(
+        self, knowledge: KnowledgeBase, attributes: list, embeddings: EmbeddingProvider | None = None
+    ) -> PGVectoRS:
+        return self.create_store(knowledge=knowledge, attributes=attributes, embedding_provider=embeddings)

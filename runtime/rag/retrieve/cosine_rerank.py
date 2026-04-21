@@ -8,8 +8,8 @@ from runtime.entities.document_entities import Document
 from runtime.model_manager import ModelManager
 from runtime.rag.embeddings.cache_embeddings import CacheEmbeddings
 from runtime.rag.keyword.jieba import JiebaKeyword
+from runtime.rag.retrieve.methods import CosineWeight
 from runtime.rag.retrieve.rerank_base import BaseRerankRunner
-from runtime.rag.retrieve.retrieve import CosineWeight
 
 
 class CosineWeightRerankRunner(BaseRerankRunner):

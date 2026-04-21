@@ -1,12 +1,19 @@
+from __future__ import annotations
+
 import re
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import TYPE_CHECKING
 
-from models.document import KnowledgeBase
 from runtime.entities.document_entities import Document
-from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
+from runtime.rag.clean.clean_processor import CleanProcessor
+from runtime.rag.retrieve.requests import RetrievalContext, RetrieveRequest
 from runtime.rag.splitter.base_splitter import BaseTextSplitter
 from runtime.rag.splitter.text_splitter import FixedRecursiveTextSplitter, RecursiveTextSplitter
+from runtime.rag.transform.context import TransformContext
+from runtime.rag.transform.pipeline import TransformPipeline
+
+if TYPE_CHECKING:
+    from runtime.rag.extractor.entity.extraction_setting import ExtractionSetting
 
 
 class BaseRAGProcessor(ABC):
@@ -16,31 +23,46 @@ class BaseRAGProcessor(ABC):
     def extract(self, extract_setting: ExtractionSetting, **kwargs) -> list[Document]:
         raise NotImplementedError
 
-    @abstractmethod
     def transform(self, documents: list[Document], **kwargs) -> list[Document]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def load(self, knowledge: KnowledgeBase, documents: list[Document], with_keywords: bool = True, **kwargs):
-        raise NotImplementedError
-
-    def clean(self, knowledge: KnowledgeBase, node_ids: Optional[list[str]], with_keywords: bool = True, **kwargs):
-        raise NotImplementedError
+        transform_kwargs = dict(kwargs)
+        context = transform_kwargs.pop("context", None)
+        if context is None:
+            raise ValueError(
+                "TransformContext is required; build one via runtime.rag.profiles.build_transform_context()."
+            )
+        pipeline = TransformPipeline(
+            context,
+            cleaner=CleanProcessor.clean,
+            splitter_factory=self._create_splitter_for_context,
+            leading_symbol_remover=self.remove_leading_symbols,
+        )
+        transformed_documents = pipeline.run(documents)
+        return self.post_transform(transformed_documents, context=context, **transform_kwargs)
 
     @abstractmethod
     def retrieve(
         self,
-        retrieval_method: str,
-        query: str,
-        knowledge: KnowledgeBase,
-        top_k: int,
-        score_threshold: float,
-        reranking_mode: str,
-        reranking_model: dict,
-        weights: Optional[dict] = None,
-        **kwargs
+        request: RetrieveRequest,
+        context: RetrievalContext,
     ) -> list[Document]:
         raise NotImplementedError
+
+    def post_transform(
+        self,
+        documents: list[Document],
+        *,
+        context: TransformContext,
+        **kwargs,
+    ) -> list[Document]:
+        return documents
+
+    def _create_splitter_for_context(self, context: TransformContext) -> BaseTextSplitter:
+        return self.get_splitter(
+            process_rule_mode=context.process_rule_mode,
+            chunk_size=context.chunk_size,
+            chunk_overlap=context.chunk_overlap,
+            separator=context.separator,
+        )
 
     def get_splitter(
         self, process_rule_mode: str, chunk_size: int, chunk_overlap: int, separator: str, **kwargs

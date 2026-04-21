@@ -1,31 +1,25 @@
+from __future__ import annotations
+
 import logging
 import time
-from abc import ABC, abstractmethod
-from typing import Any, Optional
+from abc import ABC
+from typing import TYPE_CHECKING, Any, Optional
 
 from component.cache.redis_cache import redis_client
 from component.vdb.base_vector import BaseVector
-from component.vdb.vector_type import VectorType
+from component.vdb.vector_store_factory import AbstractVectorStoreFactory, get_vector_store_factory
 from configs import config
-from models import KnowledgeBase
 from runtime.entities.document_entities import Document
-from runtime.entities.model_entities import ModelType
-from runtime.model_manager import ModelManager
-from runtime.rag.embeddings.cache_embeddings import CacheEmbeddings
-from runtime.rag.embeddings.embeddings import Embeddings
+from runtime.rag.retrieve.interfaces import EmbeddingProvider
+
+if TYPE_CHECKING:
+    from models import KnowledgeBase
 
 logger = logging.getLogger(__name__)
 
 
-class AbstractVectorFactory(ABC):
-    @abstractmethod
-    def init_vector(self, knowledge: KnowledgeBase, attributes: list, embeddings: Embeddings) -> BaseVector:
-        raise NotImplementedError
-
-    @staticmethod
-    def gen_index_struct_dict(vector_type: VectorType, collection_name: str):
-        index_struct_dict = {"type": vector_type, "vector_store": {"class_prefix": collection_name}}
-        return index_struct_dict
+class AbstractVectorFactory(AbstractVectorStoreFactory, ABC):
+    """Backward-compatible alias kept for callers that still import this symbol."""
 
 
 class Vector:
@@ -38,23 +32,16 @@ class Vector:
         self._vector_processor = self._init_vector()
 
     def _init_vector(self) -> BaseVector:
-        vector_type = config.VECTOR_STORE
-        vector_factory_cls = self.get_vector_factory(vector_type)
-        return vector_factory_cls().init_vector(self._knowledge, self._attributes, self._embeddings)
+        vector_factory_cls = self.get_vector_factory(config.VECTOR_STORE)
+        return vector_factory_cls().create_store(
+            knowledge=self._knowledge,
+            attributes=self._attributes,
+            embedding_provider=self._embeddings,
+        )
 
     @staticmethod
-    def get_vector_factory(vector_type: str) -> type[AbstractVectorFactory]:
-        match vector_type:
-            case VectorType.MILVUS:
-                from component.vdb.milvus import MilvusVectorFactory
-
-                return MilvusVectorFactory
-            case VectorType.PGVECTO_RS:
-                from component.vdb.pgvecto_rs import PGVectoRSFactory
-
-                return PGVectoRSFactory
-            case _:
-                raise ValueError(f"Vector store {vector_type} is not supported.")
+    def get_vector_factory(vector_type: str) -> type[AbstractVectorStoreFactory]:
+        return get_vector_store_factory(vector_type)
 
     def create(self, texts: Optional[list] = None, **kwargs):
         if texts:
@@ -98,21 +85,14 @@ class Vector:
 
     def delete(self):
         self._vector_processor.delete_all()
-        # delete collection redis cache
         if self._vector_processor.collection_name:
             collection_exist_cache_key = f"vector_indexing_{self._vector_processor.collection_name}"
             redis_client.delete(collection_exist_cache_key)
 
-    def _get_embeddings(self) -> Embeddings:
-        model_manager = ModelManager()
+    def _get_embeddings(self) -> EmbeddingProvider:
+        from runtime.rag.retrieve.embedding import DefaultEmbeddingProvider
 
-        if self._knowledge:
-            embedding_model = model_manager.get_model_instance(
-                model_name=self._knowledge.embedding_model_provider+"/"+self._knowledge.embedding_model,
-            )
-        else:
-            embedding_model = model_manager.get_default_model_instance(model_type=ModelType.EMBEDDING.to_model_type())
-        return CacheEmbeddings(embedding_model)
+        return DefaultEmbeddingProvider.from_knowledge(self._knowledge)
 
     def _filter_duplicate_texts(self, texts: list[Document]) -> list[Document]:
         for text in texts.copy():

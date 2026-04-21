@@ -1,9 +1,9 @@
 from typing import Optional
 
 from runtime.entities.document_entities import Document
+from runtime.rag.retrieve.methods import CosineWeight, RerankMode
 from runtime.rag.retrieve.rerank_base import BaseRerankRunner
 from runtime.rag.retrieve.rerank_factory import RerankFactory
-from runtime.rag.retrieve.retrieve import CosineWeight, RerankMode
 
 
 class RerankProcessor:

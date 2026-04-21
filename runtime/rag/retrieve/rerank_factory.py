@@ -1,5 +1,5 @@
+from runtime.rag.retrieve.methods import RerankMode
 from runtime.rag.retrieve.rerank_base import BaseRerankRunner
-from runtime.rag.retrieve.retrieve import RerankMode
 
 
 class RerankFactory:

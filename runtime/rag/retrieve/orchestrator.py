@@ -1,14 +1,17 @@
+from __future__ import annotations
+
 import concurrent.futures
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from component.vdb.vector_factory import Vector
-from models import KnowledgeBase, get_db
 from runtime.entities.document_entities import Document
-from runtime.rag.keyword.keyword import Keyword
+from runtime.rag.retrieve.methods import RetrievalMethod
 from runtime.rag.retrieve.rerank_processor import RerankProcessor
-from runtime.rag.retrieve.retrieve import RetrievalMethod
+from runtime.rag.retrieve.vector_retriever import KnowledgeVectorRetriever
+
+if TYPE_CHECKING:
+    from models import KnowledgeBase
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +34,9 @@ class RetrievalService:
         if not query:
             return []
 
-        if knowledge_base_id:
-            knowledge = cls._get_knowledge_base(knowledge_base_id)
-            if not knowledge:
-                return []
+        knowledge_base = cls._get_knowledge_base(knowledge_base_id) if knowledge_base_id else None
+        if knowledge_base_id and not knowledge_base:
+            return []
 
         all_documents: list[Document] = []
         exceptions: list[str] = []
@@ -45,7 +47,7 @@ class RetrievalService:
             futures.append(
                 executor.submit(
                     cls.keyword_search,
-                    knowledge_base_id=knowledge_base_id,
+                    knowledge_base=knowledge_base,
                     query=query,
                     top_k=top_k,
                     all_documents=all_documents,
@@ -54,7 +56,7 @@ class RetrievalService:
             if rerank_method == RetrievalMethod.SEMANTICS.value:
                 futures.append(executor.submit(
                     cls.embedding_search,
-                    knowledge_base_id=knowledge_base_id,
+                    knowledge_base=knowledge_base,
                     query=query,
                     top_k=top_k,
                     score_threshold=score_threshold,
@@ -66,7 +68,7 @@ class RetrievalService:
             if rerank_method == RetrievalMethod.FULL_TEXT.value:
                 futures.append(executor.submit(
                     cls.full_text_index_search,
-                    knowledge_base_id=knowledge_base_id,
+                    knowledge_base=knowledge_base,
                     query=query,
                     top_k=top_k,
                     score_threshold=score_threshold,
@@ -92,23 +94,29 @@ class RetrievalService:
 
     @classmethod
     def _get_knowledge_base(cls, knowledge_base_id: str) -> Optional[KnowledgeBase]:
+        from models import KnowledgeBase, get_db
+
         with get_db() as session:
             return session.query(KnowledgeBase).where(KnowledgeBase.id == knowledge_base_id).first()
+
+    @staticmethod
+    def _build_vector_retriever(knowledge_base: KnowledgeBase) -> KnowledgeVectorRetriever:
+        return KnowledgeVectorRetriever(knowledge_base)
 
     @classmethod
     def keyword_search(
         cls,
-        knowledge_base_id: str,
+        knowledge_base: KnowledgeBase | None,
         query: str,
         top_k: int,
         all_documents: list,
         exceptions: list,
     ):
         try:
-            if knowledge_base_id:
-                knowledge_base = cls._get_knowledge_base(knowledge_base_id)
-                if not knowledge_base:
-                    raise ValueError("knowledge not found")
+            if not knowledge_base:
+                raise ValueError("knowledge not found")
+
+            from runtime.rag.keyword.keyword import Keyword
 
             keyword = Keyword(knowledge=knowledge_base)
 
@@ -121,7 +129,7 @@ class RetrievalService:
     @classmethod
     def embedding_search(
         cls,
-        knowledge_base_id: str,
+        knowledge_base: KnowledgeBase | None,
         query: str,
         top_k: int,
         score_threshold: Optional[float],
@@ -131,19 +139,12 @@ class RetrievalService:
         **kwargs
     ):
         try:
-            if knowledge_base_id:
-                knowledge_base = cls._get_knowledge_base(knowledge_base_id)
-                if not knowledge_base:
-                    raise ValueError("knowledge not found")
+            if not knowledge_base:
+                raise ValueError("knowledge not found")
 
-            vector = Vector(knowledge=knowledge_base)
-            if kwargs:
-                kwargs["knowledge_base_id"]=knowledge_base_id
-            else:
-                kwargs["knowledge_base_id"]=knowledge_base_id
-            documents = vector.search_by_vector(
+            retriever = cls._build_vector_retriever(knowledge_base)
+            documents = retriever.search_by_vector(
                 query,
-                search_type="similarity_score_threshold",
                 top_k=top_k,
                 score_threshold=score_threshold,
                 **kwargs,
@@ -157,7 +158,7 @@ class RetrievalService:
     @classmethod
     def full_text_index_search(
         cls,
-        knowledge_base_id: str,
+        knowledge_base: KnowledgeBase | None,
         query: str,
         top_k: int,
         score_threshold: Optional[float],
@@ -167,19 +168,19 @@ class RetrievalService:
         **kwargs
     ):
         try:
-            if knowledge_base_id:
-                knowledge_base = cls._get_knowledge_base(knowledge_base_id)
-                if not knowledge_base:
-                    raise ValueError("knowledge not found")
+            if not knowledge_base:
+                raise ValueError("knowledge not found")
 
-                vector_processor = Vector(knowledge=knowledge_base)
-
-                documents = vector_processor.search_by_full_text(
-                    cls.escape_query_for_search(query), top_k=top_k, **kwargs
-                )
-                logger.debug("%Full Text search found {len(documents)} documents.")
-                if documents:
-                    all_documents.extend(documents)
+            retriever = cls._build_vector_retriever(knowledge_base)
+            documents = retriever.search_by_full_text(
+                cls.escape_query_for_search(query),
+                top_k=top_k,
+                score_threshold=score_threshold,
+                **kwargs,
+            )
+            logger.debug("%Full Text search found {len(documents)} documents.")
+            if documents:
+                all_documents.extend(documents)
         except Exception as e:
             exceptions.append(str(e))
 

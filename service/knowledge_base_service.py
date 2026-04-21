@@ -5,12 +5,13 @@ from typing import Any
 
 from sqlalchemy import bindparam, desc, func, select
 
-from controllers.document.document import rerank
 from models import BrowserHistory, KnowledgeBase, get_db
 from models.document import KnowledgeDocument
 from runtime.entities.document_entities import Document
+from runtime.rag.profiles import build_retrieval_context as resolve_retrieval_context
 from runtime.rag.rag_type import RagType
-from runtime.rag.retrieve.retrieve import RerankMode, RetrievalMethod
+from runtime.rag.retrieve.facade import RetrievalFacade
+from runtime.rag.retrieve.requests import RetrieveRequest
 
 logger = logging.getLogger(__name__)
 
@@ -286,36 +287,6 @@ class KnowledgeBaseService:
         RagManager().run([doc])
 
     @classmethod
-    async def retrieve_from_kb(
-        cls,
-        kb: KnowledgeBase,
-        query: str,
-        top_k: int,
-        retrieval_method: RetrievalMethod.VECTOR,
-        score_threshold: float = 0.0,
-        weights: dict | None = None,
-        reranking_mode=RerankMode.RERANKING_MODEL,
-        **kwargs,
-    ) -> list[Document]:
-        """Retrieve documents from a specific KnowledgeBase object (not restricted to default_base)."""
-        from runtime.rag.rag_processor.rag_processor_factory import RAGProcessorFactory
-        from runtime.rag.retrieve.retrieve import RerankMode
-
-        rag_processor = RAGProcessorFactory.get_rag_processor(kb.rag_type)
-        rule = kb.reranking_rule or {}
-        reranking_model = (
-            {"reranking_model_name": kb.rerank_model, "reranking_provider_name": kb.rerank_model_provider}
-            if kb.rerank_model and kb.rerank_model_provider
-            else {}
-        )
-        reranking_model["reranking_mode"] = rule.get("reranking_mode", RetrievalMethod.VECTOR)
-        effective_weights = weights or {
-            "keyword_weight": rule.get("keyword_weight", 0.2),
-            "vector_weight": rule.get("vector_weight", 0.8),
-        }
-        return rag_processor.retrieve(retrieval_method, query, kb, top_k, score_threshold,reranking_mode, reranking_model,effective_weights,**kwargs)
-
-    @classmethod
     async def retrieve_from_knowledge_base(cls, rag_type: str, query: str) -> list[Document]:
         """
         Retrieve relevant documents from the knowledge base using RAG.
@@ -325,9 +296,8 @@ class KnowledgeBaseService:
             existing_kb = session.query(KnowledgeBase).filter_by(default_base=1, rag_type=rag_type).one_or_none()
             if not existing_kb:
                 return []
-        return await cls.retrieve_from_kb(existing_kb, query,
-                                      existing_kb.reranking_rule.get("top_k", 10),
-                                      existing_kb.reranking_rule.get("score_threshold", 0.8))
+        context = resolve_retrieval_context(existing_kb)
+        return RetrievalFacade.retrieve(context, RetrieveRequest(query=query))
 
     @classmethod
     async def retrieval_from_browser_history(cls, query, start_time, end_time):
@@ -470,7 +440,7 @@ class KnowledgeBaseService:
                 RagManager().run(knowledge_docs=[doc])
 
     @classmethod
-    async def retrieve_With_doc_id(cls, doc_id) -> dict[str, Any]:
+    async def retrieve_With_doc_id(cls, doc_id) -> dict[str, Any]:  # noqa: N802
         """
         Retrieve document by doc_id.
         """
