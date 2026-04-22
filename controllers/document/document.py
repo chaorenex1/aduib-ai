@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from controllers.common.base import catch_exceptions
+from controllers.common.base import api_endpoint
 from runtime.entities.rerank_entities import RerankRequest
 from runtime.entities.text_embedding_entities import EmbeddingRequest
 from service.document_service import DocumentService
@@ -9,7 +9,7 @@ router = APIRouter(tags=["embeddings"])
 
 
 @router.post("/embeddings")
-@catch_exceptions
+@api_endpoint()
 def embeddings(req: EmbeddingRequest):
     """
     Embeddings endpoint
@@ -18,7 +18,7 @@ def embeddings(req: EmbeddingRequest):
 
 
 @router.post("/rerank")
-@catch_exceptions
+@api_endpoint()
 def rerank(req: RerankRequest):
     """
     rerank endpoint

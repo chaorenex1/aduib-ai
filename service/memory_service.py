@@ -1,4 +1,4 @@
-from controllers.params import MemoryCreateRequest, MemoryRetrieveRequest, MemoryRetrieveResponse
+from controllers.memory.schemas import MemoryCreateRequest, MemoryRetrieveRequest, MemoryRetrieveResponse
 from runtime.memory.types import MemoryRetrieve, MemoryRetrieveResult, MemoryRetrieveType
 
 

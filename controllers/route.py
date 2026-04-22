@@ -51,10 +51,20 @@ from .common import health
 
 api_router.include_router(health.router)
 
-# memory
-from .memory import memory
+# legacy memory
+from .memory import legacy
 
-api_router.include_router(memory.router)
+api_router.include_router(legacy.router)
+
+# programmer memory
+from .memory import conversations, feedback, memories, projects, search, tasks
+
+api_router.include_router(conversations.router)
+api_router.include_router(projects.router)
+api_router.include_router(tasks.router)
+api_router.include_router(memories.router)
+api_router.include_router(search.router)
+api_router.include_router(feedback.router)
 
 # memory tags
 from .memory import tags

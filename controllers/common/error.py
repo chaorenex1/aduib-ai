@@ -1,19 +1,19 @@
-from controllers.common.base import BaseHttpException
+from controllers.common.base import ApiHttpException
 
 
-class ApiNotCurrentlyAvailableError(BaseHttpException):
+class ApiNotCurrentlyAvailableError(ApiHttpException):
     def __init__(self):
-        super().__init__(error_code=403, error_msg="api key is not currently available")
+        super().__init__(status_code=403, code="api_not_available", message="api key is not currently available")
 
 
-class ServiceError(BaseHttpException):
+class ServiceError(ApiHttpException):
     def __init__(self, message: str = "service error"):
-        super().__init__(error_code=500, error_msg=message)
+        super().__init__(status_code=500, code="service_error", message=message)
 
 
-class UnauthorizedError(BaseHttpException):
+class UnauthorizedError(ApiHttpException):
     def __init__(self, message: str = "unauthorized"):
-        super().__init__(error_code=401, error_msg=message)
+        super().__init__(status_code=401, code="unauthorized", message=message)
 
 
 class InnerError(Exception):

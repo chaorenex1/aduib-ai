@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter
 
-from controllers.common.base import BaseResponse, catch_exceptions
+from controllers.common.base import ApiHttpException, api_endpoint
 from controllers.common.error import ServiceError
 from controllers.params import MCPServerCreate, MCPServerUpdate
 from models import McpServer, get_db
@@ -15,7 +15,7 @@ router = APIRouter(tags=["mcp_server"], prefix="/mcp_server")
 
 # Create
 @router.post("/servers/")
-@catch_exceptions
+@api_endpoint()
 def create_server(server: MCPServerCreate):
     with get_db() as db:
         db_server = McpServer(**server.model_dump(exclude_none=True))
@@ -23,32 +23,32 @@ def create_server(server: MCPServerCreate):
         db.add(db_server)
         db.commit()
         db.refresh(db_server)
-        return BaseResponse.ok(data=db_server)
+        return db_server
 
 
 # Read all
 @router.get("/servers/")
-@catch_exceptions
+@api_endpoint()
 def read_servers(skip: int = 0, limit: int = 100):
     with get_db() as db:
         servers = db.query(McpServer).offset(skip).limit(limit).all()
-        return BaseResponse.ok(servers)
+        return servers
 
 
 # Read one
 @router.get("/servers/{server_id}")
-@catch_exceptions
+@api_endpoint()
 def read_server(server_id: str):
     with get_db() as db:
         server = db.query(McpServer).filter(McpServer.id == server_id).first()
         if not server:
             raise ServiceError(message="server not found")
-        return BaseResponse.ok(data=server)
+        return server
 
 
 # Update
 @router.put("/servers/{server_id}")
-@catch_exceptions
+@api_endpoint()
 def update_server(server_id: str, server_update: MCPServerUpdate):
     with get_db() as db:
         server = db.query(McpServer).filter(McpServer.id == server_id).first()
@@ -61,12 +61,12 @@ def update_server(server_id: str, server_update: MCPServerUpdate):
 
         db.commit()
         db.refresh(server)
-        return BaseResponse.ok(data=server)
+        return server
 
 
 # Delete
 @router.delete("/servers/{server_id}")
-@catch_exceptions
+@api_endpoint()
 def delete_server(server_id: str):
     with get_db() as db:
         server = db.query(McpServer).filter(McpServer.id == server_id).first()
@@ -75,11 +75,11 @@ def delete_server(server_id: str):
 
         db.delete(server)
         db.commit()
-        return BaseResponse.ok(data=server)
+        return {"deleted": True, "server_id": server_id}
 
 
 @router.get("/init_tools/{server_code}")
-@catch_exceptions
+@api_endpoint()
 async def init_tools(server_code: str):
     with get_db() as db:
         mcp_server: Optional[McpServer] = db.query(McpServer).filter(McpServer.server_code == server_code).first()
@@ -122,13 +122,17 @@ async def init_tools(server_code: str):
                     tools_infos.append(tool_info)
                 db.bulk_save_objects(tools_infos)
                 db.commit()
-            return BaseResponse.ok(data=mcp_server)
+            return mcp_server
         except Exception as e:
-            return BaseResponse.error(error_code=500, error_msg=f"failed to fetch tools from mcp server: {e}")
+            raise ApiHttpException(
+                status_code=500,
+                code="mcp_tool_init_failed",
+                message=f"failed to fetch tools from mcp server: {e}",
+            )
 
 
 @router.post("/init_servers/")
-@catch_exceptions
+@api_endpoint()
 async def init_servers(server: MCPServerCreate):
     with get_db() as db:
         existing_server = db.query(McpServer).filter(McpServer.server_url == server.server_url).first()
@@ -177,8 +181,12 @@ async def init_servers(server: MCPServerCreate):
                     tools_infos.append(tool_info)
                 db.bulk_save_objects(tools_infos)
                 db.commit()
-            return BaseResponse.ok(data=db_server)
+            return db_server
         except Exception as e:
             db.delete(db_server)
             db.commit()
-            return BaseResponse.error(error_code=500, error_msg=f"failed to fetch tools from mcp server: {e}")
+            raise ApiHttpException(
+                status_code=500,
+                code="mcp_server_init_failed",
+                message=f"failed to fetch tools from mcp server: {e}",
+            )

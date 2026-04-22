@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from controllers.common.base import catch_exceptions
+from controllers.common.base import api_endpoint
 from runtime.entities.anthropic_entities import AnthropicMessageRequest
 from runtime.entities.llm_entities import ChatCompletionRequest, CompletionRequest
 from runtime.entities.response_entities import ResponseRequest
@@ -14,8 +14,8 @@ router = APIRouter(tags=["completion"])
 
 
 @router.post("/completions")
-@catch_exceptions
-async def completion(req: CompletionRequest) -> Any:
+@api_endpoint()
+async def create_completion(req: CompletionRequest) -> Any:
     """
     Completion endpoint
     """
@@ -23,8 +23,8 @@ async def completion(req: CompletionRequest) -> Any:
 
 
 @router.post("/chat/completions")
-@catch_exceptions
-async def completion(req: ChatCompletionRequest) -> Any:
+@api_endpoint()
+async def create_chat_completion(req: ChatCompletionRequest) -> Any:
     """
     Completion endpoint
     """
@@ -32,7 +32,7 @@ async def completion(req: ChatCompletionRequest) -> Any:
 
 
 @router.post("/messages")
-@catch_exceptions
+@api_endpoint()
 async def messages(req: AnthropicMessageRequest) -> Any:
     """
     Anthropic Messages API endpoint
@@ -41,7 +41,7 @@ async def messages(req: AnthropicMessageRequest) -> Any:
 
 
 @router.post("/responses")
-@catch_exceptions
+@api_endpoint()
 async def responses(req: ResponseRequest) -> Any:
     """
     OpenAI Response API endpoint

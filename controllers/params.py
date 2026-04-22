@@ -3,7 +3,6 @@ import uuid
 from decimal import Decimal
 from typing import Any, Optional
 
-from fastapi import UploadFile
 from pydantic import BaseModel, Field, field_validator
 
 from utils import random_uuid
@@ -264,47 +263,3 @@ class CreateApiKeyRequest(BaseModel):
     name: str
     description: Optional[str] = None
 
-
-class MemoryCreateRequest(BaseModel):
-    content: str = Field(..., description="Memory content text, can be empty if file is provided")
-    file: Optional[UploadFile] = Field(None, description="Memory file")
-    project_id: str = Field(..., description="Project ID associated with the memory")
-    user_id: str = Field(..., description="User ID associated with the memory", exclude=True)
-    agent_id: Optional[str] = Field(None, description="Agent ID associated with the memory", exclude=True)
-    summary_enabled: bool = Field(False, description="Whether to generate summary for the memory")
-    memory_source: Optional[str] = Field(
-        None, description="Source of the memory, e.g. 'user_input', 'agent_observation'"
-    )
-
-
-class MemoryRetrieveRequest(BaseModel):
-    """记忆检索请求模型。"""
-
-    query: str
-    user_id: str
-    agent_id: Optional[str] = None
-    project_id: Optional[str] = None
-    retrieve_type: str
-    top_k: int = 5
-    score_threshold: float = 0.6
-    filters: dict[str, Any] = Field(default_factory=dict)
-
-
-class MemoryRetrieveResponse(BaseModel):
-    """记忆检索响应模型。"""
-
-    content: str = Field(..., description="Memory content text, can be empty if file is provided")
-    memory_id: str = Field(..., description="Memory ID")
-    score: float = Field(..., description="Memory score")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata for the memory")
-
-    @classmethod
-    def from_memory(
-        cls, content: str, memory_id: str, score: float = 0.0, metadata: dict[str, Any] = None
-    ) -> "MemoryRetrieveResponse":
-        return cls(
-            content=content,
-            memory_id=memory_id,
-            score=score,
-            metadata=metadata or {},
-        )

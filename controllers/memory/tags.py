@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field, field_validator
 
-from controllers.common.base import BaseHttpException, BaseResponse, catch_exceptions
+from controllers.common.base import ApiHttpException, api_endpoint
 from service.tag_service import TagService
 
 router = APIRouter(prefix="/api/memory/tags", tags=["Memory Tags"])
@@ -52,7 +52,7 @@ class TagAssignRequest(BaseModel):
 
 
 @router.post("/")
-@catch_exceptions
+@api_endpoint()
 def create_tag(request: TagCreateRequest, user_id: str = Query(...)):
     tag = TagService.create_tag(
         name=request.name,
@@ -61,11 +61,11 @@ def create_tag(request: TagCreateRequest, user_id: str = Query(...)):
         color=request.color,
         parent_id=request.parent_id,
     )
-    return BaseResponse.ok(tag)
+    return tag
 
 
 @router.get("/")
-@catch_exceptions
+@api_endpoint()
 def get_user_tags(
     user_id: str = Query(...),
     include_inactive: bool = Query(False),
@@ -76,56 +76,56 @@ def get_user_tags(
         include_inactive=include_inactive,
         parent_id=parent_id,
     )
-    return BaseResponse.ok({"tags": tags, "total": len(tags)})
+    return {"tags": tags, "total": len(tags)}
 
 
 @router.get("/search")
-@catch_exceptions
+@api_endpoint()
 def search_tags(
     user_id: str = Query(...),
     q: str = Query(..., min_length=1),
     limit: int = Query(20, ge=1, le=100),
 ):
     tags = TagService.search_tags(user_id=user_id, query=q, limit=limit)
-    return BaseResponse.ok({"tags": tags, "total": len(tags)})
+    return {"tags": tags, "total": len(tags)}
 
 
 @router.get("/stats")
-@catch_exceptions
+@api_endpoint()
 def get_tag_stats(user_id: str = Query(...)):
     stats = TagService.get_tag_stats(user_id=user_id)
-    return BaseResponse.ok(stats)
+    return stats
 
 
 @router.get("/{tag_id}")
-@catch_exceptions
+@api_endpoint()
 def get_tag(tag_id: str):
     tag = TagService.get_tag(tag_id)
     if tag is None:
-        raise BaseHttpException(404, "Tag not found")
-    return BaseResponse.ok(tag)
+        raise ApiHttpException(status_code=404, code="tag_not_found", message="Tag not found")
+    return tag
 
 
 @router.patch("/{tag_id}")
-@catch_exceptions
+@api_endpoint()
 def update_tag(tag_id: str, request: TagUpdateRequest):
-    updates = request.dict(exclude_unset=True)
+    updates = request.model_dump(exclude_unset=True)
     tag = TagService.update_tag(tag_id, **updates)
     if tag is None:
-        raise BaseHttpException(404, "Tag not found")
-    return BaseResponse.ok(tag)
+        raise ApiHttpException(status_code=404, code="tag_not_found", message="Tag not found")
+    return tag
 
 
 @router.delete("/{tag_id}")
-@catch_exceptions
+@api_endpoint()
 def delete_tag(tag_id: str):
     if not TagService.delete_tag(tag_id):
-        raise BaseHttpException(404, "Tag not found")
-    return BaseResponse.ok({"message": "Tag deleted successfully"})
+        raise ApiHttpException(status_code=404, code="tag_not_found", message="Tag not found")
+    return {"message": "Tag deleted successfully"}
 
 
 @router.post("/memories/{memory_id}/tags")
-@catch_exceptions
+@api_endpoint()
 def assign_tags_to_memory(
     memory_id: str,
     request: TagAssignRequest,
@@ -142,19 +142,19 @@ def assign_tags_to_memory(
         )
         for tag_id in request.tag_ids
     ]
-    return BaseResponse.ok({"associations": associations, "total": len(associations)})
+    return {"associations": associations, "total": len(associations)}
 
 
 @router.delete("/memories/{memory_id}/tags/{tag_id}")
-@catch_exceptions
+@api_endpoint()
 def remove_tag_from_memory(memory_id: str, tag_id: str):
     if not TagService.remove_tag_from_memory(memory_id=memory_id, tag_id=tag_id):
-        raise BaseHttpException(404, "Tag association not found")
-    return BaseResponse.ok({"message": "Tag removed from memory"})
+        raise ApiHttpException(status_code=404, code="tag_association_not_found", message="Tag association not found")
+    return {"message": "Tag removed from memory"}
 
 
 @router.get("/memories/{memory_id}/tags")
-@catch_exceptions
+@api_endpoint()
 def get_memory_tags(memory_id: str):
     tags = TagService.get_memory_tags(memory_id=memory_id)
-    return BaseResponse.ok({"tags": tags, "total": len(tags)})
+    return {"tags": tags, "total": len(tags)}
