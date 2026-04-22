@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 from controllers.memory.schemas import (
+    ConversationAppendMessageRequest,
     MemoryCreateRequest,
+    ConversationCreateRequest,
+    ConversationGetQuery,
     MemoryRetrieveRequest,
     MemoryRetrieveResponse,
     TaskCreateRequest,
 )
 
 from .contracts import (
+    ConversationMessageRecord,
+    ConversationSourceAppendCommand,
+    ConversationSourceCreateCommand,
+    ConversationSourceGetQuery,
+    ConversationSourceMetadata,
     MemoryRetrievedMemory,
     MemoryRetrieveQuery,
     MemorySourceRef,
@@ -15,6 +23,46 @@ from .contracts import (
     MemoryWriteCommand,
 )
 from .enums import MemoryTriggerType
+
+
+def conversation_create_request_to_command(payload: ConversationCreateRequest) -> ConversationSourceCreateCommand:
+    return ConversationSourceCreateCommand(
+        user_id=payload.user_id,
+        agent_id=payload.agent_id,
+        project_id=payload.project_id,
+        external_source=payload.conversation.external_source,
+        external_session_id=payload.conversation.external_session_id,
+        title=payload.conversation.title,
+        messages=[
+            ConversationMessageRecord(**message.model_dump(mode="python", exclude_none=True))
+            for message in payload.conversation.messages
+        ],
+        metadata=ConversationSourceMetadata(**payload.metadata.model_dump(mode="python", exclude_none=True))
+        if payload.metadata
+        else None,
+    )
+
+
+def conversation_append_request_to_command(
+    *,
+    conversation_id: str,
+    payload: ConversationAppendMessageRequest,
+) -> ConversationSourceAppendCommand:
+    return ConversationSourceAppendCommand(
+        user_id=payload.user_id,
+        agent_id=payload.agent_id,
+        project_id=payload.project_id,
+        conversation_id=conversation_id,
+        message=ConversationMessageRecord(**payload.message.model_dump(mode="python", exclude_none=True)),
+    )
+
+
+def conversation_get_query_to_query(
+    *,
+    conversation_id: str,
+    payload: ConversationGetQuery,
+) -> ConversationSourceGetQuery:
+    return ConversationSourceGetQuery(user_id=payload.user_id, conversation_id=conversation_id)
 
 
 async def memory_create_request_to_command(payload: MemoryCreateRequest) -> MemoryWriteCommand:

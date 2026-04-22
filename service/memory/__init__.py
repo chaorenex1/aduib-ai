@@ -7,8 +7,18 @@ from .builders import (
     new_task_id,
     new_trace_id,
 )
+from .conversation_repository import ConversationRepository
+from .conversation_source_service import ConversationSourceService
 from .contracts import (
     ArchivedSourceRef,
+    ConversationAppendResult,
+    ConversationMessageRef,
+    ConversationMessageRecord,
+    ConversationSourceAppendCommand,
+    ConversationSourceCreateCommand,
+    ConversationSourceGetQuery,
+    ConversationSourceMetadata,
+    ConversationSourceView,
     MemoryRetrievedMemory,
     MemoryRetrieveQuery,
     MemorySourceRef,
@@ -20,6 +30,11 @@ from .contracts import (
 )
 from .enums import MemoryQueueStatus, MemoryTaskPhase, MemoryTaskStatus, MemoryTriggerType
 from .errors import (
+    ConversationSourceConflictError,
+    ConversationSourceCorruptedError,
+    ConversationSourceError,
+    ConversationSourceNotFoundError,
+    ConversationSourceValidationError,
     MemoryArchiveError,
     MemoryServiceError,
     MemoryValidationError,
@@ -29,13 +44,24 @@ from .errors import (
     MemoryWriteTaskReplayError,
 )
 from .mappers import (
+    conversation_append_request_to_command,
+    conversation_create_request_to_command,
+    conversation_get_query_to_query,
     memory_create_request_to_command,
     memory_retrieve_request_to_query,
     retrieved_memories_to_response,
     task_create_request_to_command,
 )
 from .memory_service import MemoryService
-from .paths import build_memory_api_archive_path, build_session_commit_archive_path, normalize_path_segment
+from .paths import (
+    build_conversation_id,
+    build_conversation_key,
+    build_conversation_source_path,
+    build_memory_api_archive_path,
+    build_session_commit_archive_path,
+    normalize_path_segment,
+    parse_conversation_id,
+)
 from .source_archive_service import MemorySourceArchiveService
 from .write_ingest_service import MemoryWriteIngestService
 from .write_task_service import MEMORY_WRITE_TASK_NAME, MemoryWriteTaskService
@@ -43,6 +69,21 @@ from .write_task_service import MEMORY_WRITE_TASK_NAME, MemoryWriteTaskService
 __all__ = [
     "MEMORY_WRITE_TASK_NAME",
     "ArchivedSourceRef",
+    "ConversationAppendResult",
+    "ConversationMessageRef",
+    "ConversationMessageRecord",
+    "ConversationRepository",
+    "ConversationSourceAppendCommand",
+    "ConversationSourceConflictError",
+    "ConversationSourceCorruptedError",
+    "ConversationSourceCreateCommand",
+    "ConversationSourceError",
+    "ConversationSourceGetQuery",
+    "ConversationSourceMetadata",
+    "ConversationSourceNotFoundError",
+    "ConversationSourceService",
+    "ConversationSourceValidationError",
+    "ConversationSourceView",
     "MemoryArchiveError",
     "MemoryQueueStatus",
     "MemoryRetrieveQuery",
@@ -66,16 +107,23 @@ __all__ = [
     "MemoryWriteTaskResult",
     "MemoryWriteTaskService",
     "MemoryWriteTaskView",
+    "build_conversation_id",
+    "build_conversation_key",
+    "build_conversation_source_path",
     "build_memory_api_archive_path",
     "build_memory_api_idempotency_key",
     "build_queue_payload",
     "build_session_commit_archive_path",
     "build_task_request_idempotency_key",
+    "conversation_append_request_to_command",
+    "conversation_create_request_to_command",
+    "conversation_get_query_to_query",
     "memory_create_request_to_command",
     "memory_retrieve_request_to_query",
     "new_task_id",
     "new_trace_id",
     "normalize_path_segment",
+    "parse_conversation_id",
     "retrieved_memories_to_response",
     "task_create_request_to_command",
 ]

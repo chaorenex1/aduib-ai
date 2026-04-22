@@ -38,3 +38,27 @@ class MemoryWriteTaskNotFoundError(MemoryWriteTaskError):
 class MemoryWriteTaskReplayError(MemoryWriteTaskError):
     status_code = 409
     code = "memory_task_replay_conflict"
+
+
+class ConversationSourceError(MemoryServiceError):
+    code = "conversation_source_error"
+
+
+class ConversationSourceValidationError(ConversationSourceError):
+    status_code = 400
+    code = "conversation_source_validation_error"
+
+
+class ConversationSourceNotFoundError(ConversationSourceError):
+    status_code = 404
+    code = "conversation_source_not_found"
+
+
+class ConversationSourceConflictError(ConversationSourceError):
+    status_code = 409
+    code = "conversation_source_conflict"
+
+
+class ConversationSourceCorruptedError(ConversationSourceError):
+    status_code = 500
+    code = "conversation_source_corrupted"

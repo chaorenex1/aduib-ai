@@ -18,6 +18,7 @@ from .memory_metadata import (
     MemoryRetrievalHint,
     MemoryTimelineIndex,
 )
+from .memory_conversation import MemoryConversation
 from .memory_write_task import MemoryWriteTask
 from .memory import MemoryBase, MemoryRecord
 from .memory_learning_log import MemoryLearningLog
@@ -56,6 +57,7 @@ __all__ = [
     "McpServer",
     "McpUser",
     "MemoryBase",
+    "MemoryConversation",
     "MemoryDedupeIndex",
     "MemoryDirectoryIndex",
     "MemoryIndex",

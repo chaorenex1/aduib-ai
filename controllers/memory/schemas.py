@@ -72,6 +72,10 @@ class ConversationAppendMessageRequest(MemoryScope):
     message: ConversationMessagePayload
 
 
+class ConversationGetQuery(MemorySchema):
+    user_id: str = Field(..., min_length=1)
+
+
 class ProjectItemPayload(MemorySchema):
     item_type: str = Field(..., min_length=1)
     doc_type: str | None = None

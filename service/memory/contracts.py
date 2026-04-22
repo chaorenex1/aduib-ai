@@ -14,9 +14,88 @@ class MemoryContract(BaseModel):
 class MemorySourceRef(MemoryContract):
     type: str = Field(..., min_length=1)
     id: str = Field(..., min_length=1)
-    path: str = Field(..., min_length=1)
+    path: str | None = None
+    storage: str | None = None
+    version: int | None = None
+    message_ref: dict[str, Any] | None = None
     external_source: str | None = None
     external_session_id: str | None = None
+
+
+class ConversationSourceMetadata(MemoryContract):
+    language: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class ConversationContentPart(MemoryContract):
+    type: str = Field(..., min_length=1)
+    text: str | None = None
+    data_base64: str | None = None
+    file_id: str | None = None
+    mime_type: str | None = None
+    name: str | None = None
+
+
+class ConversationMessageRecord(MemoryContract):
+    role: str = Field(..., min_length=1)
+    content_parts: list[ConversationContentPart] = Field(default_factory=list, min_length=1)
+    created_at: str | None = None
+
+
+class ConversationSourceCreateCommand(MemoryContract):
+    user_id: str = Field(..., min_length=1)
+    agent_id: str | None = None
+    project_id: str | None = None
+    external_source: str = Field(..., min_length=1)
+    external_session_id: str = Field(..., min_length=1)
+    title: str | None = None
+    messages: list[ConversationMessageRecord] = Field(default_factory=list, min_length=1)
+    metadata: ConversationSourceMetadata | None = None
+
+
+class ConversationSourceAppendCommand(MemoryContract):
+    user_id: str = Field(..., min_length=1)
+    agent_id: str | None = None
+    project_id: str | None = None
+    conversation_id: str = Field(..., min_length=1)
+    message: ConversationMessageRecord
+
+
+class ConversationSourceGetQuery(MemoryContract):
+    user_id: str = Field(..., min_length=1)
+    conversation_id: str = Field(..., min_length=1)
+
+
+class ConversationMessageRef(MemoryContract):
+    type: str = Field(..., min_length=1)
+    uri: str = Field(..., min_length=1)
+    path: str | None = None
+    sha256: str | None = None
+
+
+class ConversationSourceView(MemoryContract):
+    conversation_id: str = Field(..., min_length=1)
+    type: str = Field(default="conversation", min_length=1)
+    title: str | None = None
+    user_id: str = Field(..., min_length=1)
+    agent_id: str | None = None
+    project_id: str | None = None
+    external_source: str = Field(..., min_length=1)
+    external_session_id: str = Field(..., min_length=1)
+    message_ref: ConversationMessageRef
+    message_count: int = Field(..., ge=1)
+    modalities: list[str] = Field(default_factory=list)
+    version: int = Field(..., ge=1)
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class ConversationAppendResult(MemoryContract):
+    conversation_id: str = Field(..., min_length=1)
+    appended: bool = True
+    message_count: int = Field(..., ge=1)
+    version: int = Field(..., ge=1)
+    updated_at: str | None = None
 
 
 class MemoryWriteCommand(MemoryContract):
