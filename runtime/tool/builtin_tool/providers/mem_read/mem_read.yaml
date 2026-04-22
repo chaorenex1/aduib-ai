@@ -1,0 +1,27 @@
+name: mem-read
+description: Read a committed memory file or navigation file
+parameters:
+  type: object
+  properties:
+    path:
+      type: string
+      description: Memory-relative file path
+    start_line:
+      type: integer
+      description: Optional 1-based start line
+    end_line:
+      type: integer
+      description: Optional 1-based end line
+    max_chars:
+      type: integer
+      description: Maximum number of characters to return
+    include_metadata:
+      type: boolean
+      description: Whether to include size and node kind metadata
+  required: ["path"]
+configs: {}
+icon: "📖"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

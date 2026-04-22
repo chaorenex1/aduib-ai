@@ -2,14 +2,13 @@ from typing import Any
 
 import anyio
 
-from runtime.tool.builtin_tool.providers._workspace import (
-    DEFAULT_ENCODING,
+from runtime.tool.builtin_tool.tool import BuiltinTool
+from runtime.tool.common import (
     WorkspaceToolError,
     is_probably_binary,
     relative_to_workdir,
     resolve_workdir_path,
 )
-from runtime.tool.builtin_tool.tool import BuiltinTool
 from runtime.tool.entities import ToolInvokeResult
 
 
@@ -27,7 +26,7 @@ class EditTool(BuiltinTool):
         new_string = tool_parameters.get("new_string", "")
         replace_all = bool(tool_parameters.get("replace_all", False))
         expected_occurrences = tool_parameters.get("expected_occurrences")
-        encoding = tool_parameters.get("encoding") or DEFAULT_ENCODING
+        encoding = tool_parameters.get("encoding") or "utf-8"
         start_line = tool_parameters.get("start_line")
         end_line = tool_parameters.get("end_line")
 

@@ -1,0 +1,102 @@
+name: tool
+description: |
+  Tool usage memory - captures how a tool is used, what works well, and what does not.
+  This is a templated memory: markdown content is rendered from structured fields and
+  the raw fields can be persisted in a MEMORY_FIELDS block.
+directory: "agent/{agent_id}/memories/tool"
+filename_template: "{tool_name}.md"
+
+content_template: |
+  Tool: {tool_name}
+
+  Static Description:
+  "{static_desc}"
+
+  Tool Memory Context:
+  Based on {total_calls} historical calls:
+  - Success rate: {success_rate}% ({success_count} successful, {fail_count} failed)
+  - Avg time: {avg_time}, Avg tokens: {avg_tokens}
+  - Best for: {best_for}
+  - Optimal params: {optimal_params}
+  - Common failures: {common_failures}
+  - Recommendation: {recommendation}
+
+  {guidelines}
+
+fields:
+  - name: tool_name
+    type: string
+    description: |
+      Tool name copied exactly from tool-call records.
+      Example: "web_search", "read_file", "execute_code".
+    merge_op: immutable
+
+  - name: static_desc
+    type: string
+    description: |
+      Static description of the tool's basic function.
+    merge_op: replace
+
+  - name: total_calls
+    type: int64
+    description: |
+      Total number of tool calls accumulated from historical statistics.
+    merge_op: sum
+
+  - name: success_count
+    type: int64
+    description: |
+      Number of successful tool calls.
+    merge_op: sum
+
+  - name: fail_count
+    type: int64
+    description: |
+      Number of failed tool calls.
+    merge_op: sum
+
+  - name: total_time_ms
+    type: int64
+    description: |
+      Total execution time in milliseconds.
+    merge_op: sum
+
+  - name: total_tokens
+    type: int64
+    description: |
+      Total prompt plus completion token usage.
+    merge_op: sum
+
+  - name: best_for
+    type: string
+    description: |
+      Best use cases for this tool.
+    merge_op: patch
+
+  - name: optimal_params
+    type: string
+    description: |
+      Reusable parameter guidance. Avoid one-off command values.
+    merge_op: patch
+
+  - name: common_failures
+    type: string
+    description: |
+      Common failure modes and warning signs.
+    merge_op: patch
+
+  - name: recommendation
+    type: string
+    description: |
+      Short actionable recommendation for using the tool well.
+    merge_op: patch
+
+  - name: guidelines
+    type: string
+    description: |
+      Long-form tool usage guidance.
+      Must include exact English headings:
+      - "## Guidelines"
+      - "### Good Cases"
+      - "### Bad Cases"
+    merge_op: patch

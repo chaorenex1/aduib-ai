@@ -1,0 +1,24 @@
+name: preference
+description: |
+  User preference memory - captures what the user likes, dislikes, requires, or is
+  accustomed to across sessions.
+  Each memory should focus on one semantic topic and store the main meaning in content.
+directory: "users/{user_id}/memories/preference"
+filename_template: "{topic}.md"
+
+fields:
+  - name: topic
+    type: string
+    description: |
+      Preference topic used to uniquely identify this memory.
+      Example topics: "Python code style", "Communication style", "Workflow preference".
+    merge_op: immutable
+
+  - name: content
+    type: string
+    description: |
+      Preference content describing what the user prefers or avoids.
+      Include scope, stability, evidence, and application guidance in the markdown body.
+      Example: "User prefers concise Python code, dislikes excessive fallback logic,
+      and expects direct implementation over over-engineering."
+    merge_op: patch

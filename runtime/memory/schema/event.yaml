@@ -1,0 +1,29 @@
+name: event
+description: |
+  Event memory - captures what happened, what decision or action was taken, why it
+  happened, and what the result was.
+  Use absolute time in filenames and keep the full semantics in the body content.
+directory: "users/{user_id}/memories/event"
+filename_template: "{event_time}_{event_name}.md"
+
+fields:
+  - name: event_name
+    type: string
+    description: |
+      Event name used to uniquely identify this memory.
+      Example: "Decided to split memory retrieval flow", "Completed migration review".
+    merge_op: immutable
+
+  - name: event_time
+    type: string
+    description: |
+      Absolute event time in ISO8601 or YYYY-MM-DD format.
+      Do not use relative time such as "today" or "recently".
+    merge_op: immutable
+
+  - name: content
+    type: string
+    description: |
+      Detailed event content describing background, decision or action, reason,
+      result, and timeline when needed.
+    merge_op: patch

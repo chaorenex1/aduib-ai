@@ -1,0 +1,28 @@
+name: pattern
+description: |
+  Pattern memory - captures under what circumstances to follow what process.
+  Use for reusable workflows, methods, and solution paths for programmer tasks.
+directory: "agent/{agent_id}/memories/pattern"
+filename_template: "{pattern_name}.md"
+
+fields:
+  - name: pattern_name
+    type: string
+    description: |
+      Pattern name used to uniquely identify this memory.
+      Example: "Code refactoring: Understand -> Test -> Refactor -> Verify".
+    merge_op: immutable
+
+  - name: pattern_type
+    type: string
+    description: |
+      Pattern type describing what kind of reusable method this is.
+      Example values: debugging, refactoring, teaching, planning, workflow.
+    merge_op: replace
+
+  - name: content
+    type: string
+    description: |
+      Detailed pattern content describing trigger conditions, process steps,
+      considerations, and exit criteria.
+    merge_op: patch

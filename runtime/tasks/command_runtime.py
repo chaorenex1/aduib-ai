@@ -8,8 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from runtime.tasks.types import TaskExecutionResult
-from runtime.tool.builtin_tool.providers._workspace import (
-    DEFAULT_MAX_OUTPUT_CHARS,
+from runtime.tool.common import (
     WorkspaceToolError,
     get_workdir,
     relative_to_workdir,
@@ -144,8 +143,8 @@ def run_execution(
             timeout=timeout,
             shell=False,
         )
-        stdout, stdout_truncated = truncate_text(completed.stdout or "", DEFAULT_MAX_OUTPUT_CHARS)
-        stderr, stderr_truncated = truncate_text(completed.stderr or "", DEFAULT_MAX_OUTPUT_CHARS)
+        stdout, stdout_truncated = truncate_text(completed.stdout or "", 50_000)
+        stderr, stderr_truncated = truncate_text(completed.stderr or "", 50_000)
         success = completed.returncode == 0
         return TaskExecutionResult(
             success=success,
@@ -166,8 +165,8 @@ def run_execution(
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout or b"").decode("utf-8", errors="replace")
         stderr = exc.stderr if isinstance(exc.stderr, str) else (exc.stderr or b"").decode("utf-8", errors="replace")
-        truncated_stdout, stdout_truncated = truncate_text(stdout, DEFAULT_MAX_OUTPUT_CHARS)
-        truncated_stderr, stderr_truncated = truncate_text(stderr, DEFAULT_MAX_OUTPUT_CHARS)
+        truncated_stdout, stdout_truncated = truncate_text(stdout, 50_000)
+        truncated_stderr, stderr_truncated = truncate_text(stderr, 50_000)
         return TaskExecutionResult(
             success=False,
             output={

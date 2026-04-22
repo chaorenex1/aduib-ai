@@ -2,17 +2,17 @@ from typing import Any
 
 import anyio
 
-from runtime.tool.builtin_tool.providers._workspace import (
-    DEFAULT_ENCODING,
-    DEFAULT_MAX_READ_CHARS,
+from runtime.tool.builtin_tool.tool import BuiltinTool
+from runtime.tool.common import (
     WorkspaceToolError,
     is_probably_binary,
     relative_to_workdir,
     resolve_workdir_path,
     truncate_text,
 )
-from runtime.tool.builtin_tool.tool import BuiltinTool
 from runtime.tool.entities import ToolInvokeResult
+
+DEFAULT_MAX_READ_CHARS = 200_000
 
 
 class ReadTool(BuiltinTool):
@@ -25,7 +25,7 @@ class ReadTool(BuiltinTool):
 
     def _read_sync(self, tool_parameters: dict[str, Any]) -> ToolInvokeResult:
         file_path = tool_parameters.get("file_path", "")
-        encoding = tool_parameters.get("encoding") or DEFAULT_ENCODING
+        encoding = tool_parameters.get("encoding") or "utf-8"
         max_chars = int(tool_parameters.get("max_chars") or DEFAULT_MAX_READ_CHARS)
         start_line = tool_parameters.get("start_line")
         end_line = tool_parameters.get("end_line")

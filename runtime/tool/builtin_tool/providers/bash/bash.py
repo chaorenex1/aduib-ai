@@ -4,13 +4,12 @@ from typing import Any
 
 import anyio
 
-from runtime.tool.builtin_tool.providers._workspace import (
-    DEFAULT_MAX_OUTPUT_CHARS,
+from runtime.tool.builtin_tool.tool import BuiltinTool
+from runtime.tool.common import (
     WorkspaceToolError,
     get_workdir,
     truncate_text,
 )
-from runtime.tool.builtin_tool.tool import BuiltinTool
 from runtime.tool.entities import ToolInvokeResult
 
 
@@ -47,8 +46,8 @@ class BashTool(BuiltinTool):
                 timeout=timeout_seconds,
                 shell=False,
             )
-            stdout, stdout_truncated = truncate_text(completed.stdout or "", DEFAULT_MAX_OUTPUT_CHARS)
-            stderr, stderr_truncated = truncate_text(completed.stderr or "", DEFAULT_MAX_OUTPUT_CHARS)
+            stdout, stdout_truncated = truncate_text(completed.stdout or "", 50_000)
+            stderr, stderr_truncated = truncate_text(completed.stderr or "", 50_000)
             success = completed.returncode == 0
             return ToolInvokeResult(
                 name=self.entity.name,
@@ -74,8 +73,8 @@ class BashTool(BuiltinTool):
             stderr = (
                 exc.stderr if isinstance(exc.stderr, str) else (exc.stderr or b"").decode("utf-8", errors="replace")
             )
-            truncated_stdout, stdout_truncated = truncate_text(stdout, DEFAULT_MAX_OUTPUT_CHARS)
-            truncated_stderr, stderr_truncated = truncate_text(stderr, DEFAULT_MAX_OUTPUT_CHARS)
+            truncated_stdout, stdout_truncated = truncate_text(stdout, 50_000)
+            truncated_stderr, stderr_truncated = truncate_text(stderr, 50_000)
             return ToolInvokeResult(
                 name=self.entity.name,
                 success=False,

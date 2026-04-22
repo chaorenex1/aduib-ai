@@ -3,16 +3,14 @@ from typing import Any
 
 import anyio
 
-from runtime.tool.builtin_tool.providers._workspace import (
-    DEFAULT_ENCODING,
-    MAX_SEARCH_FILE_BYTES,
+from runtime.tool.builtin_tool.tool import BuiltinTool
+from runtime.tool.common import (
     WorkspaceToolError,
     is_probably_binary,
     iter_files,
     relative_to_workdir,
     resolve_workdir_path,
 )
-from runtime.tool.builtin_tool.tool import BuiltinTool
 from runtime.tool.entities import ToolInvokeResult
 
 
@@ -43,10 +41,10 @@ class SearchTool(BuiltinTool):
             results: list[dict[str, Any]] = []
 
             for candidate in iter_files(base_path, glob_pattern):
-                if candidate.stat().st_size > MAX_SEARCH_FILE_BYTES or is_probably_binary(candidate):
+                if candidate.stat().st_size > 1_000_000 or is_probably_binary(candidate):
                     continue
                 try:
-                    with candidate.open("r", encoding=DEFAULT_ENCODING, errors="replace") as file_obj:
+                    with candidate.open("r", encoding="utf-8", errors="replace") as file_obj:
                         for line_number, line in enumerate(file_obj, start=1):
                             if regex.search(line):
                                 results.append(

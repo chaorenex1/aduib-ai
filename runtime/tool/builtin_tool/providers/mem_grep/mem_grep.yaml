@@ -1,0 +1,24 @@
+name: mem-grep
+description: Search committed memory file content by semantic meaning and return matched file paths
+parameters:
+  type: object
+  properties:
+    query:
+      type: string
+      description: Natural language or keyword query for file content
+    path:
+      type: string
+      description: Optional memory-relative directory scope
+    glob:
+      type: string
+      description: Optional file glob such as **/*.md
+    max_results:
+      type: integer
+      description: Maximum number of matched file paths to return
+  required: ["query"]
+configs: {}
+icon: "🔎"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

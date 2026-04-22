@@ -1,0 +1,22 @@
+name: solution
+description: |
+  Solution memory - captures the scenario description or clarification frame for an
+  underspecified problem.
+  This memory answers what context must be recognized or elicited before action.
+directory: "agent/{agent_id}/memories/solution"
+filename_template: "{solution_name}.md"
+
+fields:
+  - name: solution_name
+    type: string
+    description: |
+      Solution frame name used to uniquely identify this memory.
+      Example: "Bug report triage context frame", "Vague architecture request clarification".
+    merge_op: immutable
+
+  - name: content
+    type: string
+    description: |
+      Detailed solution-frame content describing the problem shape, required context
+      slots, and clarifying questions that should be asked.
+    merge_op: patch

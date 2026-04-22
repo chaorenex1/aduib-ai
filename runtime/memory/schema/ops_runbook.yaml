@@ -1,0 +1,20 @@
+name: ops_runbook
+description: |
+  Ops runbook memory - captures reusable operational procedures such as deployment,
+  rollback, incident response, maintenance, and monitoring runbooks.
+directory: "users/{user_id}/memories/ops/runbooks"
+filename_template: "{runbook_name}.md"
+
+fields:
+  - name: runbook_name
+    type: string
+    description: |
+      Runbook name used to uniquely identify this memory.
+    merge_op: immutable
+
+  - name: content
+    type: string
+    description: |
+      Detailed runbook content describing when to use it, preconditions, steps,
+      and verification points.
+    merge_op: patch

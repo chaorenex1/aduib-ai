@@ -1,0 +1,29 @@
+name: entity
+description: |
+  Entity memory - captures what a named thing is and what properties it has.
+  Use for projects, services, modules, dependencies, people, concepts, and systems.
+  The main description should be rendered into the markdown body.
+directory: "users/{user_id}/memories/entity"
+filename_template: "{entity_name}.md"
+
+fields:
+  - name: entity_name
+    type: string
+    description: |
+      Entity name used to uniquely identify this memory.
+      Example: "OpenViking", "MemoryManager", "Redis", "Alice".
+    merge_op: immutable
+
+  - name: entity_type
+    type: string
+    description: |
+      Entity type describing what kind of thing this is.
+      Example values: project, service, dependency, module, concept, person, organization.
+    merge_op: replace
+
+  - name: content
+    type: string
+    description: |
+      Detailed entity content describing what this thing is, its aliases, important
+      attributes, current status, and why it matters.
+    merge_op: patch

@@ -1,0 +1,28 @@
+name: task
+description: |
+  Task lifecycle memory - captures what should be done, current progress, blockers,
+  and completion criteria.
+  The body content should carry the task semantics; metadata should stay thin.
+directory: "users/{user_id}/memories/task"
+filename_template: "{task_time}_{task_name}.md"
+
+fields:
+  - name: task_name
+    type: string
+    description: |
+      Task name used to uniquely identify this memory.
+      Example: "Implement memory schema yaml", "Refactor retrieval pipeline".
+    merge_op: immutable
+
+  - name: task_time
+    type: string
+    description: |
+      Absolute task time in ISO8601 or YYYY-MM-DD format.
+    merge_op: immutable
+
+  - name: content
+    type: string
+    description: |
+      Detailed task content describing goals, scope, subtasks, blockers, status,
+      and completion criteria.
+    merge_op: patch

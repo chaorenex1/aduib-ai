@@ -2,17 +2,33 @@ from __future__ import annotations
 
 import fnmatch
 from pathlib import Path
+from typing import Any
 
 from configs import config
-
-DEFAULT_ENCODING = "utf-8"
-DEFAULT_MAX_READ_CHARS = 200_000
-DEFAULT_MAX_OUTPUT_CHARS = 50_000
-MAX_SEARCH_FILE_BYTES = 1_000_000
 
 
 class WorkspaceToolError(ValueError):
     """Raised when a workspace tool request is invalid or unsafe."""
+
+
+def parse_bool(value: Any, *, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y"}:
+            return True
+        if normalized in {"false", "0", "no", "n"}:
+            return False
+    return bool(value)
+
+
+def parse_int(value: Any, *, default: int | None) -> int | None:
+    if value is None or value == "":
+        return default
+    return int(value)
 
 
 def get_workdir() -> Path:

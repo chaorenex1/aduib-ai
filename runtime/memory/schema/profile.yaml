@@ -1,0 +1,19 @@
+name: profile
+description: |
+  User profile memory - captures who the user is in a public-safe professional sense.
+  The LLM should mainly generate the markdown body content.
+  Do not put subjective preferences or private/confidential details into metadata.
+directory: "users/{user_id}/memories"
+filename_template: "profile.md"
+
+fields:
+  - name: content
+    type: string
+    description: |
+      User profile content describing who the user is.
+      Include stable professional identity, role, experience, domains, tech stack,
+      strengths, public focus, and similar public-safe attributes.
+      Example: "User is an AI development engineer with 3 years of LLM application
+      development experience, mainly using Python and LangChain. Public working style
+      is concise and execution-oriented."
+    merge_op: patch

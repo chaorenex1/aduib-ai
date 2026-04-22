@@ -1,0 +1,88 @@
+name: skill
+description: |
+  Skill execution memory - captures how a skill is executed, what works well, and
+  what does not.
+  This is a templated memory: markdown content is rendered from structured fields and
+  the raw fields can be persisted in a MEMORY_FIELDS block.
+directory: "agent/{agent_id}/memories/skill"
+filename_template: "{skill_name}.md"
+
+content_template: |
+  Skill: {skill_name}
+
+  Skill Memory Context:
+  Based on {total_executions} historical executions:
+  - Success rate: {success_rate}% ({success_count} successful, {fail_count} failed)
+  - Best for: {best_for}
+  - Recommended flow: {recommended_flow}
+  - Key dependencies: {key_dependencies}
+  - Common failures: {common_failures}
+  - Recommendation: {recommendation}
+
+  {guidelines}
+
+fields:
+  - name: skill_name
+    type: string
+    description: |
+      Skill name copied from execution records or inferred from context.
+      Example: "create_presentation", "analyze_code", "write_document".
+    merge_op: immutable
+
+  - name: total_executions
+    type: int64
+    description: |
+      Total number of skill executions accumulated from historical statistics.
+    merge_op: sum
+
+  - name: success_count
+    type: int64
+    description: |
+      Number of successful skill executions.
+    merge_op: sum
+
+  - name: fail_count
+    type: int64
+    description: |
+      Number of failed skill executions.
+    merge_op: sum
+
+  - name: best_for
+    type: string
+    description: |
+      Best use cases for this skill.
+    merge_op: patch
+
+  - name: recommended_flow
+    type: string
+    description: |
+      Recommended execution flow for the skill.
+    merge_op: patch
+
+  - name: key_dependencies
+    type: string
+    description: |
+      Key prerequisites or required inputs for executing the skill well.
+    merge_op: patch
+
+  - name: common_failures
+    type: string
+    description: |
+      Common failure modes and misuses for this skill.
+    merge_op: patch
+
+  - name: recommendation
+    type: string
+    description: |
+      Short actionable recommendation for using the skill well.
+    merge_op: patch
+
+  - name: guidelines
+    type: string
+    description: |
+      Long-form skill usage guidance.
+      Must include exact English headings:
+      - "## Guidelines"
+      - "### Good Cases"
+      - "### Bad Cases"
+    merge_op: patch

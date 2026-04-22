@@ -1,0 +1,33 @@
+name: mem-tree
+description: Recursively return the committed memory tree and file contents under a scope
+parameters:
+  type: object
+  properties:
+    path:
+      type: string
+      description: Memory-relative root path
+    include_dirs:
+      type: boolean
+      description: Whether to include directory nodes
+    include_content:
+      type: boolean
+      description: Whether to include file contents
+    max_depth:
+      type: integer
+      description: Optional max recursion depth
+    max_files:
+      type: integer
+      description: Maximum number of files to include
+    max_chars_per_file:
+      type: integer
+      description: Maximum content characters per file
+    max_total_chars:
+      type: integer
+      description: Maximum total content characters across the response
+  required: []
+configs: {}
+icon: "🌳"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: false

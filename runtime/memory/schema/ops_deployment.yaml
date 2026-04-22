@@ -1,0 +1,26 @@
+name: ops_deployment
+description: |
+  Ops deployment memory - captures a concrete deployment event, including scope,
+  environment, result, and observed impact.
+directory: "users/{user_id}/memories/ops/deployments"
+filename_template: "{deploy_time}_{deploy_name}.md"
+
+fields:
+  - name: deploy_name
+    type: string
+    description: |
+      Deployment name used to uniquely identify this memory.
+    merge_op: immutable
+
+  - name: deploy_time
+    type: string
+    description: |
+      Absolute deployment time in ISO8601 or YYYY-MM-DD format.
+    merge_op: immutable
+
+  - name: content
+    type: string
+    description: |
+      Detailed deployment content describing environment, version, operator,
+      result, and downstream impact.
+    merge_op: patch

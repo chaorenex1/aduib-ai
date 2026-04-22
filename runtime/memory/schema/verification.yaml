@@ -1,0 +1,28 @@
+name: verification
+description: |
+  Verification memory - captures how correctness, success, or failure was checked
+  and what evidence was gathered.
+  The body content should describe method, evidence, result, and confidence.
+directory: "users/{user_id}/memories/verification"
+filename_template: "{verification_time}_{subject}.md"
+
+fields:
+  - name: subject
+    type: string
+    description: |
+      Subject being verified.
+      Example: "memory schema loader", "tool rendering output", "migration script".
+    merge_op: immutable
+
+  - name: verification_time
+    type: string
+    description: |
+      Absolute verification time in ISO8601 or YYYY-MM-DD format.
+    merge_op: immutable
+
+  - name: content
+    type: string
+    description: |
+      Detailed verification content describing the method, evidence, pass/fail or
+      partial result, and confidence.
+    merge_op: patch

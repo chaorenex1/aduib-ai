@@ -2,14 +2,13 @@ from typing import Any
 
 import anyio
 
-from runtime.tool.builtin_tool.providers._workspace import (
-    DEFAULT_ENCODING,
+from runtime.tool.builtin_tool.tool import BuiltinTool
+from runtime.tool.common import (
     WorkspaceToolError,
     is_probably_binary,
     relative_to_workdir,
     resolve_workdir_path,
 )
-from runtime.tool.builtin_tool.tool import BuiltinTool
 from runtime.tool.entities import ToolInvokeResult
 
 
@@ -27,7 +26,7 @@ class WriteTool(BuiltinTool):
         mode = tool_parameters.get("mode")
         append = bool(tool_parameters.get("append", False))
         create_dirs = bool(tool_parameters.get("create_dirs", True))
-        encoding = tool_parameters.get("encoding") or DEFAULT_ENCODING
+        encoding = tool_parameters.get("encoding") or "utf-8"
         line = tool_parameters.get("line")
         start_line = tool_parameters.get("start_line")
         end_line = tool_parameters.get("end_line")
