@@ -11,6 +11,13 @@ from .engine import engine, get_db
 from .failure_pattern import FailurePattern
 from .learning_signal import LearningSignal
 from .mcp import McpServer
+from .memory_metadata import (
+    MemoryDedupeIndex,
+    MemoryDirectoryIndex,
+    MemoryIndex,
+    MemoryRetrievalHint,
+    MemoryTimelineIndex,
+)
 from .memory import MemoryBase, MemoryRecord
 from .memory_learning_log import MemoryLearningLog
 from .memory_learning_params import MemoryLearningParams
@@ -48,9 +55,14 @@ __all__ = [
     "McpServer",
     "McpUser",
     "MemoryBase",
+    "MemoryDedupeIndex",
+    "MemoryDirectoryIndex",
+    "MemoryIndex",
     "MemoryLearningLog",
     "MemoryLearningParams",
     "MemoryRecord",
+    "MemoryRetrievalHint",
+    "MemoryTimelineIndex",
     "MemoryTagAssociation",
     "MessageTokenUsage",
     "Model",
