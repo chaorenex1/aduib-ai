@@ -11,13 +11,22 @@ Organize new endpoints by domain and resource rather than action names. Prefer f
 Services should own business rules, transaction boundaries, runtime orchestration, task submission, deduplication, and mapping between HTTP DTOs and runtime/domain objects. Do not return FastAPI response objects from services, and do not embed controller-only envelope formatting in `service/`.
 
 For programmer-memory work, follow the domain-first split already established under `service/memory/`:
-- Controllers may parse HTTP DTOs from `controllers/memory/schemas.py`, but they must convert those DTOs into service-layer contracts via `service/memory/mappers.py` before calling memory services.
-- Service implementations under `service/memory/*.py` must not import `controllers/memory/schemas.py` directly. Controller DTO awareness is restricted to `service/memory/mappers.py`.
-- Service-layer inputs and outputs must use models from `service/memory/contracts.py`; avoid passing raw controller DTOs or ad-hoc `dict[str, Any]` payloads across service boundaries unless the data is intentionally free-form.
-- Memory-domain exceptions must live in `service/memory/errors.py` and inherit from the shared `BaseServiceError` path so controller decorators can render them uniformly.
-- Memory trigger/state/phase strings must come from `service/memory/enums.py`, not scattered string literals.
-- Memory path construction and task/idempotency helpers must be centralized in `service/memory/paths.py` and `service/memory/builders.py`; do not duplicate archive-path, queue-payload, task-id, trace-id, or idempotency-key logic inside controllers or unrelated services.
-- External callers should prefer `from service.memory import ...` as the stable import surface; keep implementation details behind the package boundary unless there is a strong local reason not to.
+- Controllers may parse HTTP DTOs from `controllers/memory/schemas.py`, but they must convert those DTOs into service-layer contracts via `service/memory/base/mappers.py` before calling memory services.
+- Service implementations under `service/memory/*.py` and `service/memory/repository/*.py` must not import `controllers/memory/schemas.py` directly. Controller DTO awareness is restricted to `service/memory/base/mappers.py`.
+- Shared memory-domain contracts, enums, errors, path helpers, builders, and service utility helpers must live under `service/memory/base/` rather than the `service/memory/` root. Use:
+  - `service/memory/base/contracts.py`
+  - `service/memory/base/enums.py`
+  - `service/memory/base/errors.py`
+  - `service/memory/base/paths.py`
+  - `service/memory/base/builders.py`
+  - `service/memory/base/base.py`
+- Service-layer inputs and outputs must use models from `service/memory/base/contracts.py`; avoid passing raw controller DTOs or ad-hoc `dict[str, Any]` payloads across service boundaries unless the data is intentionally free-form.
+- Memory-domain exceptions must live in `service/memory/base/errors.py` and inherit from the shared `BaseServiceError` path so controller decorators can render them uniformly.
+- Memory trigger/state/phase strings must come from `service/memory/base/enums.py`, not scattered string literals.
+- Memory path construction and task/idempotency helpers must be centralized in `service/memory/base/paths.py` and `service/memory/base/builders.py`; do not duplicate archive-path, queue-payload, task-id, trace-id, or idempotency-key logic inside controllers or unrelated services.
+- Direct database access for programmer-memory belongs in `service/memory/repository/`. Service modules should orchestrate business logic and call repositories rather than opening their own ORM sessions unless there is a strong local reason not to.
+- Keep `service/memory/__init__.py` as a slim stable surface that primarily re-exports top-level services and selected repositories. Do not re-expand it into a catch-all export surface for low-level contracts, mappers, builders, enums, errors, or path helpers; import those from `service.memory.base.*` explicitly when needed.
+- External callers should prefer `from service.memory import ...` only for stable service/repository entry points; import base-layer internals from `service.memory.base.*` explicitly.
 
 ## API & DTO Conventions
 Prefer resource-oriented routes for new APIs. Use route families such as `/memories`, `/memories/{memory_id}`, `/memories/tasks`, and `/memories/conversations` for new memory work instead of introducing additional action-style endpoints. Legacy action-style routes may remain temporarily for compatibility, but they should be isolated in explicit legacy modules and should not receive new features.
