@@ -63,17 +63,22 @@ class ConversationPayload(MemorySchema):
     messages: list[ConversationMessagePayload] = Field(default_factory=list, min_length=1)
 
 
-class ConversationCreateRequest(MemoryScope):
+class ConversationActorScope(MemorySchema):
+    agent_id: str | None = Field(None, min_length=1)
+    project_id: str | None = Field(None, min_length=1)
+
+
+class ConversationCreateRequest(ConversationActorScope):
     conversation: ConversationPayload
     metadata: MemoryMetadata | None = None
 
 
-class ConversationAppendMessageRequest(MemoryScope):
+class ConversationAppendMessageRequest(ConversationActorScope):
     message: ConversationMessagePayload
 
 
 class ConversationGetQuery(MemorySchema):
-    user_id: str = Field(..., min_length=1)
+    pass
 
 
 class ProjectItemPayload(MemorySchema):

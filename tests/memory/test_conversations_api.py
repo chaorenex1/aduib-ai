@@ -26,37 +26,40 @@ def anyio_backend():
 
 @pytest.mark.anyio
 async def test_create_conversation_endpoint_returns_created_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _create(_command):
+        captured["user_id"] = _command.user_id
+        return {
+            "conversation_id": "codex:sess_1",
+            "type": "conversation",
+            "title": "Design session",
+            "user_id": "u1",
+            "agent_id": "a1",
+            "project_id": "proj-1",
+            "external_source": "codex",
+            "external_session_id": "sess_1",
+            "message_ref": {
+                "type": "jsonl",
+                "uri": "memory_pipeline/users/u1/sources/conversations/codex__sess_1.jsonl",
+                "path": "memory_pipeline/users/u1/sources/conversations/codex__sess_1.jsonl",
+                "sha256": "sha256-1",
+            },
+            "message_count": 2,
+            "modalities": ["text"],
+            "version": 1,
+            "created_at": "2026-04-18T10:00:00Z",
+            "updated_at": "2026-04-18T10:00:05Z",
+        }
+
     monkeypatch.setattr(
         ConversationSourceService,
         "create_conversation",
-        staticmethod(
-            lambda _command: {
-                "conversation_id": "codex:sess_1",
-                "type": "conversation",
-                "title": "Design session",
-                "user_id": "u1",
-                "agent_id": "a1",
-                "project_id": "proj-1",
-                "external_source": "codex",
-                "external_session_id": "sess_1",
-                "message_ref": {
-                    "type": "jsonl",
-                    "uri": "memory_pipeline/users/u1/sources/conversations/codex__sess_1.jsonl",
-                    "path": "memory_pipeline/users/u1/sources/conversations/codex__sess_1.jsonl",
-                    "sha256": "sha256-1",
-                },
-                "message_count": 2,
-                "modalities": ["text"],
-                "version": 1,
-                "created_at": "2026-04-18T10:00:00Z",
-                "updated_at": "2026-04-18T10:00:05Z",
-            }
-        ),
+        staticmethod(_create),
     )
 
     response = await create_conversation_endpoint(
         ConversationCreateRequest(
-            user_id="u1",
             agent_id="a1",
             project_id="proj-1",
             conversation={
@@ -68,35 +71,40 @@ async def test_create_conversation_endpoint_returns_created_payload(monkeypatch:
                 ],
             },
             metadata={"language": "zh", "tags": ["conversation"]},
-        )
+        ),
+        {"user_id": "u1", "username": "alice", "role": "user"},
     )
 
     body = json.loads(response.body)
     assert response.status_code == 201
     assert body["success"] is True
     assert body["data"]["conversation_id"] == "codex:sess_1"
+    assert captured["user_id"] == "u1"
 
 
 @pytest.mark.anyio
 async def test_append_conversation_message_endpoint_returns_created_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _append(_command):
+        captured["user_id"] = _command.user_id
+        return {
+            "conversation_id": "codex:sess_1",
+            "appended": True,
+            "message_count": 3,
+            "version": 2,
+            "updated_at": "2026-04-18T10:00:20Z",
+        }
+
     monkeypatch.setattr(
         ConversationSourceService,
         "append_message",
-        staticmethod(
-            lambda _command: {
-                "conversation_id": "codex:sess_1",
-                "appended": True,
-                "message_count": 3,
-                "version": 2,
-                "updated_at": "2026-04-18T10:00:20Z",
-            }
-        ),
+        staticmethod(_append),
     )
 
     response = await append_conversation_message_endpoint(
         "codex:sess_1",
         ConversationAppendMessageRequest(
-            user_id="u1",
             agent_id="a1",
             project_id="proj-1",
             message={
@@ -105,49 +113,60 @@ async def test_append_conversation_message_endpoint_returns_created_payload(monk
                 "created_at": "2026-04-18T10:00:20Z",
             },
         ),
+        {"user_id": "u1", "username": "alice", "role": "user"},
     )
 
     body = json.loads(response.body)
     assert response.status_code == 201
     assert body["success"] is True
     assert body["data"]["message_count"] == 3
+    assert captured["user_id"] == "u1"
 
 
 @pytest.mark.anyio
 async def test_get_conversation_endpoint_returns_serialized_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _get(_query):
+        captured["user_id"] = _query.user_id
+        return {
+            "conversation_id": "codex:sess_1",
+            "type": "conversation",
+            "title": "Design session",
+            "user_id": "u1",
+            "agent_id": "a1",
+            "project_id": "proj-1",
+            "external_source": "codex",
+            "external_session_id": "sess_1",
+            "message_ref": {
+                "type": "jsonl",
+                "uri": "memory_pipeline/users/u1/sources/conversations/codex__sess_1.jsonl",
+                "path": "memory_pipeline/users/u1/sources/conversations/codex__sess_1.jsonl",
+                "sha256": "sha256-1",
+            },
+            "message_count": 2,
+            "modalities": ["text"],
+            "version": 1,
+            "created_at": "2026-04-18T10:00:00Z",
+            "updated_at": "2026-04-18T10:00:05Z",
+        }
+
     monkeypatch.setattr(
         ConversationSourceService,
         "get_conversation",
-        staticmethod(
-            lambda _query: {
-                "conversation_id": "codex:sess_1",
-                "type": "conversation",
-                "title": "Design session",
-                "user_id": "u1",
-                "agent_id": "a1",
-                "project_id": "proj-1",
-                "external_source": "codex",
-                "external_session_id": "sess_1",
-                "message_ref": {
-                    "type": "jsonl",
-                    "uri": "memory_pipeline/users/u1/sources/conversations/codex__sess_1.jsonl",
-                    "path": "memory_pipeline/users/u1/sources/conversations/codex__sess_1.jsonl",
-                    "sha256": "sha256-1",
-                },
-                "message_count": 2,
-                "modalities": ["text"],
-                "version": 1,
-                "created_at": "2026-04-18T10:00:00Z",
-                "updated_at": "2026-04-18T10:00:05Z",
-            }
-        ),
+        staticmethod(_get),
     )
 
-    response = await get_conversation_endpoint("codex:sess_1", ConversationGetQuery(user_id="u1"))
+    response = await get_conversation_endpoint(
+        "codex:sess_1",
+        ConversationGetQuery(),
+        {"user_id": "u1", "username": "alice", "role": "user"},
+    )
     body = json.loads(response.body)
     assert response.status_code == 200
     assert body["success"] is True
     assert body["data"]["message_ref"]["uri"].endswith("codex__sess_1.jsonl")
+    assert captured["user_id"] == "u1"
 
 
 @pytest.mark.anyio
@@ -157,7 +176,11 @@ async def test_get_conversation_endpoint_surfaces_service_errors(monkeypatch: py
 
     monkeypatch.setattr(ConversationSourceService, "get_conversation", staticmethod(_raise))
 
-    response = await get_conversation_endpoint("codex:sess_1", ConversationGetQuery(user_id="u1"))
+    response = await get_conversation_endpoint(
+        "codex:sess_1",
+        ConversationGetQuery(),
+        {"user_id": "u1", "username": "alice", "role": "user"},
+    )
     body = json.loads(response.body)
     assert response.status_code == 404
     assert body["success"] is False

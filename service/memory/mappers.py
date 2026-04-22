@@ -25,9 +25,13 @@ from .contracts import (
 from .enums import MemoryTriggerType
 
 
-def conversation_create_request_to_command(payload: ConversationCreateRequest) -> ConversationSourceCreateCommand:
+def conversation_create_request_to_command(
+    *,
+    user_id: str,
+    payload: ConversationCreateRequest,
+) -> ConversationSourceCreateCommand:
     return ConversationSourceCreateCommand(
-        user_id=payload.user_id,
+        user_id=user_id,
         agent_id=payload.agent_id,
         project_id=payload.project_id,
         external_source=payload.conversation.external_source,
@@ -45,11 +49,12 @@ def conversation_create_request_to_command(payload: ConversationCreateRequest) -
 
 def conversation_append_request_to_command(
     *,
+    user_id: str,
     conversation_id: str,
     payload: ConversationAppendMessageRequest,
 ) -> ConversationSourceAppendCommand:
     return ConversationSourceAppendCommand(
-        user_id=payload.user_id,
+        user_id=user_id,
         agent_id=payload.agent_id,
         project_id=payload.project_id,
         conversation_id=conversation_id,
@@ -59,10 +64,11 @@ def conversation_append_request_to_command(
 
 def conversation_get_query_to_query(
     *,
+    user_id: str,
     conversation_id: str,
     payload: ConversationGetQuery,
 ) -> ConversationSourceGetQuery:
-    return ConversationSourceGetQuery(user_id=payload.user_id, conversation_id=conversation_id)
+    return ConversationSourceGetQuery(user_id=user_id, conversation_id=conversation_id)
 
 
 async def memory_create_request_to_command(payload: MemoryCreateRequest) -> MemoryWriteCommand:
