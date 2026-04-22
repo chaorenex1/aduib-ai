@@ -1,6 +1,18 @@
-from typing import Optional
-
-
 class BaseServiceError(ValueError):
-    def __init__(self, description: Optional[str] = None):
-        self.description = description
+    status_code = 500
+    code = "service_error"
+
+    def __init__(
+        self,
+        description: str | None = None,
+        *,
+        status_code: int | None = None,
+        code: str | None = None,
+        details: dict | None = None,
+    ):
+        message = description or "service error"
+        super().__init__(message)
+        self.description = message
+        self.status_code = status_code or self.status_code
+        self.code = code or self.code
+        self.details = details or {}

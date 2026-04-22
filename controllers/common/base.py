@@ -138,9 +138,10 @@ def api_endpoint(success_status: int = 200):
                     traceback.print_exc()
                 return _to_json_response(
                     api_error(
-                        status_code=500,
-                        code="service_error",
+                        status_code=exc.status_code,
+                        code=exc.code,
                         message=exc.description or "service error",
+                        details=exc.details,
                     )
                 )
             except Exception as exc:

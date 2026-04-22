@@ -9,7 +9,6 @@ from requests import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
-from controllers.common.error import ApiNotCurrentlyAvailableError
 from libs.contextVar_wrapper_enhanced import ContextVarWrapper, DictContextVar
 from service.api_key_service import ApiKeyService
 from service.error.error import ApiKeyNotFound
@@ -43,6 +42,8 @@ def verify_api_key_in_db(
     api_key: str = Depends(api_key_header), authorization_token: str = Depends(authorization_header)
 ) -> None:
     """从数据库中验证 API Key"""
+    from controllers.common.error import ApiNotCurrentlyAvailableError
+
     try:
         if not api_key or len(api_key.strip()) == 0:
             authorization_token = authorization_token.replace("Bearer ", "")
@@ -180,10 +181,12 @@ class PerformanceMetricsMiddleware(BaseHTTPMiddleware):
 
         # Log metrics
         logger.info(
-            f"TaskCache API: {request.method} {request.url.path} | "
-            f"Status: {response.status_code} | "
-            f"Duration: {duration_ms:.2f}ms | "
-            f"Request Size: {content_length} bytes"
+            "TaskCache API: %s %s | Status: %s | Duration: %.2fms | Request Size: %s bytes",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            content_length,
         )
 
         # Add performance headers

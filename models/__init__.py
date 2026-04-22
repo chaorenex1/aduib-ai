@@ -18,6 +18,7 @@ from .memory_metadata import (
     MemoryRetrievalHint,
     MemoryTimelineIndex,
 )
+from .memory_write_task import MemoryWriteTask
 from .memory import MemoryBase, MemoryRecord
 from .memory_learning_log import MemoryLearningLog
 from .memory_learning_params import MemoryLearningParams
@@ -63,6 +64,7 @@ __all__ = [
     "MemoryRecord",
     "MemoryRetrievalHint",
     "MemoryTimelineIndex",
+    "MemoryWriteTask",
     "MemoryTagAssociation",
     "MessageTokenUsage",
     "Model",
