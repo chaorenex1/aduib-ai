@@ -16,7 +16,8 @@ from controllers.memory.conversations import (
 from controllers.memory.conversations import create_conversation as create_conversation_endpoint
 from controllers.memory.conversations import get_conversation as get_conversation_endpoint
 from controllers.memory.schemas import ConversationAppendMessageRequest, ConversationCreateRequest, ConversationGetQuery
-from service.memory import ConversationSourceNotFoundError, ConversationSourceService
+from service.memory import ConversationSourceService
+from service.memory.base.errors import ConversationSourceNotFoundError
 
 
 @pytest.fixture

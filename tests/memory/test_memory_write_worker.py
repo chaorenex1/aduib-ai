@@ -10,13 +10,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from runtime.tasks.memory_write_tasks import execute_memory_write
-from service.memory import (
+from service.memory.base.contracts import MemorySourceRef, MemoryWriteTaskView
+from service.memory.base.enums import (
     MemoryQueueStatus,
-    MemorySourceRef,
     MemoryTaskPhase,
     MemoryTaskStatus,
     MemoryTriggerType,
-    MemoryWriteTaskView,
 )
 
 

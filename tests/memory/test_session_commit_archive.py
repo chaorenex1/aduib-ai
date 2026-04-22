@@ -14,14 +14,11 @@ if str(PROJECT_ROOT) not in sys.path:
 from component.storage.base_storage import BaseStorage, StorageEntry, storage_manager
 from controllers.memory.schemas import TaskCreateRequest
 from service.memory import (
-    ArchivedSourceRef,
-    MemoryQueueStatus,
     MemorySourceArchiveService,
-    MemoryTaskPhase,
-    MemoryTaskStatus,
     MemoryWriteIngestService,
-    MemoryWriteTaskView,
 )
+from service.memory.base.contracts import ArchivedSourceRef, MemoryWriteTaskView
+from service.memory.base.enums import MemoryQueueStatus, MemoryTaskPhase, MemoryTaskStatus
 from service.memory.base.mappers import task_create_request_to_command
 
 

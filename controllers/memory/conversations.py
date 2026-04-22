@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, status
 from controllers.common.base import api_endpoint
 from controllers.memory.schemas import ConversationAppendMessageRequest, ConversationCreateRequest, ConversationGetQuery
 from libs.deps import CurrentUserDep
-from service.memory import (
-    ConversationSourceService,
+from service.memory import ConversationSourceService
+from service.memory.base.mappers import (
     conversation_append_request_to_command,
     conversation_create_request_to_command,
     conversation_get_query_to_query,

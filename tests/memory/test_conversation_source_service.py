@@ -13,17 +13,20 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from component.storage.base_storage import BaseStorage, StorageEntry, storage_manager
-from service.memory import (
+from service.memory import ConversationRepository, ConversationSourceService
+from service.memory.base.contracts import (
     ConversationMessageRecord,
-    ConversationRepository,
     ConversationSourceAppendCommand,
-    ConversationSourceConflictError,
-    ConversationSourceCorruptedError,
     ConversationSourceCreateCommand,
     ConversationSourceGetQuery,
     ConversationSourceMetadata,
+)
+from service.memory.base.errors import (
+    ConversationSourceConflictError,
+    ConversationSourceCorruptedError,
     ConversationSourceNotFoundError,
-    ConversationSourceService,
+)
+from service.memory.base.paths import (
     build_conversation_id,
     build_conversation_source_path,
 )

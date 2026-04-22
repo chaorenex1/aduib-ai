@@ -12,7 +12,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from controllers.memory.legacy import store_memory as store_memory_endpoint
 from controllers.memory.schemas import MemoryCreateRequest
-from service.memory import MemoryService, MemoryWritePublishError
+from service.memory import MemoryService
+from service.memory.base.errors import MemoryWritePublishError
 
 
 @pytest.fixture
