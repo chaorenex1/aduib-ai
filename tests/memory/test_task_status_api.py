@@ -65,6 +65,53 @@ async def test_create_memory_task_returns_accepted_payload(monkeypatch: pytest.M
 
 
 @pytest.mark.anyio
+async def test_create_memory_task_accepts_pg_jsonl_conversation_source_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _fake_accept_task_request(payload) -> dict:
+        return {
+            "task_id": "task-12",
+            "trace_id": "trace-12",
+            "trigger_type": payload.trigger_type,
+            "status": "accepted",
+            "phase": "accepted",
+            "queue_status": "queued",
+            "source_ref": payload.source_ref.model_dump(mode="python", exclude_none=True),
+            "archive_ref": None,
+        }
+
+    monkeypatch.setattr(MemoryWriteIngestService, "accept_task_request", staticmethod(_fake_accept_task_request))
+
+    response = await create_memory_task_endpoint(
+        TaskCreateRequest(
+            user_id="u1",
+            agent_id="a1",
+            project_id="p1",
+            trigger_type="memory_api",
+            source_ref={
+                "type": "conversation",
+                "id": "codex:sess-1",
+                "storage": "pg_jsonl",
+                "version": 2,
+                "external_source": "codex",
+                "external_session_id": "sess-1",
+                "message_ref": {
+                    "type": "jsonl",
+                    "uri": "memory_pipeline/users/u1/sources/conversations/codex__sess-1.jsonl",
+                    "sha256": "sha256-1",
+                },
+            },
+        )
+    )
+
+    body = json.loads(response.body)
+    assert response.status_code == 202
+    assert body["success"] is True
+    assert body["data"]["task_id"] == "task-12"
+    assert body["data"]["source_ref"]["storage"] == "pg_jsonl"
+    assert body["data"]["source_ref"]["message_ref"]["uri"].endswith("codex__sess-1.jsonl")
+    assert body["data"]["source_ref"]["version"] == 2
+
+
+@pytest.mark.anyio
 async def test_task_status_endpoints_return_serialized_task(monkeypatch: pytest.MonkeyPatch) -> None:
     task_payload = {
         "task_id": "task-11",

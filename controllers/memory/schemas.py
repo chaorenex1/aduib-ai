@@ -23,12 +23,37 @@ class MemoryMetadata(MemorySchema):
     tags: list[str] = Field(default_factory=list)
 
 
+class MessageRef(MemorySchema):
+    type: str = Field(..., min_length=1)
+    uri: str = Field(..., min_length=1)
+    path: str | None = Field(None, min_length=1)
+    sha256: str | None = Field(None, min_length=1)
+
+
 class SourceRef(MemorySchema):
     type: str = Field(..., min_length=1)
     id: str = Field(..., min_length=1)
-    path: str = Field(..., min_length=1)
+    path: str | None = Field(None, min_length=1)
+    storage: str | None = Field(None, min_length=1)
+    version: int | None = Field(None, ge=1)
+    message_ref: MessageRef | None = None
     external_source: str | None = Field(None, min_length=1)
     external_session_id: str | None = Field(None, min_length=1)
+
+    @model_validator(mode="after")
+    def validate_source_ref_shape(self) -> "SourceRef":
+        if self.type == "conversation":
+            if self.storage != "pg_jsonl":
+                raise ValueError("conversation source_ref requires storage=pg_jsonl")
+            if self.version is None:
+                raise ValueError("conversation source_ref requires version")
+            if self.message_ref is None:
+                raise ValueError("conversation source_ref requires message_ref")
+            return self
+
+        if not self.path:
+            raise ValueError(f"{self.type} source_ref requires path")
+        return self
 
 
 class ContentPart(MemorySchema):
