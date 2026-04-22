@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from controllers.memory.schemas import (
     ConversationAppendMessageRequest,
-    MemoryCreateRequest,
     ConversationCreateRequest,
     ConversationGetQuery,
+    MemoryCreateRequest,
     MemoryRetrieveRequest,
     MemoryRetrieveResponse,
     TaskCreateRequest,

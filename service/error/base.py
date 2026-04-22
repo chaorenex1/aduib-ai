@@ -1,3 +1,6 @@
+from sqlalchemy.orm import Session
+
+
 class BaseServiceError(ValueError):
     status_code = 500
     code = "service_error"
@@ -16,3 +19,11 @@ class BaseServiceError(ValueError):
         self.status_code = status_code or self.status_code
         self.code = code or self.code
         self.details = details or {}
+
+
+class RepositoryBase:
+    @staticmethod
+    def commit_and_refresh(session: Session, entity):
+        session.commit()
+        session.refresh(entity)
+        return entity

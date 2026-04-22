@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import datetime
 
-from models import MemoryWriteTask, get_db
+from models import MemoryWriteTask
 from runtime.tasks.celery_app import celery_app
 
-from .builders import build_queue_payload
-from .contracts import ArchivedSourceRef, MemorySourceRef, MemoryWriteTaskResult, MemoryWriteTaskView
-from .enums import MemoryQueueStatus, MemoryTaskPhase, MemoryTaskStatus
-from .errors import MemoryWriteTaskNotFoundError, MemoryWriteTaskReplayError
+from .base.builders import build_queue_payload
+from .base.contracts import ArchivedSourceRef, MemorySourceRef, MemoryWriteTaskResult, MemoryWriteTaskView
+from .base.enums import MemoryQueueStatus, MemoryTaskPhase, MemoryTaskStatus
+from .base.errors import MemoryWriteTaskNotFoundError, MemoryWriteTaskReplayError
+from .repository import MemoryWriteTaskRepository
 
 MEMORY_WRITE_TASK_NAME = "runtime.tasks.memory_write.execute"
 
@@ -29,43 +30,34 @@ class MemoryWriteTaskService:
         archive_ref: ArchivedSourceRef | None,
         queue_payload: dict | None = None,
     ) -> MemoryWriteTaskView:
-        with get_db() as session:
-            existing = (
-                session.query(MemoryWriteTask)
-                .filter(MemoryWriteTask.idempotency_key == idempotency_key)
-                .order_by(MemoryWriteTask.created_at.desc())
-                .first()
-            )
-            if existing:
-                return cls._serialize_task(existing)
+        existing = MemoryWriteTaskRepository.get_by_idempotency_key(idempotency_key)
+        if existing:
+            return cls._serialize_task(existing)
 
-            task = MemoryWriteTask(
-                task_id=task_id,
-                trigger_type=trigger_type,
-                user_id=user_id,
-                agent_id=agent_id,
-                project_id=project_id,
-                trace_id=trace_id,
-                idempotency_key=idempotency_key,
-                source_ref=source_ref.model_dump(mode="python", exclude_none=True),
-                archive_ref=archive_ref.model_dump(mode="python", exclude_none=True) if archive_ref else None,
-                queue_payload=queue_payload,
-                status=MemoryTaskStatus.ACCEPTED,
-                phase=MemoryTaskPhase.ACCEPTED,
-                queue_status=MemoryQueueStatus.PUBLISH_PENDING,
-            )
-            session.add(task)
-            session.commit()
-            session.refresh(task)
-            return cls._serialize_task(task)
+        task = MemoryWriteTask(
+            task_id=task_id,
+            trigger_type=trigger_type,
+            user_id=user_id,
+            agent_id=agent_id,
+            project_id=project_id,
+            trace_id=trace_id,
+            idempotency_key=idempotency_key,
+            source_ref=source_ref.model_dump(mode="python", exclude_none=True),
+            archive_ref=archive_ref.model_dump(mode="python", exclude_none=True) if archive_ref else None,
+            queue_payload=queue_payload,
+            status=MemoryTaskStatus.ACCEPTED,
+            phase=MemoryTaskPhase.ACCEPTED,
+            queue_status=MemoryQueueStatus.PUBLISH_PENDING,
+        )
+        task = MemoryWriteTaskRepository.create(task)
+        return cls._serialize_task(task)
 
     @classmethod
     def get_task(cls, task_id: str) -> MemoryWriteTaskView:
-        with get_db() as session:
-            task = session.query(MemoryWriteTask).filter(MemoryWriteTask.task_id == task_id).first()
-            if not task:
-                raise MemoryWriteTaskNotFoundError("memory write task not found")
-            return cls._serialize_task(task)
+        task = MemoryWriteTaskRepository.get_by_task_id(task_id)
+        if not task:
+            raise MemoryWriteTaskNotFoundError("memory write task not found")
+        return cls._serialize_task(task)
 
     @classmethod
     def get_task_result(cls, task_id: str) -> MemoryWriteTaskResult:
@@ -94,13 +86,9 @@ class MemoryWriteTaskService:
 
     @classmethod
     def replay(cls, task_id: str, actor: str | None = None) -> MemoryWriteTaskView:
-        with get_db() as session:
-            task = session.query(MemoryWriteTask).filter(MemoryWriteTask.task_id == task_id).first()
-            if not task:
-                raise MemoryWriteTaskNotFoundError("memory write task not found")
+        def _mutate(task: MemoryWriteTask) -> None:
             if task.queue_status != MemoryQueueStatus.PUBLISH_FAILED:
                 raise MemoryWriteTaskReplayError("only publish_failed tasks can be replayed")
-
             now = datetime.datetime.now(datetime.UTC)
             task.replayed_by = actor
             task.replayed_at = now
@@ -110,59 +98,55 @@ class MemoryWriteTaskService:
             task.queue_status = MemoryQueueStatus.PUBLISH_PENDING
             task.last_publish_error = None
             task.publish_failed_at = None
-            task.updated_at = now
-            session.commit()
+
+        task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
+        if task is None:
+            raise MemoryWriteTaskNotFoundError("memory write task not found")
 
         return cls.publish_task(task_id)
 
     @classmethod
     def mark_queued(cls, task_id: str, *, queue_payload: dict) -> MemoryWriteTaskView:
-        with get_db() as session:
-            task = session.query(MemoryWriteTask).filter(MemoryWriteTask.task_id == task_id).first()
-            if not task:
-                raise MemoryWriteTaskNotFoundError("memory write task not found")
+        def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
             task.status = MemoryTaskStatus.ACCEPTED
             task.phase = MemoryTaskPhase.ACCEPTED
             task.queue_status = MemoryQueueStatus.QUEUED
             task.queue_payload = queue_payload
             task.queued_at = now
-            task.updated_at = now
-            session.commit()
-            session.refresh(task)
-            return cls._serialize_task(task)
+
+        task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
+        if task is None:
+            raise MemoryWriteTaskNotFoundError("memory write task not found")
+        return cls._serialize_task(task)
 
     @classmethod
     def mark_publish_failed(cls, task_id: str, error: str) -> MemoryWriteTaskView:
-        with get_db() as session:
-            task = session.query(MemoryWriteTask).filter(MemoryWriteTask.task_id == task_id).first()
-            if not task:
-                raise MemoryWriteTaskNotFoundError("memory write task not found")
+        def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
             task.status = MemoryTaskStatus.PUBLISH_FAILED
             task.queue_status = MemoryQueueStatus.PUBLISH_FAILED
             task.last_publish_error = error
             task.publish_failed_at = now
             task.last_error = error
-            task.updated_at = now
-            session.commit()
-            session.refresh(task)
-            return cls._serialize_task(task)
+
+        task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
+        if task is None:
+            raise MemoryWriteTaskNotFoundError("memory write task not found")
+        return cls._serialize_task(task)
 
     @classmethod
     def mark_running(cls, task_id: str, *, phase: str) -> MemoryWriteTaskView:
-        with get_db() as session:
-            task = session.query(MemoryWriteTask).filter(MemoryWriteTask.task_id == task_id).first()
-            if not task:
-                raise MemoryWriteTaskNotFoundError("memory write task not found")
+        def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
             task.status = MemoryTaskStatus.RUNNING
             task.phase = phase
             task.started_at = task.started_at or now
-            task.updated_at = now
-            session.commit()
-            session.refresh(task)
-            return cls._serialize_task(task)
+
+        task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
+        if task is None:
+            raise MemoryWriteTaskNotFoundError("memory write task not found")
+        return cls._serialize_task(task)
 
     @classmethod
     def record_checkpoint(
@@ -173,21 +157,18 @@ class MemoryWriteTaskService:
         result_ref: dict | None = None,
         operator_notes: str | None = None,
     ) -> MemoryWriteTaskView:
-        with get_db() as session:
-            task = session.query(MemoryWriteTask).filter(MemoryWriteTask.task_id == task_id).first()
-            if not task:
-                raise MemoryWriteTaskNotFoundError("memory write task not found")
-            now = datetime.datetime.now(datetime.UTC)
+        def _mutate(task: MemoryWriteTask) -> None:
             task.status = MemoryTaskStatus.RUNNING
             task.phase = phase
             if result_ref is not None:
                 task.result_ref = result_ref
             if operator_notes:
                 task.operator_notes = operator_notes
-            task.updated_at = now
-            session.commit()
-            session.refresh(task)
-            return cls._serialize_task(task)
+
+        task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
+        if task is None:
+            raise MemoryWriteTaskNotFoundError("memory write task not found")
+        return cls._serialize_task(task)
 
     @classmethod
     def mark_committed(
@@ -197,10 +178,7 @@ class MemoryWriteTaskService:
         result_ref: dict | None = None,
         operator_notes: str | None = None,
     ) -> MemoryWriteTaskView:
-        with get_db() as session:
-            task = session.query(MemoryWriteTask).filter(MemoryWriteTask.task_id == task_id).first()
-            if not task:
-                raise MemoryWriteTaskNotFoundError("memory write task not found")
+        def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
             task.status = MemoryTaskStatus.COMMITTED
             task.phase = MemoryTaskPhase.COMMITTED
@@ -211,10 +189,11 @@ class MemoryWriteTaskService:
             task.last_error = None
             task.failure_message = None
             task.completed_at = now
-            task.updated_at = now
-            session.commit()
-            session.refresh(task)
-            return cls._serialize_task(task)
+
+        task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
+        if task is None:
+            raise MemoryWriteTaskNotFoundError("memory write task not found")
+        return cls._serialize_task(task)
 
     @classmethod
     def mark_needs_manual_recovery(
@@ -225,10 +204,7 @@ class MemoryWriteTaskService:
         error: str,
         rollback_metadata: dict | None = None,
     ) -> MemoryWriteTaskView:
-        with get_db() as session:
-            task = session.query(MemoryWriteTask).filter(MemoryWriteTask.task_id == task_id).first()
-            if not task:
-                raise MemoryWriteTaskNotFoundError("memory write task not found")
+        def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
             task.status = MemoryTaskStatus.NEEDS_MANUAL_RECOVERY
             task.phase = phase
@@ -236,10 +212,11 @@ class MemoryWriteTaskService:
             task.failure_message = error
             task.rollback_metadata = rollback_metadata
             task.completed_at = now
-            task.updated_at = now
-            session.commit()
-            session.refresh(task)
-            return cls._serialize_task(task)
+
+        task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
+        if task is None:
+            raise MemoryWriteTaskNotFoundError("memory write task not found")
+        return cls._serialize_task(task)
 
     @staticmethod
     def _serialize_task(task: MemoryWriteTask) -> MemoryWriteTaskView:

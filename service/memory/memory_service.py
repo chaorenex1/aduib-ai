@@ -1,6 +1,6 @@
 from runtime.memory.types import MemoryRetrieve, MemoryRetrieveResult, MemoryRetrieveType
 
-from .contracts import MemoryRetrievedMemory, MemoryRetrieveQuery, MemoryWriteCommand
+from .base.contracts import MemoryRetrievedMemory, MemoryRetrieveQuery, MemoryWriteCommand
 
 
 class MemoryService:

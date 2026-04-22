@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from .builders import (
+from .base.builders import (
     build_memory_api_idempotency_key,
     build_task_request_idempotency_key,
     new_task_id,
     new_trace_id,
 )
-from .contracts import MemorySourceRef, MemoryTaskCreateCommand, MemoryWriteAccepted, MemoryWriteCommand
-from .enums import MemoryTriggerType
-from .errors import MemoryValidationError, MemoryWritePublishError
+from .base.contracts import MemorySourceRef, MemoryTaskCreateCommand, MemoryWriteAccepted, MemoryWriteCommand
+from .base.enums import MemoryTriggerType
+from .base.errors import MemoryValidationError, MemoryWritePublishError
 from .source_archive_service import MemorySourceArchiveService
 from .write_task_service import MemoryWriteTaskService
 

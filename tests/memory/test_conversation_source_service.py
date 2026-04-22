@@ -362,7 +362,9 @@ async def test_get_conversation_reads_pg_metadata_without_scanning_jsonl(
     path = build_conversation_source_path(user_id="u1", external_source="codex", external_session_id="sess_1")
     storage.write_text_atomic(path, "not valid jsonl anymore\n")
 
-    view = ConversationSourceService.get_conversation(ConversationSourceGetQuery(user_id="u1", conversation_id="codex:sess_1"))
+    view = ConversationSourceService.get_conversation(
+        ConversationSourceGetQuery(user_id="u1", conversation_id="codex:sess_1")
+    )
     assert view.conversation_id == "codex:sess_1"
     assert view.message_ref.uri == path
 
@@ -392,8 +394,22 @@ async def test_append_raises_corrupted_when_jsonl_mixed_ids(
         path,
         "\n".join(
             [
-                json.dumps({"conversation_id": "codex:sess_1", "role": "user", "content_parts": [{"type": "text", "text": "hello"}], "created_at": "2026-04-18T10:00:00Z"}),
-                json.dumps({"conversation_id": "codex:other", "role": "assistant", "content_parts": [{"type": "text", "text": "world"}], "created_at": "2026-04-18T10:00:01Z"}),
+                json.dumps(
+                    {
+                        "conversation_id": "codex:sess_1",
+                        "role": "user",
+                        "content_parts": [{"type": "text", "text": "hello"}],
+                        "created_at": "2026-04-18T10:00:00Z",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "conversation_id": "codex:other",
+                        "role": "assistant",
+                        "content_parts": [{"type": "text", "text": "world"}],
+                        "created_at": "2026-04-18T10:00:01Z",
+                    }
+                ),
             ]
         )
         + "\n",

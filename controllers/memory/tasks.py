@@ -5,7 +5,7 @@ from fastapi import APIRouter, status
 from controllers.common.base import api_endpoint
 from controllers.memory.schemas import MemoryWriteReplayRequest, TaskCreateRequest
 from service.memory import MemoryWriteIngestService, MemoryWriteTaskService
-from service.memory.mappers import task_create_request_to_command
+from service.memory.base.mappers import task_create_request_to_command
 
 router = APIRouter(prefix="/memories/tasks", tags=["Programmer Memory"])
 

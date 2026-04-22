@@ -67,7 +67,11 @@ async def test_create_conversation_endpoint_returns_created_payload(monkeypatch:
                 "external_session_id": "sess_1",
                 "title": "Design session",
                 "messages": [
-                    {"role": "user", "content_parts": [{"type": "text", "text": "hello"}], "created_at": "2026-04-18T10:00:00Z"}
+                    {
+                        "role": "user",
+                        "content_parts": [{"type": "text", "text": "hello"}],
+                        "created_at": "2026-04-18T10:00:00Z",
+                    }
                 ],
             },
             metadata={"language": "zh", "tags": ["conversation"]},

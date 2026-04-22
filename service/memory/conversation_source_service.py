@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import datetime
-import hashlib
 import json
 from typing import Any
 
 from component.storage.base_storage import storage_manager
 
-from .conversation_repository import ConversationRepository
-from .contracts import (
+from .base.base import MemoryServiceBase
+from .base.contracts import (
     ConversationAppendResult,
     ConversationMessageRecord,
     ConversationSourceAppendCommand,
@@ -16,17 +14,18 @@ from .contracts import (
     ConversationSourceGetQuery,
     ConversationSourceView,
 )
-from .errors import (
+from .base.errors import (
     ConversationSourceConflictError,
     ConversationSourceCorruptedError,
     ConversationSourceError,
     ConversationSourceNotFoundError,
     ConversationSourceValidationError,
 )
-from .paths import build_conversation_id, build_conversation_source_path, parse_conversation_id
+from .base.paths import build_conversation_id, build_conversation_source_path, parse_conversation_id
+from .repository import ConversationRepository
 
 
-class ConversationSourceService:
+class ConversationSourceService(MemoryServiceBase):
     @classmethod
     def create_conversation(cls, command: ConversationSourceCreateCommand) -> ConversationSourceView:
         conversation_id = build_conversation_id(
@@ -38,7 +37,11 @@ class ConversationSourceService:
             external_source=command.external_source,
             external_session_id=command.external_session_id,
         )
-        if ConversationRepository.get_conversation(user_id=command.user_id, conversation_id=conversation_id) is not None:
+        existing = ConversationRepository.get_conversation(
+            user_id=command.user_id,
+            conversation_id=conversation_id,
+        )
+        if existing is not None:
             raise ConversationSourceConflictError(
                 "conversation source already exists",
                 details={"conversation_id": conversation_id},
@@ -181,7 +184,7 @@ class ConversationSourceService:
 
     @classmethod
     def _write_records(cls, *, path: str, records: list[dict[str, Any]]) -> None:
-        content = cls._serialize_records(records)
+        content = cls.dump_jsonl(records)
         try:
             storage_manager.write_text_atomic(path, content)
         except Exception as exc:
@@ -192,7 +195,7 @@ class ConversationSourceService:
         if not records:
             raise ConversationSourceCorruptedError("conversation source is empty")
 
-        content = cls._serialize_records(records)
+        content = cls.dump_jsonl(records)
         modalities = sorted(
             {
                 str(part.get("type")).strip()
@@ -201,10 +204,10 @@ class ConversationSourceService:
                 if isinstance(part, dict) and str(part.get("type", "")).strip()
             }
         )
-        created_values = [cls._parse_optional_datetime(record.get("created_at")) for record in records]
+        created_values = [cls.parse_optional_datetime(record.get("created_at")) for record in records]
         created_values = [value for value in created_values if value is not None]
         return {
-            "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            "content_sha256": cls.sha256_text(content),
             "size_bytes": len(content.encode("utf-8")),
             "message_count": len(records),
             "modalities": modalities,
@@ -250,29 +253,10 @@ class ConversationSourceService:
         conversation_id: str,
         message: ConversationMessageRecord,
     ) -> dict[str, Any]:
-        created_at = message.created_at or cls._now_iso()
+        created_at = message.created_at or cls.utcnow().isoformat().replace("+00:00", "Z")
         return {
             "conversation_id": conversation_id,
             "role": message.role,
             "content_parts": [part.model_dump(mode="python", exclude_none=True) for part in message.content_parts],
             "created_at": created_at,
         }
-
-    @staticmethod
-    def _now_iso() -> str:
-        return datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z")
-
-    @staticmethod
-    def _serialize_records(records: list[dict[str, Any]]) -> str:
-        return "\n".join(json.dumps(record, ensure_ascii=False, separators=(",", ":")) for record in records) + "\n"
-
-    @staticmethod
-    def _parse_optional_datetime(value: Any) -> datetime.datetime | None:
-        if not value:
-            return None
-        text = str(value).strip()
-        if not text:
-            return None
-        if text.endswith("Z"):
-            text = f"{text[:-1]}+00:00"
-        return datetime.datetime.fromisoformat(text)

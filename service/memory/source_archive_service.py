@@ -4,12 +4,12 @@ import hashlib
 import json
 
 from component.storage.base_storage import storage_manager
-from models import ConversationMessage, get_db
 
-from .contracts import ArchivedSourceRef, MemoryTaskCreateCommand, MemoryWriteCommand
-from .enums import MemoryTriggerType
-from .errors import MemoryArchiveError, MemoryValidationError
-from .paths import build_memory_api_archive_path, build_session_commit_archive_path
+from .base.contracts import ArchivedSourceRef, MemoryTaskCreateCommand, MemoryWriteCommand
+from .base.enums import MemoryTriggerType
+from .base.errors import MemoryArchiveError, MemoryValidationError
+from .base.paths import build_memory_api_archive_path, build_session_commit_archive_path
+from .repository import SessionMessageRepository
 
 
 class MemorySourceArchiveService:
@@ -121,31 +121,11 @@ class MemorySourceArchiveService:
         user_id: str,
         agent_id: str | None,
     ) -> list[dict[str, object]]:
-        with get_db() as session:
-            query = session.query(ConversationMessage).filter(
-                ConversationMessage.agent_session_id == agent_session_id,
-                ConversationMessage.deleted == 0,
-            )
-            if user_id:
-                query = query.filter(ConversationMessage.user_id == user_id)
-            if agent_id and str(agent_id).isdigit():
-                query = query.filter(ConversationMessage.agent_id == int(agent_id))
-            messages = query.order_by(ConversationMessage.created_at.asc()).all()
-
-        return [
-            {
-                "message_id": message.message_id,
-                "role": message.role,
-                "content": message.content,
-                "user_id": message.user_id,
-                "agent_id": message.agent_id,
-                "agent_session_id": message.agent_session_id,
-                "model_name": message.model_name,
-                "provider_name": message.provider_name,
-                "created_at": message.created_at.isoformat() if message.created_at else None,
-            }
-            for message in messages
-        ]
+        return SessionMessageRepository.list_session_messages(
+            agent_session_id=agent_session_id,
+            user_id=user_id,
+            agent_id=agent_id,
+        )
 
     @staticmethod
     async def _extract_payload_text(payload: MemoryWriteCommand) -> str:

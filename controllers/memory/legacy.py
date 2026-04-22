@@ -9,7 +9,7 @@ from fastapi import APIRouter, status
 from controllers.common.base import api_endpoint
 from controllers.memory.schemas import MemoryCreateRequest, MemoryRetrieveRequest, MemoryRetrieveResponse
 from service.memory import MemoryService
-from service.memory.mappers import (
+from service.memory.base.mappers import (
     memory_create_request_to_command,
     memory_retrieve_request_to_query,
     retrieved_memories_to_response,
