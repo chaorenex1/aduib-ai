@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from component.vdb.vector_factory import Vector
 from runtime.entities.document_entities import Document
 from runtime.rag.indexing.indexing_profile import IndexingProfile
+from runtime.rag.retrieve.embedding import DefaultEmbeddingProvider
+from runtime.rag.vector_specs import build_vector_store_spec
 
 if TYPE_CHECKING:
     from models.document import KnowledgeBase
@@ -14,9 +17,10 @@ class IndexingService:
 
     @staticmethod
     def _build_vector(knowledge: KnowledgeBase):
-        from component.vdb.vector_factory import Vector
-
-        return Vector(knowledge)
+        return Vector(
+            spec=build_vector_store_spec(knowledge),
+            embedding_provider=DefaultEmbeddingProvider.from_knowledge(knowledge),
+        )
 
     @staticmethod
     def _build_keyword(knowledge: KnowledgeBase):

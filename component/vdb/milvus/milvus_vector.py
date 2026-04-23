@@ -1,21 +1,19 @@
 import logging
 import math
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
 from pymilvus import DataType, Function, FunctionType, MilvusClient
 from pymilvus.orm.types import infer_dtype_bydata
 
 from component.vdb.base_vector import BaseVector
+from component.vdb.contracts import EmbeddingProvider
 from component.vdb.fields import Field
+from component.vdb.specs import VectorStoreSpec
 from component.vdb.vector_store_factory import AbstractVectorStoreFactory
 from component.vdb.vector_type import VectorType
 from configs import config
 from runtime.entities.document_entities import Document
-from runtime.rag.retrieve.interfaces import EmbeddingProvider
-
-if TYPE_CHECKING:
-    from models import KnowledgeBase
 
 logger = logging.getLogger(__name__)
 
@@ -241,13 +239,9 @@ class MilvusVectorFactory(AbstractVectorStoreFactory):
     def create_store(
         self,
         *,
-        knowledge: KnowledgeBase | None = None,
-        attributes: list | None = None,
+        spec: VectorStoreSpec,
         embedding_provider: EmbeddingProvider | None = None,
     ) -> BaseVector:
-        if knowledge is None:
-            raise ValueError("knowledge is required to create a Milvus vector store.")
-        collection_name = "kb_" + str(knowledge.rag_type) + "_vector"
         milvus_config = MilvusConfig(
             uri=config.MILVUS_URI or "",
             token=config.MILVUS_TOKEN or "",
@@ -256,9 +250,4 @@ class MilvusVectorFactory(AbstractVectorStoreFactory):
             database=config.MILVUS_DATABASE or "",
             enable_hybrid=config.MILVUS_ENABLE_HYBRID_SEARCH or False,
         )
-        return MilvusVector(collection_name=collection_name, config=milvus_config)
-
-    def init_vector(
-        self, knowledge: KnowledgeBase, attributes: list, embeddings: EmbeddingProvider | None = None
-    ) -> BaseVector:
-        return self.create_store(knowledge=knowledge, attributes=attributes, embedding_provider=embeddings)
+        return MilvusVector(collection_name=spec.collection_name, config=milvus_config)

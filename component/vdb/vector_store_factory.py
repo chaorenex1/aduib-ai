@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
 
 from component.vdb.base_vector import BaseVector
+from component.vdb.contracts import EmbeddingProvider
+from component.vdb.specs import VectorStoreSpec
 from component.vdb.vector_type import VectorType
-from runtime.rag.retrieve.interfaces import EmbeddingProvider
-
-if TYPE_CHECKING:
-    from models import KnowledgeBase
 
 
 class AbstractVectorStoreFactory(ABC):
@@ -18,8 +15,7 @@ class AbstractVectorStoreFactory(ABC):
     def create_store(
         self,
         *,
-        knowledge: KnowledgeBase | None = None,
-        attributes: list | None = None,
+        spec: VectorStoreSpec,
         embedding_provider: EmbeddingProvider | None = None,
     ) -> BaseVector:
         raise NotImplementedError

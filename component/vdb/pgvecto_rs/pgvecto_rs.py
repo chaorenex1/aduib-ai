@@ -6,11 +6,12 @@ from sqlalchemy import Float, bindparam, desc, func, select
 from sqlalchemy import text as sql_text
 
 from component.vdb.base_vector import BaseVector
+from component.vdb.contracts import EmbeddingProvider
+from component.vdb.specs import VectorStoreSpec
 from component.vdb.vector_store_factory import AbstractVectorStoreFactory
 from component.vdb.vector_type import VectorType
-from models import KnowledgeBase, KnowledgeEmbeddings, get_db
+from models import KnowledgeEmbeddings, get_db
 from runtime.entities.document_entities import Document
-from runtime.rag.retrieve.interfaces import EmbeddingProvider
 
 logger = logging.getLogger(__name__)
 
@@ -263,20 +264,16 @@ class PGVectoRSFactory(AbstractVectorStoreFactory):
     def create_store(
         self,
         *,
-        knowledge: KnowledgeBase | None = None,
-        attributes: list | None = None,
+        spec: VectorStoreSpec,
         embedding_provider: EmbeddingProvider | None = None,
     ) -> PGVectoRS:
-        if embedding_provider is None:
-            raise ValueError("embedding_provider is required to create a PGVectoRS store.")
-        dim = len(embedding_provider.embed_query("pgvecto_rs"))
+        dim = spec.embedding_dim
+        if dim is None:
+            if embedding_provider is None:
+                raise ValueError("embedding_provider is required when VectorStoreSpec.embedding_dim is not set.")
+            dim = len(embedding_provider.embed_query("pgvecto_rs"))
 
         return PGVectoRS(
-            collection_name=KnowledgeEmbeddings.__tablename__,
+            collection_name=spec.collection_name,
             dim=dim,
         )
-
-    def init_vector(
-        self, knowledge: KnowledgeBase, attributes: list, embeddings: EmbeddingProvider | None = None
-    ) -> PGVectoRS:
-        return self.create_store(knowledge=knowledge, attributes=attributes, embedding_provider=embeddings)

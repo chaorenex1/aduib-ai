@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from component.vdb.contracts import EmbeddingProvider
 from runtime.entities.model_entities import ModelType
-from runtime.rag.retrieve.interfaces import EmbeddingProvider
 
 if TYPE_CHECKING:
     from models import KnowledgeBase
