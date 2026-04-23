@@ -8,6 +8,7 @@ from fastapi import APIRouter, status
 
 from controllers.common.base import api_endpoint
 from controllers.memory.schemas import MemoryCreateRequest, MemoryRetrieveRequest, MemoryRetrieveResponse
+from runtime.memory.write_request_runtime import MemoryWriteRequestRuntime
 from service.memory import MemoryService
 from service.memory.base.mappers import (
     memory_create_request_to_command,
@@ -24,7 +25,7 @@ router = APIRouter(prefix="/memory", tags=["Memory"])
 async def store_memory(payload: MemoryCreateRequest):
     """Accept a memory write request and enqueue the async pipeline."""
     command = await memory_create_request_to_command(payload)
-    return await MemoryService.store_memory(command)
+    return await MemoryWriteRequestRuntime.accept_memory_write(command)
 
 
 @router.get("/retrieve")

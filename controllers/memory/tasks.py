@@ -4,7 +4,8 @@ from fastapi import APIRouter, status
 
 from controllers.common.base import api_endpoint
 from controllers.memory.schemas import MemoryWriteReplayRequest, TaskCreateRequest
-from service.memory import MemoryWriteIngestService, MemoryWriteTaskService
+from runtime.memory.write_request_runtime import MemoryWriteRequestRuntime
+from service.memory import MemoryWriteTaskService
 from service.memory.base.mappers import task_create_request_to_command
 
 router = APIRouter(prefix="/memories/tasks", tags=["Programmer Memory"])
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/memories/tasks", tags=["Programmer Memory"])
 async def create_memory_task(payload: TaskCreateRequest):
     """Create one async memory processing task."""
     command = task_create_request_to_command(payload)
-    return await MemoryWriteIngestService.accept_task_request(command)
+    return await MemoryWriteRequestRuntime.accept_task_request(command)
 
 
 @router.get("/{task_id}")
@@ -36,4 +37,4 @@ async def get_memory_task_result(task_id: str):
 @api_endpoint(success_status=status.HTTP_202_ACCEPTED)
 async def replay_memory_task(task_id: str, payload: MemoryWriteReplayRequest):
     """Replay queue publish for one failed task."""
-    return MemoryWriteTaskService.replay(task_id, actor=payload.actor)
+    return MemoryWriteRequestRuntime.replay_task(task_id, actor=payload.actor)

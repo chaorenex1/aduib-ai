@@ -4,15 +4,14 @@ import hashlib
 import json
 
 from component.storage.base_storage import storage_manager
+from service.memory import SessionMessageRepository
+from service.memory.base.contracts import ArchivedSourceRef, MemoryTaskCreateCommand, MemoryWriteCommand
+from service.memory.base.enums import MemoryTriggerType
+from service.memory.base.errors import MemoryArchiveError, MemoryValidationError
+from service.memory.base.paths import build_memory_api_archive_path, build_session_commit_archive_path
 
-from .base.contracts import ArchivedSourceRef, MemoryTaskCreateCommand, MemoryWriteCommand
-from .base.enums import MemoryTriggerType
-from .base.errors import MemoryArchiveError, MemoryValidationError
-from .base.paths import build_memory_api_archive_path, build_session_commit_archive_path
-from .repository import SessionMessageRepository
 
-
-class MemorySourceArchiveService:
+class MemorySourceArchiveRuntime:
     @staticmethod
     async def archive_memory_api(
         payload: MemoryWriteCommand,
@@ -20,7 +19,7 @@ class MemorySourceArchiveService:
         task_id: str,
         trace_id: str,
     ) -> ArchivedSourceRef:
-        content = await MemorySourceArchiveService._extract_payload_text(payload)
+        content = await MemorySourceArchiveRuntime._extract_payload_text(payload)
         snapshot = {
             "trigger_type": MemoryTriggerType.MEMORY_API.value,
             "task_id": task_id,
@@ -39,7 +38,7 @@ class MemorySourceArchiveService:
         }
         archive_text = json.dumps(snapshot, ensure_ascii=False, indent=2)
         archive_path = build_memory_api_archive_path(user_id=payload.user_id, task_id=task_id)
-        return MemorySourceArchiveService._write_archive(archive_path=archive_path, archive_text=archive_text)
+        return MemorySourceArchiveRuntime._write_archive(archive_path=archive_path, archive_text=archive_text)
 
     @staticmethod
     async def archive_session_commit(
@@ -48,9 +47,9 @@ class MemorySourceArchiveService:
         task_id: str,
         trace_id: str,
     ) -> ArchivedSourceRef:
-        session_key = MemorySourceArchiveService._resolve_session_key(payload)
-        agent_session_id = MemorySourceArchiveService._resolve_agent_session_id(payload)
-        messages = MemorySourceArchiveService._load_session_messages(
+        session_key = MemorySourceArchiveRuntime._resolve_session_key(payload)
+        agent_session_id = MemorySourceArchiveRuntime._resolve_agent_session_id(payload)
+        messages = MemorySourceArchiveRuntime._load_session_messages(
             agent_session_id=agent_session_id,
             user_id=payload.user_id,
             agent_id=payload.agent_id,
@@ -81,7 +80,7 @@ class MemorySourceArchiveService:
             session_key=session_key,
             task_id=task_id,
         )
-        return MemorySourceArchiveService._write_archive(archive_path=archive_path, archive_text=archive_text)
+        return MemorySourceArchiveRuntime._write_archive(archive_path=archive_path, archive_text=archive_text)
 
     @staticmethod
     def _write_archive(*, archive_path: str, archive_text: str) -> ArchivedSourceRef:

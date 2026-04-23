@@ -1,17 +1,10 @@
 from runtime.memory.types import MemoryRetrieve, MemoryRetrieveResult, MemoryRetrieveType
 
-from .base.contracts import MemoryRetrievedMemory, MemoryRetrieveQuery, MemoryWriteCommand
+from .base.contracts import MemoryRetrievedMemory, MemoryRetrieveQuery
 
 
 class MemoryService:
     """Memory service for storing and retrieving memory entries."""
-
-    @staticmethod
-    async def store_memory(payload: MemoryWriteCommand) -> dict:
-        """Accept a memory write request and enqueue the async pipeline."""
-        from .write_ingest_service import MemoryWriteIngestService
-
-        return await MemoryWriteIngestService.accept_memory_write(payload)
 
     @staticmethod
     async def retrieve_memory(payload: MemoryRetrieveQuery) -> list[MemoryRetrievedMemory]:

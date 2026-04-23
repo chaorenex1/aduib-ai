@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -147,6 +147,9 @@ class MemoryWriteAccepted(MemoryContract):
     task_id: str = Field(..., min_length=1)
     trace_id: str = Field(..., min_length=1)
     trigger_type: MemoryTriggerType
+    user_id: str | None = None
+    agent_id: str | None = None
+    project_id: str | None = None
     status: MemoryTaskStatus
     phase: MemoryTaskPhase | str
     queue_status: MemoryQueueStatus
@@ -184,3 +187,107 @@ class MemoryWriteTaskResult(MemoryContract):
     journal_ref: str | None = None
     operator_notes: str | None = None
     last_error: str | None = None
+
+
+class MemoryWritePipelineContext(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    trace_id: str = Field(..., min_length=1)
+    trigger_type: MemoryTriggerType
+    user_id: str | None = None
+    agent_id: str | None = None
+    project_id: str | None = None
+    phase: MemoryTaskPhase | str
+    source_ref: MemorySourceRef
+    archive_ref: ArchivedSourceRef | None = None
+    phase_results: dict[str, Any] = Field(default_factory=dict)
+
+
+class PreparedExtractContext(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    phase: MemoryTaskPhase | str = MemoryTaskPhase.PREPARE_EXTRACT_CONTEXT
+    source_kind: str = Field(..., min_length=1)
+    source_hash: str = Field(..., min_length=1)
+    source_ref: MemorySourceRef
+    archive_ref: ArchivedSourceRef | None = None
+    user_id: str | None = None
+    agent_id: str | None = None
+    project_id: str | None = None
+    language: str | None = None
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+    text_blocks: list[str] = Field(default_factory=list)
+    prefetched_context: dict[str, Any] = Field(default_factory=dict)
+    stats: dict[str, Any] = Field(default_factory=dict)
+    schema_bundle: list[dict[str, Any]] = Field(default_factory=list)
+    conversation_snapshot: dict[str, Any] | None = None
+    session_snapshot: dict[str, Any] | None = None
+    archived_snapshot: dict[str, Any] | None = None
+
+
+class MemoryOperationEvidence(MemoryContract):
+    kind: str = Field(default="message", min_length=1)
+    content: str = Field(..., min_length=1)
+    path: str | None = None
+
+
+class ExtractedMemoryOperation(MemoryContract):
+    op: Literal["write", "edit", "delete"]
+    memory_type: str = Field(..., min_length=1)
+    fields: dict[str, Any] = Field(default_factory=dict)
+    content: str = ""
+    evidence: list[MemoryOperationEvidence] = Field(default_factory=list)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class ResolvedMemoryOperation(MemoryContract):
+    op: Literal["write", "edit", "delete"]
+    memory_type: str = Field(..., min_length=1)
+    target_path: str = Field(..., min_length=1)
+    target_name: str = Field(..., min_length=1)
+    file_exists: bool
+    merge_strategy: str = Field(..., min_length=1)
+    memory_mode: Literal["simple", "template"]
+    fields: dict[str, Any] = Field(default_factory=dict)
+    field_merge_ops: dict[str, str] = Field(default_factory=dict)
+    content: str = ""
+    evidence: list[MemoryOperationEvidence] = Field(default_factory=list)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    content_template: str | None = None
+    schema_path: str | None = None
+
+
+class MemoryReadRecord(MemoryContract):
+    memory_id: str = Field(..., min_length=1)
+    memory_class: str = Field(..., min_length=1)
+    kind: str = Field(..., min_length=1)
+    user_id: str | None = None
+    agent_id: str | None = None
+    project_id: str | None = None
+    scope_type: str = Field(..., min_length=1)
+    scope_path: str = Field(..., min_length=1)
+    directory_path: str = Field(..., min_length=1)
+    file_path: str = Field(..., min_length=1)
+    title: str = Field(..., min_length=1)
+    topic: str | None = None
+    source_type: str | None = None
+    visibility: str | None = None
+    status: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    file_sha256: str | None = None
+    content_bytes: int | None = None
+    projection_payload: dict[str, Any] = Field(default_factory=dict)
+    memory_created_at: str | None = None
+    memory_updated_at: str | None = None
+    indexed_at: str | None = None
+    refreshed_by_task_id: str | None = None
+
+
+class MemoryReadListResult(MemoryContract):
+    items: list[MemoryReadRecord] = Field(default_factory=list)
+    next_cursor: str | None = None
+
+
+class MemoryContentResult(MemoryContract):
+    memory_id: str = Field(..., min_length=1)
+    file_path: str = Field(..., min_length=1)
+    content: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)

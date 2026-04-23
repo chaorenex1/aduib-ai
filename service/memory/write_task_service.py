@@ -3,9 +3,7 @@ from __future__ import annotations
 import datetime
 
 from models import MemoryWriteTask
-from runtime.tasks.celery_app import celery_app
 
-from .base.builders import build_queue_payload
 from .base.contracts import ArchivedSourceRef, MemorySourceRef, MemoryWriteTaskResult, MemoryWriteTaskView
 from .base.enums import MemoryQueueStatus, MemoryTaskPhase, MemoryTaskStatus
 from .base.errors import MemoryWriteTaskNotFoundError, MemoryWriteTaskReplayError
@@ -74,18 +72,7 @@ class MemoryWriteTaskService:
         )
 
     @classmethod
-    def publish_task(cls, task_id: str) -> MemoryWriteTaskView:
-        try:
-            async_result = celery_app.send_task(MEMORY_WRITE_TASK_NAME, kwargs={"task_id": task_id})
-        except Exception as exc:
-            cls.mark_publish_failed(task_id, str(exc))
-            raise
-
-        queue_payload = build_queue_payload(celery_message_id=async_result.id)
-        return cls.mark_queued(task_id, queue_payload=queue_payload)
-
-    @classmethod
-    def replay(cls, task_id: str, actor: str | None = None) -> MemoryWriteTaskView:
+    def prepare_replay(cls, task_id: str, actor: str | None = None) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
             if task.queue_status != MemoryQueueStatus.PUBLISH_FAILED:
                 raise MemoryWriteTaskReplayError("only publish_failed tasks can be replayed")
@@ -102,8 +89,7 @@ class MemoryWriteTaskService:
         task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
         if task is None:
             raise MemoryWriteTaskNotFoundError("memory write task not found")
-
-        return cls.publish_task(task_id)
+        return cls._serialize_task(task)
 
     @classmethod
     def mark_queued(cls, task_id: str, *, queue_payload: dict) -> MemoryWriteTaskView:
@@ -119,6 +105,10 @@ class MemoryWriteTaskService:
         if task is None:
             raise MemoryWriteTaskNotFoundError("memory write task not found")
         return cls._serialize_task(task)
+
+    @staticmethod
+    def get_queue_task_name() -> str:
+        return MEMORY_WRITE_TASK_NAME
 
     @classmethod
     def mark_publish_failed(cls, task_id: str, error: str) -> MemoryWriteTaskView:
@@ -156,12 +146,20 @@ class MemoryWriteTaskService:
         phase: str,
         result_ref: dict | None = None,
         operator_notes: str | None = None,
+        journal_ref: str | None = None,
+        rollback_metadata: dict | None = None,
     ) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
             task.status = MemoryTaskStatus.RUNNING
             task.phase = phase
             if result_ref is not None:
                 task.result_ref = result_ref
+            resolved_journal_ref = journal_ref or (result_ref or {}).get("journal_ref")
+            if resolved_journal_ref:
+                task.journal_ref = resolved_journal_ref
+            resolved_rollback_metadata = rollback_metadata or (result_ref or {}).get("rollback_metadata")
+            if resolved_rollback_metadata is not None:
+                task.rollback_metadata = resolved_rollback_metadata
             if operator_notes:
                 task.operator_notes = operator_notes
 
@@ -177,6 +175,7 @@ class MemoryWriteTaskService:
         *,
         result_ref: dict | None = None,
         operator_notes: str | None = None,
+        journal_ref: str | None = None,
     ) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
@@ -184,6 +183,9 @@ class MemoryWriteTaskService:
             task.phase = MemoryTaskPhase.COMMITTED
             if result_ref is not None:
                 task.result_ref = result_ref
+            resolved_journal_ref = journal_ref or (result_ref or {}).get("journal_ref")
+            if resolved_journal_ref:
+                task.journal_ref = resolved_journal_ref
             if operator_notes:
                 task.operator_notes = operator_notes
             task.last_error = None
@@ -203,6 +205,7 @@ class MemoryWriteTaskService:
         phase: str,
         error: str,
         rollback_metadata: dict | None = None,
+        journal_ref: str | None = None,
     ) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
@@ -210,7 +213,10 @@ class MemoryWriteTaskService:
             task.phase = phase
             task.last_error = error
             task.failure_message = error
-            task.rollback_metadata = rollback_metadata
+            if rollback_metadata is not None:
+                task.rollback_metadata = rollback_metadata
+            if journal_ref:
+                task.journal_ref = journal_ref
             task.completed_at = now
 
         task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
@@ -224,6 +230,9 @@ class MemoryWriteTaskService:
             task_id=task.task_id,
             trace_id=task.trace_id,
             trigger_type=task.trigger_type,
+            user_id=task.user_id,
+            agent_id=task.agent_id,
+            project_id=task.project_id,
             status=task.status,
             phase=task.phase,
             queue_status=task.queue_status,
