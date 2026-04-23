@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .enums import MemoryQueueStatus, MemoryTaskPhase, MemoryTaskStatus, MemoryTriggerType
+from .enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType
 
 
 class MemoryContract(BaseModel):
@@ -150,9 +150,8 @@ class MemoryWriteAccepted(MemoryContract):
     user_id: str | None = None
     agent_id: str | None = None
     project_id: str | None = None
-    status: MemoryTaskStatus
+    status: MemoryTaskFinalStatus | None = None
     phase: MemoryTaskPhase | str
-    queue_status: MemoryQueueStatus
     source_ref: MemorySourceRef
     archive_ref: ArchivedSourceRef | None = None
 
@@ -160,8 +159,6 @@ class MemoryWriteAccepted(MemoryContract):
 class MemoryWriteTaskView(MemoryWriteAccepted):
     queue_payload: dict[str, Any] | None = None
     result_ref: dict[str, Any] | None = None
-    retry_count: int = 0
-    retry_budget: int = 0
     last_publish_error: str | None = None
     failure_code: str | None = None
     failure_message: str | None = None
@@ -169,8 +166,6 @@ class MemoryWriteTaskView(MemoryWriteAccepted):
     rollback_metadata: dict[str, Any] | None = None
     journal_ref: str | None = None
     operator_notes: str | None = None
-    replayed_by: str | None = None
-    replayed_at: str | None = None
     queued_at: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
@@ -180,7 +175,7 @@ class MemoryWriteTaskView(MemoryWriteAccepted):
 
 class MemoryWriteTaskResult(MemoryContract):
     task_id: str = Field(..., min_length=1)
-    status: MemoryTaskStatus | str
+    status: MemoryTaskFinalStatus | str | None = None
     phase: MemoryTaskPhase | str
     result_ref: dict[str, Any] | None = None
     archive_ref: ArchivedSourceRef | None = None

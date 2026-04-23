@@ -25,7 +25,7 @@ from .contracts import (
     MemoryWriteTaskResult,
     MemoryWriteTaskView,
 )
-from .enums import MemoryQueueStatus, MemoryTaskPhase, MemoryTaskStatus, MemoryTriggerType
+from .enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType
 from .errors import (
     ConversationSourceConflictError,
     ConversationSourceCorruptedError,
@@ -38,7 +38,6 @@ from .errors import (
     MemoryWritePublishError,
     MemoryWriteTaskError,
     MemoryWriteTaskNotFoundError,
-    MemoryWriteTaskReplayError,
 )
 from .mappers import (
     conversation_append_request_to_command,
@@ -75,15 +74,14 @@ __all__ = [
     "ConversationSourceValidationError",
     "ConversationSourceView",
     "MemoryArchiveError",
-    "MemoryQueueStatus",
     "MemoryRetrieveQuery",
     "MemoryRetrievedMemory",
     "MemoryServiceBase",
     "MemoryServiceError",
     "MemorySourceRef",
     "MemoryTaskCreateCommand",
+    "MemoryTaskFinalStatus",
     "MemoryTaskPhase",
-    "MemoryTaskStatus",
     "MemoryTriggerType",
     "MemoryValidationError",
     "MemoryWriteAccepted",
@@ -91,7 +89,6 @@ __all__ = [
     "MemoryWritePublishError",
     "MemoryWriteTaskError",
     "MemoryWriteTaskNotFoundError",
-    "MemoryWriteTaskReplayError",
     "MemoryWriteTaskResult",
     "MemoryWriteTaskView",
     "build_conversation_id",

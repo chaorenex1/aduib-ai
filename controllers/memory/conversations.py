@@ -12,6 +12,7 @@ from service.memory.base.mappers import (
     conversation_append_request_to_command,
     conversation_create_request_to_command,
     conversation_get_query_to_query,
+    conversation_view_to_response,
 )
 
 router = APIRouter(prefix="/memories/conversations", tags=["Programmer Memory"])
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/memories/conversations", tags=["Programmer Memory"])
 async def create_conversation(payload: ConversationCreateRequest, current_user: CurrentUserDep):
     """Create or upload a remote conversation source."""
     command = conversation_create_request_to_command(user_id=str(current_user["user_id"]), payload=payload)
-    return ConversationSourceService.create_conversation(command)
+    return conversation_view_to_response(ConversationSourceService.create_conversation(command))
 
 
 @router.post("/{conversation_id}/messages", status_code=status.HTTP_201_CREATED)
@@ -54,4 +55,4 @@ async def get_conversation(
         conversation_id=conversation_id,
         payload=query,
     )
-    return ConversationSourceService.get_conversation(request)
+    return conversation_view_to_response(ConversationSourceService.get_conversation(request))

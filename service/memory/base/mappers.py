@@ -4,6 +4,7 @@ from controllers.memory.schemas import (
     ConversationAppendMessageRequest,
     ConversationCreateRequest,
     ConversationGetQuery,
+    ConversationSourceResponse,
     MemoryCreateRequest,
     MemoryRetrieveRequest,
     MemoryRetrieveResponse,
@@ -16,6 +17,7 @@ from .contracts import (
     ConversationSourceCreateCommand,
     ConversationSourceGetQuery,
     ConversationSourceMetadata,
+    ConversationSourceView,
     MemoryRetrievedMemory,
     MemoryRetrieveQuery,
     MemorySourceRef,
@@ -69,6 +71,26 @@ def conversation_get_query_to_query(
     payload: ConversationGetQuery,
 ) -> ConversationSourceGetQuery:
     return ConversationSourceGetQuery(user_id=user_id, conversation_id=conversation_id)
+
+
+def conversation_view_to_response(view: ConversationSourceView | dict[str, object]) -> ConversationSourceResponse:
+    if isinstance(view, dict):
+        view = ConversationSourceView.model_validate(view)
+    return ConversationSourceResponse(
+        conversation_id=view.conversation_id,
+        type=view.type,
+        title=view.title,
+        user_id=view.user_id,
+        agent_id=view.agent_id,
+        project_id=view.project_id,
+        external_source=view.external_source,
+        external_session_id=view.external_session_id,
+        message_count=view.message_count,
+        modalities=list(view.modalities),
+        version=view.version,
+        created_at=view.created_at,
+        updated_at=view.updated_at,
+    )
 
 
 async def memory_create_request_to_command(payload: MemoryCreateRequest) -> MemoryWriteCommand:

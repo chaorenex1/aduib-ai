@@ -12,7 +12,6 @@ class MemoryWriteTask(Base):
         Index("idx_memory_write_task_created_at", "created_at"),
         Index("idx_memory_write_task_idempotency", "idempotency_key"),
         Index("idx_memory_write_task_phase", "phase"),
-        Index("idx_memory_write_task_queue_status", "queue_status"),
         Index("idx_memory_write_task_status", "status"),
         Index("idx_memory_write_task_task_id", "task_id", unique=True),
         {"comment": "Queue-first async memory write task lifecycle and journal metadata"},
@@ -39,54 +38,25 @@ class MemoryWriteTask(Base):
 
     status = Column(
         String(32),
-        nullable=False,
-        default="pending",
-        server_default=text("'pending'"),
-        comment="pending | accepted | running | committed | rolled_back | needs_manual_recovery | publish_failed",
+        nullable=True,
+        comment="Terminal task outcome: success | failed",
     )
     phase = Column(
         String(64),
         nullable=False,
         default="accepted",
         server_default=text("'accepted'"),
-        comment="Detailed phase state machine",
-    )
-    queue_status = Column(
-        String(32),
-        nullable=False,
-        default="publish_pending",
-        server_default=text("'publish_pending'"),
-        comment="publish_pending | queued | publish_failed",
+        comment="Current processing phase",
     )
 
-    retry_count = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        server_default=text("0"),
-        comment="Publish retry attempts",
-    )
-    retry_budget = Column(
-        Integer,
-        nullable=False,
-        default=3,
-        server_default=text("3"),
-        comment="Max publish retry attempts",
-    )
     last_publish_error = Column(Text, nullable=True, comment="Last publish error")
     publish_failed_at = Column(DateTime, nullable=True, comment="Publish failure timestamp")
-    replayed_by = Column(String(100), nullable=True, comment="Operator that replayed publish_failed")
-    replayed_at = Column(DateTime, nullable=True, comment="Replay timestamp")
     failure_code = Column(String(64), nullable=True, comment="Failure code")
     failure_message = Column(Text, nullable=True, comment="Failure message")
     last_error = Column(Text, nullable=True, comment="Last error seen by task")
     rollback_metadata = Column(JSONB, nullable=True, comment="Rollback and recovery metadata payload")
     journal_ref = Column(String(255), nullable=True, comment="Commit journal location")
     operator_notes = Column(Text, nullable=True, comment="Operator notes")
-    recovery_owner = Column(String(100), nullable=True, comment="On-call owner for needs_manual_recovery")
-    recovery_opened_at = Column(DateTime, nullable=True, comment="Recovery issue opened timestamp")
-    recovery_ack_deadline = Column(DateTime, nullable=True, comment="Recovery acknowledgement deadline")
-    recovery_sla_deadline = Column(DateTime, nullable=True, comment="Recovery mitigation deadline")
     queued_at = Column(DateTime, nullable=True, comment="Queue ack timestamp")
     started_at = Column(DateTime, nullable=True, comment="Worker started timestamp")
     completed_at = Column(DateTime, nullable=True, comment="Terminal completion timestamp")

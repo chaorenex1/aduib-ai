@@ -3,16 +3,53 @@ from __future__ import annotations
 import datetime
 
 from models import MemoryWriteTask
-
-from .base.contracts import ArchivedSourceRef, MemorySourceRef, MemoryWriteTaskResult, MemoryWriteTaskView
-from .base.enums import MemoryQueueStatus, MemoryTaskPhase, MemoryTaskStatus
-from .base.errors import MemoryWriteTaskNotFoundError, MemoryWriteTaskReplayError
+from runtime.tasks.celery_app import celery_app
+from .base.builders import build_queue_payload, build_task_request_idempotency_key, new_task_id, new_trace_id
+from .base.contracts import (
+    ArchivedSourceRef,
+    MemorySourceRef,
+    MemoryTaskCreateCommand,
+    MemoryWriteAccepted,
+    MemoryWriteTaskResult,
+    MemoryWriteTaskView,
+)
+from .base.enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType
+from .base.errors import MemoryValidationError, MemoryWritePublishError, MemoryWriteTaskNotFoundError
 from .repository import MemoryWriteTaskRepository
 
 MEMORY_WRITE_TASK_NAME = "runtime.tasks.memory_write.execute"
 
 
 class MemoryWriteTaskService:
+    @classmethod
+    async def accept_task_request(cls, payload: MemoryTaskCreateCommand) -> MemoryWriteAccepted:
+        task_id = new_task_id()
+        trace_id = new_trace_id()
+        trigger_type = MemoryTriggerType.MEMORY_API
+
+        from runtime.memory.source_archive import MemorySourceArchiveRuntime
+
+        archive_ref = await MemorySourceArchiveRuntime.archive_session_commit(
+            payload,
+            task_id=task_id,
+            trace_id=trace_id,
+        )
+        source_ref = cls._normalize_conversation_source_ref(payload)
+
+        task = cls.create_task(
+            task_id=task_id,
+            trigger_type=trigger_type,
+            user_id=payload.user_id,
+            agent_id=payload.agent_id,
+            project_id=payload.project_id,
+            trace_id=trace_id,
+            idempotency_key=build_task_request_idempotency_key(payload),
+            source_ref=source_ref,
+            archive_ref=archive_ref,
+        )
+        queued_task = cls._publish_task(task)
+        return cls._accepted_response(queued_task)
+
     @classmethod
     def create_task(
         cls,
@@ -43,9 +80,7 @@ class MemoryWriteTaskService:
             source_ref=source_ref.model_dump(mode="python", exclude_none=True),
             archive_ref=archive_ref.model_dump(mode="python", exclude_none=True) if archive_ref else None,
             queue_payload=queue_payload,
-            status=MemoryTaskStatus.ACCEPTED,
             phase=MemoryTaskPhase.ACCEPTED,
-            queue_status=MemoryQueueStatus.PUBLISH_PENDING,
         )
         task = MemoryWriteTaskRepository.create(task)
         return cls._serialize_task(task)
@@ -72,32 +107,9 @@ class MemoryWriteTaskService:
         )
 
     @classmethod
-    def prepare_replay(cls, task_id: str, actor: str | None = None) -> MemoryWriteTaskView:
-        def _mutate(task: MemoryWriteTask) -> None:
-            if task.queue_status != MemoryQueueStatus.PUBLISH_FAILED:
-                raise MemoryWriteTaskReplayError("only publish_failed tasks can be replayed")
-            now = datetime.datetime.now(datetime.UTC)
-            task.replayed_by = actor
-            task.replayed_at = now
-            task.retry_count = int(task.retry_count or 0) + 1
-            task.status = MemoryTaskStatus.ACCEPTED
-            task.phase = MemoryTaskPhase.ACCEPTED
-            task.queue_status = MemoryQueueStatus.PUBLISH_PENDING
-            task.last_publish_error = None
-            task.publish_failed_at = None
-
-        task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
-        if task is None:
-            raise MemoryWriteTaskNotFoundError("memory write task not found")
-        return cls._serialize_task(task)
-
-    @classmethod
     def mark_queued(cls, task_id: str, *, queue_payload: dict) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
-            task.status = MemoryTaskStatus.ACCEPTED
-            task.phase = MemoryTaskPhase.ACCEPTED
-            task.queue_status = MemoryQueueStatus.QUEUED
             task.queue_payload = queue_payload
             task.queued_at = now
 
@@ -111,14 +123,29 @@ class MemoryWriteTaskService:
         return MEMORY_WRITE_TASK_NAME
 
     @classmethod
+    def _publish_task(cls, task: MemoryWriteTaskView) -> MemoryWriteTaskView:
+        try:
+            async_result = celery_app.send_task(
+                cls.get_queue_task_name(),
+                kwargs={"task_id": task.task_id},
+            )
+        except Exception as exc:
+            cls.mark_publish_failed(task.task_id, str(exc))
+            raise MemoryWritePublishError(str(exc), task_id=task.task_id) from exc
+
+        queue_payload = build_queue_payload(celery_message_id=async_result.id)
+        return cls.mark_queued(task.task_id, queue_payload=queue_payload)
+
+    @classmethod
     def mark_publish_failed(cls, task_id: str, error: str) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
-            task.status = MemoryTaskStatus.PUBLISH_FAILED
-            task.queue_status = MemoryQueueStatus.PUBLISH_FAILED
+            task.status = MemoryTaskFinalStatus.FAILED
             task.last_publish_error = error
             task.publish_failed_at = now
+            task.failure_message = error
             task.last_error = error
+            task.completed_at = now
 
         task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
         if task is None:
@@ -129,7 +156,6 @@ class MemoryWriteTaskService:
     def mark_running(cls, task_id: str, *, phase: str) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
-            task.status = MemoryTaskStatus.RUNNING
             task.phase = phase
             task.started_at = task.started_at or now
 
@@ -150,7 +176,6 @@ class MemoryWriteTaskService:
         rollback_metadata: dict | None = None,
     ) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
-            task.status = MemoryTaskStatus.RUNNING
             task.phase = phase
             if result_ref is not None:
                 task.result_ref = result_ref
@@ -179,7 +204,7 @@ class MemoryWriteTaskService:
     ) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
-            task.status = MemoryTaskStatus.COMMITTED
+            task.status = MemoryTaskFinalStatus.SUCCESS
             task.phase = MemoryTaskPhase.COMMITTED
             if result_ref is not None:
                 task.result_ref = result_ref
@@ -209,7 +234,7 @@ class MemoryWriteTaskService:
     ) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
             now = datetime.datetime.now(datetime.UTC)
-            task.status = MemoryTaskStatus.NEEDS_MANUAL_RECOVERY
+            task.status = MemoryTaskFinalStatus.FAILED
             task.phase = phase
             task.last_error = error
             task.failure_message = error
@@ -235,13 +260,10 @@ class MemoryWriteTaskService:
             project_id=task.project_id,
             status=task.status,
             phase=task.phase,
-            queue_status=task.queue_status,
             source_ref=MemorySourceRef(**(task.source_ref or {})),
             archive_ref=ArchivedSourceRef(**task.archive_ref) if task.archive_ref else None,
             queue_payload=task.queue_payload,
             result_ref=task.result_ref,
-            retry_count=int(task.retry_count or 0),
-            retry_budget=int(task.retry_budget or 0),
             last_publish_error=task.last_publish_error,
             failure_code=task.failure_code,
             failure_message=task.failure_message,
@@ -249,11 +271,52 @@ class MemoryWriteTaskService:
             rollback_metadata=task.rollback_metadata,
             journal_ref=task.journal_ref,
             operator_notes=task.operator_notes,
-            replayed_by=task.replayed_by,
-            replayed_at=task.replayed_at.isoformat() if task.replayed_at else None,
             queued_at=task.queued_at.isoformat() if task.queued_at else None,
             started_at=task.started_at.isoformat() if task.started_at else None,
             completed_at=task.completed_at.isoformat() if task.completed_at else None,
             created_at=task.created_at.isoformat() if task.created_at else None,
             updated_at=task.updated_at.isoformat() if task.updated_at else None,
+        )
+
+    @staticmethod
+    def _accepted_response(task: MemoryWriteTaskView) -> MemoryWriteAccepted:
+        return MemoryWriteAccepted(
+            task_id=task.task_id,
+            trace_id=task.trace_id,
+            trigger_type=task.trigger_type,
+            user_id=task.user_id,
+            agent_id=task.agent_id,
+            project_id=task.project_id,
+            status=task.status,
+            phase=task.phase,
+            source_ref=task.source_ref,
+            archive_ref=task.archive_ref,
+        )
+
+    @staticmethod
+    def _normalize_conversation_source_ref(payload: MemoryTaskCreateCommand) -> MemorySourceRef:
+        source_ref = payload.source_ref
+
+        from .conversation_repository import ConversationRepository
+
+        conversation = ConversationRepository.get_conversation(
+            user_id=payload.user_id,
+            conversation_id=source_ref.id,
+        )
+        if conversation is None:
+            raise MemoryValidationError("conversation source_ref not found for user")
+
+        if source_ref.external_source and source_ref.external_source != conversation.external_source:
+            raise MemoryValidationError("conversation source_ref external_source does not match current metadata")
+        if source_ref.external_session_id and source_ref.external_session_id != conversation.external_session_id:
+            raise MemoryValidationError("conversation source_ref external_session_id does not match current metadata")
+
+        return MemorySourceRef(
+            type="conversation",
+            id=conversation.conversation_id,
+            storage="pg_jsonl",
+            version=conversation.version,
+            external_source=conversation.external_source,
+            external_session_id=conversation.external_session_id,
+            message_ref=conversation.message_ref.model_dump(mode="python", exclude_none=True),
         )

@@ -51,11 +51,6 @@ from .common import health
 
 api_router.include_router(health.router)
 
-# legacy memory
-from .memory import legacy
-
-api_router.include_router(legacy.router)
-
 # programmer memory
 from .memory import conversations, feedback, memories, projects, search, tasks
 

@@ -35,9 +35,13 @@ class MemoryWriteTaskNotFoundError(MemoryWriteTaskError):
     code = "memory_task_not_found"
 
 
-class MemoryWriteTaskReplayError(MemoryWriteTaskError):
-    status_code = 409
-    code = "memory_task_replay_conflict"
+class MemoryReadError(MemoryServiceError):
+    code = "memory_read_error"
+
+
+class MemoryReadNotFoundError(MemoryReadError):
+    status_code = 404
+    code = "memory_read_not_found"
 
 
 class ConversationSourceError(MemoryServiceError):

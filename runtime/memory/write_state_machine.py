@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from service.memory.base.enums import MemoryTaskPhase
+from service.memory.base.enums import MemoryTaskFinalStatus, MemoryTaskPhase
 
 from .write_pipeline import run_memory_write_task_phase
 
@@ -83,7 +83,7 @@ def _commit_memory_write_task(*, task_id: str, phase_results: dict[str, dict]) -
 
     final_result = {
         "task_id": task_id,
-        "status": str(MemoryTaskPhase.COMMITTED),
+        "status": str(MemoryTaskFinalStatus.SUCCESS),
         "final_phase": str(MemoryTaskPhase.COMMITTED),
         "phase_results": phase_results,
     }

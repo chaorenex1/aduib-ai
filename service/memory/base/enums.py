@@ -8,20 +8,9 @@ class MemoryTriggerType(StrEnum):
     SESSION_COMMIT = "session_commit"
 
 
-class MemoryTaskStatus(StrEnum):
-    PENDING = "pending"
-    ACCEPTED = "accepted"
-    RUNNING = "running"
-    COMMITTED = "committed"
-    ROLLED_BACK = "rolled_back"
-    NEEDS_MANUAL_RECOVERY = "needs_manual_recovery"
-    PUBLISH_FAILED = "publish_failed"
-
-
-class MemoryQueueStatus(StrEnum):
-    PUBLISH_PENDING = "publish_pending"
-    QUEUED = "queued"
-    PUBLISH_FAILED = "publish_failed"
+class MemoryTaskFinalStatus(StrEnum):
+    SUCCESS = "success"
+    FAILED = "failed"
 
 
 class MemoryTaskPhase(StrEnum):

@@ -106,6 +106,22 @@ class ConversationGetQuery(MemorySchema):
     pass
 
 
+class ConversationSourceResponse(MemorySchema):
+    conversation_id: str = Field(..., min_length=1)
+    type: str = Field(..., min_length=1)
+    title: str | None = None
+    user_id: str = Field(..., min_length=1)
+    agent_id: str | None = None
+    project_id: str | None = None
+    external_source: str = Field(..., min_length=1)
+    external_session_id: str = Field(..., min_length=1)
+    message_count: int = Field(..., ge=1)
+    modalities: list[str] = Field(default_factory=list)
+    version: int = Field(..., ge=1)
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
 class ProjectItemPayload(MemorySchema):
     item_type: str = Field(..., min_length=1)
     doc_type: str | None = None
@@ -149,9 +165,8 @@ class MemoryWriteAcceptedResponse(MemorySchema):
     task_id: str = Field(..., min_length=1)
     trace_id: str = Field(..., min_length=1)
     trigger_type: str = Field(..., min_length=1)
-    status: str = Field(..., min_length=1)
+    status: str | None = None
     phase: str = Field(..., min_length=1)
-    queue_status: str = Field(..., min_length=1)
     source_ref: SourceRef
     archive_ref: MemoryArchiveRef | None = None
 
@@ -159,8 +174,6 @@ class MemoryWriteAcceptedResponse(MemorySchema):
 class MemoryWriteTaskResponse(MemoryWriteAcceptedResponse):
     queue_payload: dict[str, Any] | None = None
     result_ref: dict[str, Any] | None = None
-    retry_count: int = 0
-    retry_budget: int = 0
     last_publish_error: str | None = None
     failure_code: str | None = None
     failure_message: str | None = None
@@ -168,8 +181,6 @@ class MemoryWriteTaskResponse(MemoryWriteAcceptedResponse):
     rollback_metadata: dict[str, Any] | None = None
     journal_ref: str | None = None
     operator_notes: str | None = None
-    replayed_by: str | None = None
-    replayed_at: str | None = None
     queued_at: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
@@ -179,17 +190,13 @@ class MemoryWriteTaskResponse(MemoryWriteAcceptedResponse):
 
 class MemoryWriteTaskResultResponse(MemorySchema):
     task_id: str = Field(..., min_length=1)
-    status: str = Field(..., min_length=1)
+    status: str | None = None
     phase: str = Field(..., min_length=1)
     result_ref: dict[str, Any] | None = None
     archive_ref: MemoryArchiveRef | None = None
     journal_ref: str | None = None
     operator_notes: str | None = None
     last_error: str | None = None
-
-
-class MemoryWriteReplayRequest(MemorySchema):
-    actor: str | None = Field(None, min_length=1)
 
 
 class MemoryListQuery(MemoryScope):
@@ -200,7 +207,7 @@ class MemoryListQuery(MemoryScope):
     limit: int = Field(20, ge=1, le=100)
 
 
-class MemoryByPathQuery(MemorySchema):
+class MemoryByPathQuery(MemoryScope):
     path: str = Field(..., min_length=1)
 
 
