@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Literal
 
 from component.vdb.vector_factory import Vector
 from runtime.entities.document_entities import Document
+from runtime.rag.embeddings import DefaultEmbeddingProvider
 from runtime.rag.indexing.indexing_profile import IndexingProfile
-from runtime.rag.retrieve.embedding import DefaultEmbeddingProvider
 from runtime.rag.vector_specs import build_vector_store_spec
 
 if TYPE_CHECKING:

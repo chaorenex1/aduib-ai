@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from component.vdb.vector_store_factory import get_vector_store_factory
 from configs import config
-from runtime.rag.retrieve.embedding import DefaultEmbeddingProvider
+from runtime.rag.embeddings import DefaultEmbeddingProvider
 from runtime.rag.vector_specs import build_vector_store_spec
 
 if TYPE_CHECKING:
