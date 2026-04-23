@@ -73,17 +73,18 @@ def prepare_extract_context(context: MemoryWritePipelineContext) -> dict:
     return prepared.model_dump(mode="python", exclude_none=True)
 
 
-def load_pg_jsonl_conversation_snapshot(source_ref: dict[str, Any]) -> tuple[dict[str, Any], str]:
-    message_ref = source_ref.get("message_ref") or {}
-    uri = str(message_ref.get("uri") or "").strip()
-    if not uri:
-        raise ValueError("conversation source_ref.message_ref.uri is required")
+def load_pg_jsonl_conversation_snapshot(
+    archive_ref: ArchivedSourceRef | None,
+    *,
+    conversation_id: str,
+) -> tuple[dict[str, Any], str]:
+    if archive_ref is None:
+        raise ValueError("archive_ref is required for conversation source")
 
-    raw_content = storage_manager.read_text(uri)
+    raw_content = storage_manager.read_text(archive_ref.path)
     actual_sha256 = hashlib.sha256(raw_content.encode("utf-8")).hexdigest()
-    expected_sha256 = message_ref.get("sha256")
-    if expected_sha256 and expected_sha256 != actual_sha256:
-        raise ValueError("conversation source_ref.message_ref.sha256 does not match current content")
+    if archive_ref.content_sha256 and archive_ref.content_sha256 != actual_sha256:
+        raise ValueError("archive_ref.content_sha256 does not match current archived content")
 
     messages: list[dict[str, Any]] = []
     for index, line in enumerate(raw_content.splitlines(), start=1):
@@ -96,18 +97,14 @@ def load_pg_jsonl_conversation_snapshot(source_ref: dict[str, Any]) -> tuple[dic
             raise ValueError(f"conversation jsonl contains invalid json at line {index}") from exc
         if not isinstance(message, dict):
             raise ValueError(f"conversation jsonl contains non-object row at line {index}")
-        if message.get("conversation_id") != source_ref.get("id"):
+        if message.get("conversation_id") != conversation_id:
             raise ValueError(f"conversation jsonl contains mismatched conversation_id at line {index}")
         messages.append(message)
 
     return (
         {
-            "storage": "pg_jsonl",
-            "message_ref": {
-                "type": message_ref.get("type", "jsonl"),
-                "uri": uri,
-                "sha256": actual_sha256,
-            },
+            "storage": "frozen_jsonl",
+            "archive_ref": archive_ref.model_dump(mode="python", exclude_none=True),
             "message_count": len(messages),
             "messages": messages,
         },
@@ -117,8 +114,11 @@ def load_pg_jsonl_conversation_snapshot(source_ref: dict[str, Any]) -> tuple[dic
 
 def _normalize_source_material(context: MemoryWritePipelineContext) -> dict[str, Any]:
     source_ref = context.source_ref.model_dump(mode="python", exclude_none=True)
-    if source_ref.get("type") == "conversation" and source_ref.get("storage") == "pg_jsonl":
-        conversation_snapshot, source_hash = load_pg_jsonl_conversation_snapshot(source_ref)
+    if source_ref.get("type") == "conversation":
+        conversation_snapshot, source_hash = load_pg_jsonl_conversation_snapshot(
+            context.archive_ref,
+            conversation_id=str(source_ref.get("conversation_id") or "").strip(),
+        )
         messages = [_normalize_message(message) for message in conversation_snapshot["messages"]]
         text_blocks = _collect_text_blocks(messages)
         return {

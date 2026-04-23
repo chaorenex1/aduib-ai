@@ -13,13 +13,13 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from component.storage.base_storage import BaseStorage, StorageEntry, storage_manager
 from controllers.memory.schemas import TaskCreateRequest
-from service.memory import ConversationRepository, MemorySourceArchiveService, MemoryWriteIngestService
+from runtime.memory.source_archive import MemorySourceArchiveRuntime
+from service.memory import ConversationRepository, MemoryWriteTaskService
 from service.memory.base.contracts import (
     ArchivedSourceRef,
-    ConversationMessageRef,
     MemoryWriteTaskView,
 )
-from service.memory.base.enums import MemoryQueueStatus, MemoryTaskPhase, MemoryTaskStatus
+from service.memory.base.enums import MemoryTaskPhase
 from service.memory.base.errors import MemoryValidationError
 from service.memory.base.mappers import task_create_request_to_command
 
@@ -93,7 +93,7 @@ async def test_archive_session_commit_writes_snapshot(monkeypatch: pytest.Monkey
     storage = _InMemoryStorage()
     monkeypatch.setattr(storage_manager, "storage_instance", storage)
     monkeypatch.setattr(
-        MemorySourceArchiveService,
+        MemorySourceArchiveRuntime,
         "_load_session_messages",
         staticmethod(
             lambda agent_session_id, user_id, agent_id: [
@@ -117,11 +117,11 @@ async def test_archive_session_commit_writes_snapshot(monkeypatch: pytest.Monkey
         agent_id="7",
         project_id="p1",
         trigger_type="session_commit",
-        source_ref={"type": "session_commit", "id": "session-7", "path": "conversation/session-7"},
+        source_ref={"type": "session_commit", "conversation_id": "session-7", "path": "conversation/session-7"},
     )
     command = task_create_request_to_command(request)
 
-    archive_ref = await MemorySourceArchiveService.archive_session_commit(
+    archive_ref = await MemorySourceArchiveRuntime.archive_session_commit(
         command,
         task_id="task-1",
         trace_id="trace-1",
@@ -141,7 +141,7 @@ async def test_accept_task_request_archives_session_commit_before_publish(monkey
         agent_id="7",
         project_id="p1",
         trigger_type="session_commit",
-        source_ref={"type": "session_commit", "id": "session-7", "path": "conversation/session-7"},
+        source_ref={"type": "session_commit", "conversation_id": "session-7", "path": "conversation/session-7"},
     )
     command = task_create_request_to_command(request)
 
@@ -166,37 +166,35 @@ async def test_accept_task_request_archives_session_commit_before_publish(monkey
             task_id=kwargs["task_id"],
             trace_id=kwargs["trace_id"],
             trigger_type=kwargs["trigger_type"],
-            status=MemoryTaskStatus.ACCEPTED,
+            status=None,
             phase=MemoryTaskPhase.ACCEPTED,
-            queue_status=MemoryQueueStatus.PUBLISH_PENDING,
             source_ref=kwargs["source_ref"],
             archive_ref=kwargs["archive_ref"],
         )
 
-    def _fake_publish_task(task_id: str):
+    def _fake_publish_task(task):
         return MemoryWriteTaskView(
-            task_id=task_id,
+            task_id=task.task_id,
             trace_id="trace-queued",
             trigger_type="session_commit",
-            status=MemoryTaskStatus.ACCEPTED,
+            status=None,
             phase=MemoryTaskPhase.ACCEPTED,
-            queue_status=MemoryQueueStatus.QUEUED,
             source_ref=command.source_ref,
             archive_ref=fake_archive,
         )
 
     monkeypatch.setattr(
-        MemorySourceArchiveService,
+        MemorySourceArchiveRuntime,
         "archive_session_commit",
         staticmethod(_fake_archive_session_commit),
     )
-    monkeypatch.setattr("service.memory.write_ingest_service.MemoryWriteTaskService.create_task", _fake_create_task)
-    monkeypatch.setattr("service.memory.write_ingest_service.MemoryWriteTaskService.publish_task", _fake_publish_task)
+    monkeypatch.setattr(MemoryWriteTaskService, "create_task", staticmethod(_fake_create_task))
+    monkeypatch.setattr(MemoryWriteTaskService, "_publish_task", staticmethod(_fake_publish_task))
 
-    accepted = await MemoryWriteIngestService.accept_task_request(command)
+    accepted = await MemoryWriteTaskService.accept_task_request(command)
 
     assert accepted.trigger_type == "session_commit"
-    assert accepted.queue_status == "queued"
+    assert accepted.status is None
     assert accepted.archive_ref is not None
     assert captured["create_task"]["archive_ref"] == fake_archive
 
@@ -210,16 +208,7 @@ async def test_accept_task_request_normalizes_conversation_source_ref_from_pg(mo
         trigger_type="memory_api",
         source_ref={
             "type": "conversation",
-            "id": "codex:sess-1",
-            "storage": "pg_jsonl",
-            "version": 2,
-            "external_source": "codex",
-            "external_session_id": "sess-1",
-            "message_ref": {
-                "type": "jsonl",
-                "uri": "memory_pipeline/users/u1/sources/conversations/codex__sess-1.jsonl",
-                "sha256": "sha256-1",
-            },
+            "conversation_id": "codex:sess-1",
         },
     )
     command = task_create_request_to_command(request)
@@ -234,14 +223,6 @@ async def test_accept_task_request_normalizes_conversation_source_ref_from_pg(mo
                 (),
                 {
                     "conversation_id": "codex:sess-1",
-                    "version": 2,
-                    "external_source": "codex",
-                    "external_session_id": "sess-1",
-                    "message_ref": ConversationMessageRef(
-                        type="jsonl",
-                        uri="memory_pipeline/users/u1/sources/conversations/codex__sess-1.jsonl",
-                        sha256="sha256-1",
-                    ),
                 },
             )()
         ),
@@ -253,39 +234,35 @@ async def test_accept_task_request_normalizes_conversation_source_ref_from_pg(mo
             task_id=kwargs["task_id"],
             trace_id=kwargs["trace_id"],
             trigger_type=kwargs["trigger_type"],
-            status=MemoryTaskStatus.ACCEPTED,
+            status=None,
             phase=MemoryTaskPhase.ACCEPTED,
-            queue_status=MemoryQueueStatus.PUBLISH_PENDING,
             source_ref=kwargs["source_ref"],
             archive_ref=kwargs["archive_ref"],
         )
 
-    def _fake_publish_task(task_id: str):
+    def _fake_publish_task(task):
         return MemoryWriteTaskView(
-            task_id=task_id,
+            task_id=task.task_id,
             trace_id="trace-queued",
             trigger_type="memory_api",
-            status=MemoryTaskStatus.ACCEPTED,
+            status=None,
             phase=MemoryTaskPhase.ACCEPTED,
-            queue_status=MemoryQueueStatus.QUEUED,
             source_ref=captured["source_ref"],
             archive_ref=None,
         )
 
-    monkeypatch.setattr("service.memory.write_ingest_service.MemoryWriteTaskService.create_task", _fake_create_task)
-    monkeypatch.setattr("service.memory.write_ingest_service.MemoryWriteTaskService.publish_task", _fake_publish_task)
+    monkeypatch.setattr(MemoryWriteTaskService, "create_task", staticmethod(_fake_create_task))
+    monkeypatch.setattr(MemoryWriteTaskService, "_publish_task", staticmethod(_fake_publish_task))
 
-    accepted = await MemoryWriteIngestService.accept_task_request(command)
+    accepted = await MemoryWriteTaskService.accept_task_request(command)
 
     assert accepted.archive_ref is None
-    assert accepted.source_ref.storage == "pg_jsonl"
-    assert accepted.source_ref.version == 2
     assert accepted.source_ref.path is None
-    assert accepted.source_ref.message_ref["uri"].endswith("codex__sess-1.jsonl")
+    assert accepted.source_ref.conversation_id == "codex:sess-1"
 
 
 @pytest.mark.anyio
-async def test_accept_task_request_rejects_conversation_version_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_accept_task_request_rejects_missing_conversation_source(monkeypatch: pytest.MonkeyPatch) -> None:
     request = TaskCreateRequest(
         user_id="u1",
         agent_id="a1",
@@ -293,14 +270,33 @@ async def test_accept_task_request_rejects_conversation_version_mismatch(monkeyp
         trigger_type="memory_api",
         source_ref={
             "type": "conversation",
-            "id": "codex:sess-1",
-            "storage": "pg_jsonl",
-            "version": 1,
-            "message_ref": {
-                "type": "jsonl",
-                "uri": "memory_pipeline/users/u1/sources/conversations/codex__sess-1.jsonl",
-                "sha256": "sha256-1",
-            },
+            "conversation_id": "codex:sess-1",
+        },
+    )
+    command = task_create_request_to_command(request)
+
+    monkeypatch.setattr(
+        ConversationRepository,
+        "get_conversation",
+        staticmethod(lambda **_: None),
+    )
+
+    with pytest.raises(MemoryValidationError, match="not found"):
+        await MemoryWriteTaskService.accept_task_request(command)
+
+
+@pytest.mark.anyio
+async def test_accept_task_request_rejects_conversation_agent_scope_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = TaskCreateRequest(
+        user_id="u1",
+        agent_id="a1",
+        project_id="p1",
+        trigger_type="memory_api",
+        source_ref={
+            "type": "conversation",
+            "conversation_id": "codex:sess-1",
         },
     )
     command = task_create_request_to_command(request)
@@ -314,18 +310,12 @@ async def test_accept_task_request_rejects_conversation_version_mismatch(monkeyp
                 (),
                 {
                     "conversation_id": "codex:sess-1",
-                    "version": 2,
-                    "external_source": "codex",
-                    "external_session_id": "sess-1",
-                    "message_ref": ConversationMessageRef(
-                        type="jsonl",
-                        uri="memory_pipeline/users/u1/sources/conversations/codex__sess-1.jsonl",
-                        sha256="sha256-1",
-                    ),
+                    "agent_id": "other-agent",
+                    "project_id": "p1",
                 },
             )()
         ),
     )
 
-    with pytest.raises(MemoryValidationError, match="version"):
-        await MemoryWriteIngestService.accept_task_request(command)
+    with pytest.raises(MemoryValidationError, match="agent_id"):
+        await MemoryWriteTaskService.accept_task_request(command)

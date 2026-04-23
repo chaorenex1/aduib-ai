@@ -13,11 +13,8 @@ class MemoryContract(BaseModel):
 
 class MemorySourceRef(MemoryContract):
     type: str = Field(..., min_length=1)
-    id: str = Field(..., min_length=1)
+    conversation_id: str = Field(..., min_length=1)
     path: str | None = None
-    storage: str | None = None
-    version: int | None = None
-    message_ref: dict[str, Any] | None = None
     external_source: str | None = None
     external_session_id: str | None = None
 

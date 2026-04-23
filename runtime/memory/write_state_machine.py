@@ -18,12 +18,17 @@ MEMORY_WRITE_STATE_TRANSITIONS = {
 
 
 def execute_memory_write_task(task_id: str, *, worker_task_id: str | None = None) -> dict:
-    return _advance_memory_write_state(
-        task_id=task_id,
-        phase=MemoryTaskPhase.PREPARE_EXTRACT_CONTEXT,
-        phase_results={},
-        worker_task_id=worker_task_id,
-    )
+    archive_ref = None
+    try:
+        archive_ref = _materialize_worker_archive(task_id=task_id, worker_task_id=worker_task_id)
+        return _advance_memory_write_state(
+            task_id=task_id,
+            phase=MemoryTaskPhase.PREPARE_EXTRACT_CONTEXT,
+            phase_results={},
+            worker_task_id=worker_task_id,
+        )
+    finally:
+        _cleanup_worker_archive(task_id=task_id, archive_ref=archive_ref)
 
 
 def _advance_memory_write_state(
@@ -133,3 +138,45 @@ def _build_recovery_artifacts_from_failure(
         if isinstance(parsed_rollback_metadata, dict):
             rollback_metadata = {**rollback_metadata, **parsed_rollback_metadata}
     return journal_ref, rollback_metadata
+
+
+def _materialize_worker_archive(*, task_id: str, worker_task_id: str | None) -> object:
+    from runtime.memory.source_archive import MemorySourceArchiveRuntime
+    from service.memory import MemoryWriteTaskService
+    from service.memory.base.enums import MemoryTriggerType
+
+    task = MemoryWriteTaskService.get_task(task_id)
+    if task.trigger_type != MemoryTriggerType.MEMORY_API or task.source_ref.type != "conversation":
+        return None
+
+    try:
+        archive_ref = MemorySourceArchiveRuntime.freeze_conversation_source(task)
+        MemoryWriteTaskService.attach_archive_ref(task_id, archive_ref=archive_ref)
+        return archive_ref
+    except Exception as exc:
+        rollback_metadata = {"worker_task_id": worker_task_id} if worker_task_id else None
+        MemoryWriteTaskService.mark_needs_manual_recovery(
+            task_id,
+            phase=MemoryTaskPhase.PREPARE_EXTRACT_CONTEXT,
+            error=str(exc),
+            rollback_metadata=rollback_metadata,
+        )
+        raise
+
+
+def _cleanup_worker_archive(*, task_id: str, archive_ref) -> None:
+    if archive_ref is None:
+        return
+
+    from runtime.memory.source_archive import MemorySourceArchiveRuntime
+    from service.memory import MemoryWriteTaskService
+
+    try:
+        MemorySourceArchiveRuntime.delete_archive(archive_ref)
+    except Exception:
+        return
+
+    try:
+        MemoryWriteTaskService.clear_archive_ref(task_id)
+    except Exception:
+        return

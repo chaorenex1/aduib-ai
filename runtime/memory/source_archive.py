@@ -5,10 +5,19 @@ import json
 
 from component.storage.base_storage import storage_manager
 from service.memory import SessionMessageRepository
-from service.memory.base.contracts import ArchivedSourceRef, MemoryTaskCreateCommand, MemoryWriteCommand
+from service.memory.base.contracts import (
+    ArchivedSourceRef,
+    MemoryTaskCreateCommand,
+    MemoryWriteCommand,
+    MemoryWriteTaskView,
+)
 from service.memory.base.enums import MemoryTriggerType
 from service.memory.base.errors import MemoryArchiveError, MemoryValidationError
-from service.memory.base.paths import build_memory_api_archive_path, build_session_commit_archive_path
+from service.memory.base.paths import (
+    build_memory_api_archive_path,
+    build_memory_api_conversation_archive_path,
+    build_session_commit_archive_path,
+)
 
 
 class MemorySourceArchiveRuntime:
@@ -39,6 +48,62 @@ class MemorySourceArchiveRuntime:
         archive_text = json.dumps(snapshot, ensure_ascii=False, indent=2)
         archive_path = build_memory_api_archive_path(user_id=payload.user_id, task_id=task_id)
         return MemorySourceArchiveRuntime._write_archive(archive_path=archive_path, archive_text=archive_text)
+
+    @staticmethod
+    def freeze_conversation_source(
+        task: MemoryWriteTaskView,
+    ) -> ArchivedSourceRef:
+        if task.source_ref.type != "conversation":
+            raise MemoryValidationError("freeze_conversation_source requires conversation source_ref")
+
+        from service.memory import ConversationRepository
+
+        conversation = ConversationRepository.get_conversation(
+            user_id=str(task.user_id or "").strip(),
+            conversation_id=task.source_ref.conversation_id,
+        )
+        if conversation is None:
+            raise MemoryValidationError("conversation source_ref not found for user")
+        conversation_agent_id = getattr(conversation, "agent_id", None)
+        conversation_project_id = getattr(conversation, "project_id", None)
+        if task.agent_id is not None and conversation_agent_id is not None and task.agent_id != conversation_agent_id:
+            raise MemoryValidationError("conversation source_ref agent_id does not match current scope")
+        if (
+            task.project_id is not None
+            and conversation_project_id is not None
+            and task.project_id != conversation_project_id
+        ):
+            raise MemoryValidationError("conversation source_ref project_id does not match current scope")
+
+        live_uri = str(conversation.message_ref.uri or "").strip()
+        if not live_uri:
+            raise MemoryValidationError("conversation source does not have a readable jsonl uri")
+
+        try:
+            archive_text = storage_manager.read_text(live_uri)
+        except Exception as exc:
+            raise MemoryArchiveError(f"failed to read conversation source: {live_uri}") from exc
+
+        archive_path = build_memory_api_conversation_archive_path(
+            user_id=str(task.user_id or "").strip(),
+            conversation_id=conversation.conversation_id,
+            task_id=task.task_id,
+        )
+        return MemorySourceArchiveRuntime._write_archive_bytes(
+            archive_path=archive_path,
+            archive_text=archive_text,
+            archive_type="application/x-ndjson",
+        )
+
+    @staticmethod
+    def delete_archive(archive_ref: ArchivedSourceRef | None) -> None:
+        if archive_ref is None:
+            return
+        try:
+            if storage_manager.exists(archive_ref.path):
+                storage_manager.delete(archive_ref.path)
+        except Exception as exc:
+            raise MemoryArchiveError(f"failed to delete memory source archive: {archive_ref.path}") from exc
 
     @staticmethod
     async def archive_session_commit(
@@ -84,13 +149,21 @@ class MemorySourceArchiveRuntime:
 
     @staticmethod
     def _write_archive(*, archive_path: str, archive_text: str) -> ArchivedSourceRef:
+        return MemorySourceArchiveRuntime._write_archive_bytes(
+            archive_path=archive_path,
+            archive_text=archive_text,
+            archive_type="application/json",
+        )
+
+    @staticmethod
+    def _write_archive_bytes(*, archive_path: str, archive_text: str, archive_type: str) -> ArchivedSourceRef:
         try:
             storage_manager.write_text_atomic(archive_path, archive_text)
         except Exception as exc:
             raise MemoryArchiveError(f"failed to archive memory source: {archive_path}") from exc
         return ArchivedSourceRef(
             path=archive_path,
-            type="application/json",
+            type=archive_type,
             storage="default",
             content_sha256=hashlib.sha256(archive_text.encode("utf-8")).hexdigest(),
             size_bytes=len(archive_text.encode("utf-8")),
@@ -98,11 +171,11 @@ class MemorySourceArchiveRuntime:
 
     @staticmethod
     def _resolve_session_key(payload: MemoryTaskCreateCommand) -> str:
-        return payload.source_ref.external_session_id or payload.source_ref.id
+        return payload.source_ref.external_session_id or payload.source_ref.conversation_id
 
     @staticmethod
     def _resolve_agent_session_id(payload: MemoryTaskCreateCommand) -> int:
-        candidates = [payload.source_ref.external_session_id, payload.source_ref.id]
+        candidates = [payload.source_ref.external_session_id, payload.source_ref.conversation_id]
         for candidate in candidates:
             if candidate is None:
                 continue
@@ -111,7 +184,7 @@ class MemorySourceArchiveRuntime:
                 return int(text)
             if text.startswith("session-") and text[8:].isdigit():
                 return int(text[8:])
-        raise MemoryValidationError("session_commit requires numeric source_ref.id or external_session_id")
+        raise MemoryValidationError("session_commit requires numeric source_ref.conversation_id or external_session_id")
 
     @staticmethod
     def _load_session_messages(

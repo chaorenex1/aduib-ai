@@ -36,7 +36,7 @@ def test_builders_are_stable_for_same_inputs() -> None:
         user_id="user-1",
         agent_id="agent-1",
         project_id="proj-1",
-        source_ref=MemorySourceRef(type="session_commit", id="session-1", path="conversation/session-1"),
+        source_ref=MemorySourceRef(type="session_commit", conversation_id="session-1", path="conversation/session-1"),
     )
 
     assert build_memory_api_idempotency_key(write_command) == build_memory_api_idempotency_key(write_command)

@@ -26,6 +26,25 @@ def build_memory_api_archive_path(*, user_id: str, task_id: str) -> str:
     )
 
 
+def build_memory_api_conversation_archive_path(*, user_id: str, conversation_id: str, task_id: str) -> str:
+    external_source, external_session_id = parse_conversation_id(conversation_id)
+    conversation_key = build_conversation_key(
+        external_source=external_source,
+        external_session_id=external_session_id,
+    )
+    return "/".join(
+        [
+            config.MEMORY_TREE_ROOT_DIR,
+            "users",
+            user_id,
+            "sources",
+            "memory_api",
+            "conversations",
+            f"{conversation_key}__{normalize_path_segment(task_id)}.jsonl",
+        ]
+    )
+
+
 def build_session_commit_archive_path(*, user_id: str, session_key: str, task_id: str) -> str:
     safe_session_key = normalize_path_segment(session_key)
     return "/".join(

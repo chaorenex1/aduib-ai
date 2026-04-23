@@ -4,7 +4,13 @@ import datetime
 
 from models import MemoryWriteTask
 from runtime.tasks.celery_app import celery_app
-from .base.builders import build_queue_payload, build_task_request_idempotency_key, new_task_id, new_trace_id
+
+from .base.builders import (
+    build_queue_payload,
+    build_task_request_idempotency_key,
+    new_task_id,
+    new_trace_id,
+)
 from .base.contracts import (
     ArchivedSourceRef,
     MemorySourceRef,
@@ -25,16 +31,20 @@ class MemoryWriteTaskService:
     async def accept_task_request(cls, payload: MemoryTaskCreateCommand) -> MemoryWriteAccepted:
         task_id = new_task_id()
         trace_id = new_trace_id()
-        trigger_type = MemoryTriggerType.MEMORY_API
+        trigger_type = payload.trigger_type
 
         from runtime.memory.source_archive import MemorySourceArchiveRuntime
 
-        archive_ref = await MemorySourceArchiveRuntime.archive_session_commit(
-            payload,
-            task_id=task_id,
-            trace_id=trace_id,
-        )
-        source_ref = cls._normalize_conversation_source_ref(payload)
+        archive_ref = None
+        source_ref = payload.source_ref
+        if trigger_type == MemoryTriggerType.SESSION_COMMIT:
+            archive_ref = await MemorySourceArchiveRuntime.archive_session_commit(
+                payload,
+                task_id=task_id,
+                trace_id=trace_id,
+            )
+        elif source_ref.type == "conversation":
+            source_ref = cls._normalize_conversation_source_ref(payload)
 
         task = cls.create_task(
             task_id=task_id,
@@ -158,6 +168,26 @@ class MemoryWriteTaskService:
             now = datetime.datetime.now(datetime.UTC)
             task.phase = phase
             task.started_at = task.started_at or now
+
+        task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
+        if task is None:
+            raise MemoryWriteTaskNotFoundError("memory write task not found")
+        return cls._serialize_task(task)
+
+    @classmethod
+    def attach_archive_ref(cls, task_id: str, *, archive_ref: ArchivedSourceRef) -> MemoryWriteTaskView:
+        def _mutate(task: MemoryWriteTask) -> None:
+            task.archive_ref = archive_ref.model_dump(mode="python", exclude_none=True)
+
+        task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
+        if task is None:
+            raise MemoryWriteTaskNotFoundError("memory write task not found")
+        return cls._serialize_task(task)
+
+    @classmethod
+    def clear_archive_ref(cls, task_id: str) -> MemoryWriteTaskView:
+        def _mutate(task: MemoryWriteTask) -> None:
+            task.archive_ref = None
 
         task = MemoryWriteTaskRepository.update_task(task_id, mutate=_mutate)
         if task is None:
@@ -301,22 +331,27 @@ class MemoryWriteTaskService:
 
         conversation = ConversationRepository.get_conversation(
             user_id=payload.user_id,
-            conversation_id=source_ref.id,
+            conversation_id=source_ref.conversation_id,
         )
         if conversation is None:
             raise MemoryValidationError("conversation source_ref not found for user")
-
-        if source_ref.external_source and source_ref.external_source != conversation.external_source:
-            raise MemoryValidationError("conversation source_ref external_source does not match current metadata")
-        if source_ref.external_session_id and source_ref.external_session_id != conversation.external_session_id:
-            raise MemoryValidationError("conversation source_ref external_session_id does not match current metadata")
+        _validate_conversation_scope(
+            agent_id=payload.agent_id,
+            project_id=payload.project_id,
+            conversation=conversation,
+        )
 
         return MemorySourceRef(
             type="conversation",
-            id=conversation.conversation_id,
-            storage="pg_jsonl",
-            version=conversation.version,
-            external_source=conversation.external_source,
-            external_session_id=conversation.external_session_id,
-            message_ref=conversation.message_ref.model_dump(mode="python", exclude_none=True),
+            conversation_id=conversation.conversation_id,
         )
+
+
+def _validate_conversation_scope(*, agent_id: str | None, project_id: str | None, conversation) -> None:
+    conversation_agent_id = getattr(conversation, "agent_id", None)
+    conversation_project_id = getattr(conversation, "project_id", None)
+
+    if agent_id is not None and conversation_agent_id is not None and agent_id != conversation_agent_id:
+        raise MemoryValidationError("conversation source_ref agent_id does not match current scope")
+    if project_id is not None and conversation_project_id is not None and project_id != conversation_project_id:
+        raise MemoryValidationError("conversation source_ref project_id does not match current scope")

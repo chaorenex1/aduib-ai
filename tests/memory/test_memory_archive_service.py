@@ -13,7 +13,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from component.storage.base_storage import BaseStorage, StorageEntry, storage_manager
 from controllers.memory.schemas import MemoryCreateRequest
-from service.memory import MemorySourceArchiveService
+from runtime.memory.source_archive import MemorySourceArchiveRuntime
+from service.memory import ConversationRepository
+from service.memory.base.contracts import MemorySourceRef, MemoryWriteTaskView
+from service.memory.base.enums import MemoryTaskPhase, MemoryTriggerType
 from service.memory.base.mappers import memory_create_request_to_command
 
 
@@ -96,7 +99,7 @@ async def test_archive_memory_api_writes_snapshot(monkeypatch: pytest.MonkeyPatc
     )
     command = await memory_create_request_to_command(payload)
 
-    archive_ref = await MemorySourceArchiveService.archive_memory_api(
+    archive_ref = await MemorySourceArchiveRuntime.archive_memory_api(
         command,
         task_id="task-123",
         trace_id="trace-456",
@@ -111,3 +114,81 @@ async def test_archive_memory_api_writes_snapshot(monkeypatch: pytest.MonkeyPatc
     assert snapshot["trace_id"] == "trace-456"
     assert snapshot["scope"]["user_id"] == "user-1"
     assert snapshot["payload"]["content"] == "Remember to keep the write pipeline async."
+
+
+def test_freeze_conversation_source_writes_frozen_jsonl(monkeypatch: pytest.MonkeyPatch) -> None:
+    storage = _InMemoryStorage()
+    monkeypatch.setattr(storage_manager, "storage_instance", storage)
+    live_uri = "memory_pipeline/users/user-1/sources/conversations/codex__sess-1.jsonl"
+    live_content = "\n".join(
+        [
+            json.dumps(
+                {
+                    "conversation_id": "codex:sess-1",
+                    "role": "user",
+                    "content_parts": [{"type": "text", "text": "hi"}],
+                }
+            ),
+            json.dumps(
+                {
+                    "conversation_id": "codex:sess-1",
+                    "role": "assistant",
+                    "content_parts": [{"type": "text", "text": "yo"}],
+                }
+            ),
+        ]
+    ) + "\n"
+    storage.write_text_atomic(live_uri, live_content)
+
+    monkeypatch.setattr(
+        ConversationRepository,
+        "get_conversation",
+        staticmethod(
+            lambda **_: type(
+                "ConversationView",
+                (),
+                {
+                    "conversation_id": "codex:sess-1",
+                    "message_ref": type("MessageRef", (), {"uri": live_uri})(),
+                },
+            )()
+        ),
+    )
+
+    task = MemoryWriteTaskView(
+        task_id="task-123",
+        trace_id="trace-456",
+        trigger_type=MemoryTriggerType.MEMORY_API,
+        user_id="user-1",
+        agent_id="agent-1",
+        project_id="proj-1",
+        status=None,
+        phase=MemoryTaskPhase.ACCEPTED,
+        source_ref=MemorySourceRef(type="conversation", conversation_id="codex:sess-1"),
+        archive_ref=None,
+    )
+
+    archive_ref = MemorySourceArchiveRuntime.freeze_conversation_source(task)
+
+    assert archive_ref.type == "application/x-ndjson"
+    assert archive_ref.path.endswith(
+        "memory_pipeline/users/user-1/sources/memory_api/conversations/codex__sess-1__task-123.jsonl"
+    )
+    assert storage.read_text(archive_ref.path) == live_content
+
+
+def test_delete_archive_removes_frozen_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    storage = _InMemoryStorage()
+    monkeypatch.setattr(storage_manager, "storage_instance", storage)
+    archive_path = "memory_pipeline/users/user-1/sources/memory_api/conversations/codex__sess-1__task-123.jsonl"
+    storage.write_text_atomic(archive_path, "line-1\n")
+
+    archive_ref = type(
+        "ArchiveRef",
+        (),
+        {"path": archive_path},
+    )()
+
+    MemorySourceArchiveRuntime.delete_archive(archive_ref)
+
+    assert storage.exists(archive_path) is False
