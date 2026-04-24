@@ -146,7 +146,7 @@ def _materialize_worker_archive(*, task_id: str, worker_task_id: str | None) -> 
     from service.memory.base.enums import MemoryTriggerType
 
     task = MemoryWriteTaskService.get_task(task_id)
-    if task.trigger_type != MemoryTriggerType.MEMORY_API:
+    if task.trigger_type != MemoryTriggerType.MEMORY_API or task.source_ref.type != "conversation":
         return None
 
     try:

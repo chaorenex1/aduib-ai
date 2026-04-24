@@ -84,6 +84,8 @@ async def test_create_conversation_endpoint_returns_created_payload(monkeypatch:
     assert response.status_code == 201
     assert body["success"] is True
     assert body["data"]["conversation_id"] == "codex:sess_1"
+    assert "message_ref" not in body["data"]
+    assert "memory_pipeline/users/u1/sources/conversations" not in response.body.decode()
     assert captured["user_id"] == "u1"
 
 
@@ -170,7 +172,8 @@ async def test_get_conversation_endpoint_returns_serialized_payload(monkeypatch:
     body = json.loads(response.body)
     assert response.status_code == 200
     assert body["success"] is True
-    assert body["data"]["message_ref"]["uri"].endswith("codex__sess_1.jsonl")
+    assert "message_ref" not in body["data"]
+    assert "memory_pipeline/users/u1/sources/conversations" not in response.body.decode()
     assert captured["user_id"] == "u1"
 
 

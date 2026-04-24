@@ -5,7 +5,15 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
-from service.memory.base.contracts import ExtractedMemoryOperation, MemoryOperationEvidence
+from service.memory.base.contracts import (
+    ChangePlanStepResult,
+    ExtractedMemoryOperation,
+    L0L1SummaryResult,
+    MemoryChangePlanResult,
+    MemoryOperationEvidence,
+    MemoryOperationGenerationResult,
+    PlannerToolRequest,
+)
 
 from ..schema.registry import MemorySchemaRegistry, normalize_memory_type
 
@@ -30,7 +38,7 @@ GROUPED_OUTPUT_KEYS = {
 
 def parse_planner_output(
     raw_text: str, registry: MemorySchemaRegistry
-) -> tuple[list[ExtractedMemoryOperation], list[dict[str, Any]]]:
+) -> tuple[list[ExtractedMemoryOperation], list[PlannerToolRequest]]:
     payload = _load_json_payload(raw_text)
     if isinstance(payload, dict) and isinstance(payload.get("tool_requests"), list):
         tool_requests = [_normalize_tool_request(item) for item in payload.get("tool_requests") or []]
@@ -38,6 +46,33 @@ def parse_planner_output(
             return [], tool_requests
     operations = _extract_operations(payload=payload, registry=registry)
     return operations, []
+
+
+def parse_memory_change_plan_output(raw_text: str) -> MemoryChangePlanResult:
+    payload = _load_json_payload(raw_text)
+    return MemoryChangePlanResult.model_validate(payload)
+
+
+def parse_memory_change_plan_step_output(
+    raw_text: str,
+) -> ChangePlanStepResult:
+    payload = _load_json_payload(raw_text)
+    if isinstance(payload, dict) and isinstance(payload.get("tool_requests"), list):
+        tool_requests = [_normalize_tool_request(item) for item in payload.get("tool_requests") or []]
+        if tool_requests:
+            return ChangePlanStepResult(tool_requests=tool_requests)
+    return ChangePlanStepResult(change_plan=MemoryChangePlanResult.model_validate(payload))
+
+
+def parse_memory_operation_generation_output(raw_text: str) -> MemoryOperationGenerationResult:
+    payload = _load_json_payload(raw_text)
+    normalized_operations = _normalize_operations_list(payload.get("operations") or [], MemorySchemaRegistry.load())
+    return MemoryOperationGenerationResult(operations=normalized_operations)
+
+
+def parse_l0_l1_summary_output(raw_text: str) -> L0L1SummaryResult:
+    payload = _load_json_payload(raw_text)
+    return L0L1SummaryResult.model_validate(payload)
 
 
 def _load_json_payload(raw_text: str) -> Any:
@@ -141,10 +176,10 @@ def _normalize_evidence(value: Any) -> list[MemoryOperationEvidence]:
     return evidence
 
 
-def _normalize_tool_request(value: Any) -> dict[str, Any]:
+def _normalize_tool_request(value: Any) -> PlannerToolRequest:
     if not isinstance(value, dict):
         raise ValueError("tool_requests entries must be objects")
-    return {
-        "tool": str(value.get("tool") or "").strip().lower(),
-        "args": value.get("args") if isinstance(value.get("args"), dict) else {},
-    }
+    return PlannerToolRequest(
+        tool=str(value.get("tool") or "").strip().lower(),
+        args=value.get("args") if isinstance(value.get("args"), dict) else {},
+    )

@@ -1736,6 +1736,223 @@ Rules:
 - Never output explanations outside the JSON object.
 """
 
+MEMORY_CHANGE_PLAN_PROMPT = """You are the planning brain inside a directory-first memory write orchestrator.
+
+Your task is to analyze:
+- the conversation source material
+- the system pre-fetched context
+- the allowed memory taxonomy / branch layout
+
+Then produce a MEMORY CHANGE PLAN before any concrete file operation is generated.
+
+You must identify multiple candidate memories when the conversation contains multiple reusable facts, events,
+entities, tasks, reviews, verification results, operational learnings, or agent-scoped patterns.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT YOU MUST DO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Read the conversation source material and pre-fetched context together.
+2. Identify all memory-worthy items, not just the most obvious one.
+3. Classify each item into the correct branch from the provided branch layout.
+4. Decide the intended change type:
+   - write
+   - edit
+   - delete
+   - ignore
+5. Explain briefly why each item matters for future retrieval or future decisions.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT CONSTRAINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- The directory tree is the source of truth.
+- Do not invent arbitrary branches or file paths.
+- Only use memory branches that appear in the provided storage design / branch layout.
+- `sources/` is not a normal memory branch.
+- `project/` and `agent/<agent-id>/memories/` are specialized zones; classify into them only when appropriate.
+- One conversation may yield multiple memories.
+- If an item is ephemeral, low-value, duplicated, or too weak to store, mark it as `ignore`.
+- Stay faithful to the source material and fetched context. Do not invent facts.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Output ONLY valid JSON. No markdown. No code fences. No commentary.
+
+Schema:
+{
+  "identified_memories": [
+    {
+      "memory_type": "<string>",
+      "target_branch": "<string>",
+      "title_hint": "<string>",
+      "confidence": <number>,
+      "reasoning": "<short string>",
+      "evidence": ["<short excerpt>", "..."]
+    }
+  ],
+  "change_plan": [
+    {
+      "memory_type": "<string>",
+      "intent": "write" | "edit" | "delete" | "ignore",
+      "target_branch": "<string>",
+      "title_hint": "<string>",
+      "reasoning": "<short string>",
+      "requires_existing_read": <true|false>,
+      "evidence": ["<short excerpt>", "..."]
+    }
+  ]
+}
+
+Rules:
+- `identified_memories` may contain 0..N items.
+- `change_plan` may contain 0..N items.
+- Keep reasoning concise and audit-friendly.
+- Confidence must be a number in [0, 1].
+"""
+
+MEMORY_OPERATION_GENERATION_PROMPT = """You are the operation generator
+inside a directory-first memory write orchestrator.
+
+You are given:
+- a validated memory change plan
+- the conversation source material
+- pre-fetched context
+- optional tool-read results
+- the allowed memory schema registry
+
+Your task is to convert the change plan into FINAL MEMORY OPERATIONS.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT YOU MUST DO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Generate concrete memory operations from the accepted change plan.
+2. Each operation must be one of:
+   - write
+   - edit
+   - delete
+3. Populate:
+   - memory_type
+   - fields
+   - content
+   - evidence
+   - confidence
+4. Respect the schema registry and branch semantics.
+5. If a plan item cannot safely become an operation, omit it rather than guessing.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT CONSTRAINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Do not invent arbitrary file paths.
+- Do not emit filesystem commands.
+- Do not emit operations for unsupported memory types.
+- For `edit`, only produce the operation if the required existing context has already been read.
+- Keep `fields` structured and schema-aligned.
+- Put identifier-like values into `fields`, not into a fabricated path.
+- `content` must be the intended memory body, not an explanation of the operation.
+- Evidence must quote or closely paraphrase real source material or fetched files.
+- If nothing should be written, return an empty operation list.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Output ONLY valid JSON. No markdown. No code fences. No commentary.
+
+Schema:
+{
+  "operations": [
+    {
+      "op": "write" | "edit" | "delete",
+      "memory_type": "<string>",
+      "fields": {"<field_name>": "<value>"},
+      "content": "<string>",
+      "evidence": [
+        {
+          "kind": "message" | "read" | "search",
+          "content": "<short excerpt>",
+          "path": "<optional path>"
+        }
+      ],
+      "confidence": <number>
+    }
+  ]
+}
+
+Rules:
+- Return 0..N operations.
+- Confidence must be a number in [0, 1].
+- `delete` may use empty `content`.
+- `write` and `edit` must have meaningful non-empty `content`.
+- Ignore unsupported or weak items instead of forcing output.
+"""
+
+MEMORY_L0_L1_SUMMARY_PROMPT = """You are the branch-summary generator
+inside a directory-first memory write orchestrator.
+
+Your task is to generate branch-level summaries for affected second-level directories.
+
+Definitions:
+- L0 = overview.md
+- L1 = summary.md
+
+You are given:
+- the target branch path
+- existing branch overview / summary when available
+- relevant existing memory snippets from the branch
+- newly planned or newly generated memory operations
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GOAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Produce updated L0/L1 summary content for the affected branch so that a human can quickly browse the branch.
+
+L0 (overview.md):
+- richer and broader
+- approximately 1000-2000 tokens when enough material exists
+- should describe major themes, stable patterns, notable entities/events/tasks, and how the branch is organized
+
+L1 (summary.md):
+- compact and high-signal
+- approximately 100-200 tokens when enough material exists
+- should capture the most important current takeaways from the branch
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT CONSTRAINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Only summarize the target second-level branch.
+- Do not summarize deeper unrelated subtrees.
+- Stay faithful to the provided existing memories and planned operations.
+- Do not invent facts, files, entities, or decisions.
+- Reflect new operations if they materially change the branch.
+- Keep the language consistent with the source material unless explicitly told otherwise.
+- The output is content, not markdown code fences.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Output ONLY valid JSON. No markdown. No code fences. No commentary.
+
+Schema:
+{
+  "branch_path": "<string>",
+  "overview_md": "<string>",
+  "summary_md": "<string>"
+}
+
+Rules:
+- `overview_md` is the full intended content of overview.md.
+- `summary_md` is the full intended content of summary.md.
+- If the available material is sparse, still produce concise but useful outputs.
+"""
+
 MEMORY_RELEVANCE_JUDGE_PROMPT = """You are a memory relevance judge for a long-term memory system.
 
 Given:

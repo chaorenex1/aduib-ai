@@ -8,6 +8,7 @@ from .builders import (
 )
 from .contracts import (
     ArchivedSourceRef,
+    ChangePlanStepResult,
     ConversationAppendResult,
     ConversationMessageRecord,
     ConversationMessageRef,
@@ -16,6 +17,12 @@ from .contracts import (
     ConversationSourceGetQuery,
     ConversationSourceMetadata,
     ConversationSourceView,
+    ExtractOperationsPhaseResult,
+    IdentifiedMemoryCandidate,
+    L0L1SummaryResult,
+    MemoryChangePlanItem,
+    MemoryChangePlanResult,
+    MemoryOperationGenerationResult,
     MemoryRetrievedMemory,
     MemoryRetrieveQuery,
     MemorySourceRef,
@@ -24,6 +31,11 @@ from .contracts import (
     MemoryWriteCommand,
     MemoryWriteTaskResult,
     MemoryWriteTaskView,
+    OrchestratorAction,
+    OrchestratorWorkingState,
+    PlannerToolRequest,
+    PlannerToolUseResult,
+    ReasoningTraceStep,
 )
 from .enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType
 from .errors import (
@@ -61,6 +73,7 @@ from .paths import (
 
 __all__ = [
     "ArchivedSourceRef",
+    "ChangePlanStepResult",
     "ConversationAppendResult",
     "ConversationMessageRecord",
     "ConversationMessageRef",
@@ -74,7 +87,13 @@ __all__ = [
     "ConversationSourceNotFoundError",
     "ConversationSourceValidationError",
     "ConversationSourceView",
+    "ExtractOperationsPhaseResult",
+    "IdentifiedMemoryCandidate",
+    "L0L1SummaryResult",
     "MemoryArchiveError",
+    "MemoryChangePlanItem",
+    "MemoryChangePlanResult",
+    "MemoryOperationGenerationResult",
     "MemoryRetrieveQuery",
     "MemoryRetrievedMemory",
     "MemoryServiceBase",
@@ -92,6 +111,11 @@ __all__ = [
     "MemoryWriteTaskNotFoundError",
     "MemoryWriteTaskResult",
     "MemoryWriteTaskView",
+    "OrchestratorAction",
+    "OrchestratorWorkingState",
+    "PlannerToolRequest",
+    "PlannerToolUseResult",
+    "ReasoningTraceStep",
     "build_conversation_id",
     "build_conversation_key",
     "build_conversation_source_path",

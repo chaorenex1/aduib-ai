@@ -84,38 +84,6 @@ def anyio_backend():
     return "asyncio"
 
 
-@pytest.mark.anyio
-async def test_archive_memory_api_writes_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
-    storage = _InMemoryStorage()
-    monkeypatch.setattr(storage_manager, "storage_instance", storage)
-
-    payload = MemoryCreateRequest(
-        content="Remember to keep the write pipeline async.",
-        project_id="proj-1",
-        user_id="user-1",
-        agent_id="agent-1",
-        summary_enabled=False,
-        memory_source="user_input",
-    )
-    command = await memory_create_request_to_command(payload)
-
-    archive_ref = await MemorySourceArchiveRuntime.archive_memory_api(
-        command,
-        task_id="task-123",
-        trace_id="trace-456",
-    )
-
-    assert archive_ref.path.endswith("memory_pipeline/users/user-1/sources/memory_api/task-123.json")
-    assert storage.exists(archive_ref.path) is True
-
-    snapshot = json.loads(storage.read_text(archive_ref.path))
-    assert snapshot["trigger_type"] == "memory_api"
-    assert snapshot["task_id"] == "task-123"
-    assert snapshot["trace_id"] == "trace-456"
-    assert snapshot["scope"]["user_id"] == "user-1"
-    assert snapshot["payload"]["content"] == "Remember to keep the write pipeline async."
-
-
 def test_freeze_conversation_source_writes_frozen_jsonl(monkeypatch: pytest.MonkeyPatch) -> None:
     storage = _InMemoryStorage()
     monkeypatch.setattr(storage_manager, "storage_instance", storage)
@@ -168,7 +136,7 @@ def test_freeze_conversation_source_writes_frozen_jsonl(monkeypatch: pytest.Monk
         archive_ref=None,
     )
 
-    archive_ref = MemorySourceArchiveRuntime.freeze_conversation_source(task)
+    archive_ref = MemorySourceArchiveRuntime.freeze_memory_api_conversation_source(task)
 
     assert archive_ref.type == "application/x-ndjson"
     assert archive_ref.path.endswith(

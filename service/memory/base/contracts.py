@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType
 
 
 class MemoryContract(BaseModel):
     model_config = ConfigDict(extra="forbid", use_enum_values=True)
+
+    @classmethod
+    def json_schema(cls) -> str:
+        return json.dumps(cls.model_json_schema(), ensure_ascii=False, indent=2)
 
 
 class MemorySourceRef(MemoryContract):
@@ -221,6 +226,54 @@ class MemoryOperationEvidence(MemoryContract):
     path: str | None = None
 
 
+class IdentifiedMemoryCandidate(MemoryContract):
+    memory_type: str = Field(..., min_length=1)
+    target_branch: str = Field(..., min_length=1)
+    title_hint: str | None = Field(None, min_length=1)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    reasoning: str = Field(..., min_length=1)
+    evidence: list[str] = Field(default_factory=list)
+
+
+class MemoryChangePlanItem(MemoryContract):
+    memory_type: str = Field(..., min_length=1)
+    intent: Literal["write", "edit", "delete", "ignore"]
+    target_branch: str = Field(..., min_length=1)
+    title_hint: str | None = Field(None, min_length=1)
+    reasoning: str = Field(..., min_length=1)
+    requires_existing_read: bool = False
+    evidence: list[str] = Field(default_factory=list)
+
+
+class PlannerToolRequest(MemoryContract):
+    tool: Literal["ls", "read", "find"]
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class PlannerToolUseResult(MemoryContract):
+    tool: Literal["ls", "read", "find"]
+    args: dict[str, Any] = Field(default_factory=dict)
+    result: dict[str, Any] = Field(default_factory=dict)
+
+
+class MemoryChangePlanResult(MemoryContract):
+    identified_memories: list[IdentifiedMemoryCandidate] = Field(default_factory=list)
+    change_plan: list[MemoryChangePlanItem] = Field(default_factory=list)
+
+
+class ChangePlanStepResult(MemoryContract):
+    change_plan: MemoryChangePlanResult | None = None
+    tool_requests: list[PlannerToolRequest] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_step_result(self) -> ChangePlanStepResult:
+        has_plan = self.change_plan is not None
+        has_tools = bool(self.tool_requests)
+        if has_plan == has_tools:
+            raise ValueError("change plan step must contain exactly one of change_plan or tool_requests")
+        return self
+
+
 class ExtractedMemoryOperation(MemoryContract):
     op: Literal["write", "edit", "delete"]
     memory_type: str = Field(..., min_length=1)
@@ -228,6 +281,81 @@ class ExtractedMemoryOperation(MemoryContract):
     content: str = ""
     evidence: list[MemoryOperationEvidence] = Field(default_factory=list)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class MemoryOperationGenerationResult(MemoryContract):
+    operations: list[ExtractedMemoryOperation] = Field(default_factory=list)
+
+
+class L0L1SummaryResult(MemoryContract):
+    branch_path: str = Field(..., min_length=1)
+    overview_md: str = Field(..., min_length=1)
+    summary_md: str = Field(..., min_length=1)
+
+
+class OrchestratorWorkingState(MemoryContract):
+    identified_memories: list[IdentifiedMemoryCandidate] = Field(default_factory=list)
+    change_plan: list[MemoryChangePlanItem] = Field(default_factory=list)
+    operations: list[ExtractedMemoryOperation] = Field(default_factory=list)
+    summary_plan: list[L0L1SummaryResult] = Field(default_factory=list)
+    tool_results: list[PlannerToolUseResult] = Field(default_factory=list)
+    completed_steps: list[str] = Field(default_factory=list)
+
+    def pending_summary_branches(self) -> list[str]:
+        target_branches = {
+            item.target_branch
+            for item in self.change_plan
+            if item.intent in {"write", "edit", "delete"} and item.target_branch
+        }
+        completed_branches = {item.branch_path for item in self.summary_plan}
+        return sorted(target_branches - completed_branches)
+
+
+class OrchestratorAction(MemoryContract):
+    action: Literal[
+        "request_tools",
+        "update_change_plan",
+        "update_operations",
+        "update_summary",
+        "finalize",
+        "stop_noop",
+    ]
+    reasoning: str = ""
+    tool_requests: list[PlannerToolRequest] = Field(default_factory=list)
+    change_plan: MemoryChangePlanResult | None = None
+    operations: MemoryOperationGenerationResult | None = None
+    summary: L0L1SummaryResult | None = None
+
+    @model_validator(mode="after")
+    def validate_action_payload(self) -> OrchestratorAction:
+        if self.action == "request_tools" and not self.tool_requests:
+            raise ValueError("request_tools action requires tool_requests")
+        if self.action == "update_change_plan" and self.change_plan is None:
+            raise ValueError("update_change_plan action requires change_plan")
+        if self.action == "update_operations" and self.operations is None:
+            raise ValueError("update_operations action requires operations")
+        if self.action == "update_summary" and self.summary is None:
+            raise ValueError("update_summary action requires summary")
+        return self
+
+
+class ReasoningTraceStep(MemoryContract):
+    step: str = Field(..., min_length=1)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExtractOperationsPhaseResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    phase: str = Field(default="extract_operations", min_length=1)
+    planner_status: str = Field(..., min_length=1)
+    identified_memories: list[IdentifiedMemoryCandidate] = Field(default_factory=list)
+    change_plan: list[MemoryChangePlanItem] = Field(default_factory=list)
+    structured_operations: list[ExtractedMemoryOperation] = Field(default_factory=list)
+    summary_plan: list[L0L1SummaryResult] = Field(default_factory=list)
+    tools_available: list[str] = Field(default_factory=list)
+    tools_used: list[PlannerToolUseResult] = Field(default_factory=list)
+    reasoning_trace: list[ReasoningTraceStep] = Field(default_factory=list)
+    planner_error: str | None = None
 
 
 class ResolvedMemoryOperation(MemoryContract):

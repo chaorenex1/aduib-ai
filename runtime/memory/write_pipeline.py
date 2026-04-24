@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pydantic import BaseModel
+
 from service.memory.base.contracts import MemoryWritePipelineContext
 from service.memory.base.enums import MemoryTaskPhase
 
@@ -27,7 +29,10 @@ def run_memory_write_phase(context: MemoryWritePipelineContext) -> dict:
     handler = PHASE_HANDLERS.get(phase)
     if handler is None:
         return _build_skeleton_phase_payload(context=context, phase=str(phase))
-    return handler(context)
+    result = handler(context)
+    if isinstance(result, BaseModel):
+        return result.model_dump(mode="python", exclude_none=True)
+    return result
 
 
 def run_memory_write_task_phase(*, task_id: str, phase: str, task, phase_results: dict[str, dict]) -> dict:
