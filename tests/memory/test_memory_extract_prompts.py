@@ -70,12 +70,19 @@ def test_change_plan_prompt_composer_separates_runtime_context_and_task_input() 
     assert "memory_schema" in runtime_context
     assert "tools" in runtime_context
     assert [item["name"] for item in runtime_context["tools"]] == ["ls", "read", "find"]
+    assert "field_expectations" in runtime_context["memory_schema"][0]
+    assert "args_schema" in runtime_context["tools"][0]
+    assert "when_to_use" in runtime_context["tools"][0]
+    assert "avoid_when" in runtime_context["tools"][0]
     assert "tool_observations" not in runtime_context
 
     task_input = messages[2].content
     assert "Conversation Source Material" in task_input
     assert "Pre-fetched Context" in task_input
     assert "Current Change-Planning State" in task_input
+    assert '"l0_l1_reads"' in task_input
+    assert '"search_hints"' in task_input
+    assert '"already_read_paths"' in task_input
     assert '"completed_steps": [' in task_input
     assert '"intent": "write"' in task_input
     assert "memory_schema" not in task_input

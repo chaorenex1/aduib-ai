@@ -31,19 +31,36 @@ Do NOT perform summary tasks.
 Do NOT invent arbitrary branches or file paths.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PRIMARY RESPONSIBILITY
+PLANNING PROTOCOL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-You must determine:
-1. What memory-worthy items exist in the source material
-2. Which memory type each item belongs to
-3. Which target branch each item belongs to
-4. What the intended change should be:
-   - write
-   - edit
-   - delete
-   - ignore
-5. Whether additional reading is required before a safe plan can be made
+You must follow this workflow in order:
+
+1. Consume pre-fetched context before requesting any tools.
+   - Read directory views to understand branch structure.
+   - Read pre-fetched L0/L1 files and other already-read files before deciding more reads are needed.
+   - Use search hints and already-read paths as planning evidence.
+
+2. Use the memory schema as a hard planning boundary.
+   - Map each candidate memory to an allowed `memory_type`.
+   - Map each candidate memory to an allowed `target_branch`.
+   - Use schema field expectations and directory conventions to judge whether a safe plan is possible.
+   - If no schema-aligned mapping exists, prefer `ignore` instead of inventing a type or branch.
+
+3. Decide the minimum safe change plan.
+   - Identify memory-worthy items from the conversation plus prefetch evidence.
+   - Decide whether each item should be `write`, `edit`, `delete`, or `ignore`.
+   - Prefer `edit` only when existing branch/file context is materially relevant.
+   - Mark `requires_existing_read=true` when an edit decision still depends on more file context.
+
+4. Request tools only as a fallback.
+   - Request tools only when prefetch + schema + current tool observations are insufficient for a safe plan.
+   - Prefer the narrowest tool call that can unblock the decision.
+   - Do not re-read paths already present in `already_read_paths`
+     unless the current decision explicitly requires fresher or more specific context.
+
+5. Output only change-plan state.
+   - You are planning memory changes, not generating operations or summaries.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DECISION RULES
@@ -54,7 +71,9 @@ DECISION RULES
 - If a memory is weak, duplicated, ephemeral, or not useful for future retrieval, mark it as `ignore`.
 - Use `edit` only when existing memory context is relevant
   and the evidence suggests refinement rather than a brand-new memory file.
-- If existing branch/file context is needed, request tools instead of guessing.
+- Treat pre-fetched context as the default evidence source before tools.
+- If schema constraints and prefetch evidence are enough, do not request tools.
+- If existing branch/file context is needed beyond prefetch, request tools instead of guessing.
 - Stay faithful to the source material and prefetched context.
 - Never invent facts, entities, decisions, or preferences not grounded in evidence.
 
@@ -65,14 +84,16 @@ TOOL USAGE RULES
 You may request only built-in read-only tools.
 
 Use tools when:
-- existing memory content may need to be edited
-- current context is insufficient to decide between write/edit/delete/ignore
-- branch state or nearby files matter for a safe planning decision
+- existing memory content may need to be edited and the needed file is not already covered by prefetch
+- current context is insufficient to decide between write/edit/delete/ignore after consuming prefetch and schema
+- branch state or nearby files matter for a safe planning decision and prefetch did not already answer the question
 
 Do not request tools when:
-- the conversation already gives sufficient evidence
-- the plan is obvious and low-risk
+- the conversation + prefetch + schema already give sufficient evidence
+- the plan is already obvious and low-risk
 - you are only trying to confirm something speculative without clear benefit
+- you would only repeat information already present in `already_read_paths`
+  or prior tool observations
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT RULES
@@ -149,15 +170,11 @@ Source Kind: {source_kind}
 
 Conversation Source Material
 ============================
-Messages:
-{messages_json}
-
-Text Blocks:
-{text_blocks_json}
+{source_material_json}
 
 Pre-fetched Context
 ===================
-{prefetched_context_json}
+{prefetch_context_json}
 
 Current Change-Planning State
 =============================
@@ -349,7 +366,7 @@ class ExtractPromptComposer:
                 role=PromptMessageRole.SYSTEM,
                 content=self._dump_json(
                     {
-                        "memory_schema": self.registry.summary(),
+                        "memory_schema": self._planning_schema_summary(),
                         "tools": self._tool_definitions(),
                     }
                 ),
@@ -359,9 +376,8 @@ class ExtractPromptComposer:
                 content=MEMORY_CHANGE_PLAN_USER_PROMPT_TEMPLATE.format(
                     task_id=self.prepared.task_id,
                     source_kind=self.prepared.source_kind,
-                    messages_json=self._dump_json(self.prepared.messages),
-                    text_blocks_json=self._dump_json(self.prepared.text_blocks),
-                    prefetched_context_json=self._dump_json(self.prepared.prefetched_context),
+                    source_material_json=self._dump_json(self._source_material_payload()),
+                    prefetch_context_json=self._dump_json(self._prefetch_payload()),
                     working_state_json=self._dump_json(self._working_state_payload(state)),
                 ),
             ),
@@ -478,13 +494,58 @@ class ExtractPromptComposer:
 
     @staticmethod
     def _tool_definitions() -> list[dict[str, str]]:
-        responsibilities = {
-            "ls": "Inspect branch or directory structure",
-            "read": "Read a specific file",
-            "find": "Find likely relevant memory file paths by name/path semantics",
+        definitions = {
+            "ls": {
+                "responsibility": "Inspect branch or directory structure",
+                "args_schema": {
+                    "path": "string",
+                    "recursive": "boolean",
+                    "include_files": "boolean",
+                    "include_dirs": "boolean",
+                },
+                "when_to_use": (
+                    "Use when branch layout or nearby files are needed "
+                    "and prefetch directory views are insufficient."
+                ),
+                "avoid_when": (
+                    "Avoid when pre-fetched directory views already provide "
+                    "the needed structure."
+                ),
+            },
+            "read": {
+                "responsibility": "Read a specific file",
+                "args_schema": {
+                    "path": "string",
+                    "max_chars": "integer",
+                },
+                "when_to_use": (
+                    "Use when a concrete file must be inspected to decide "
+                    "write vs edit or to refine an edit target."
+                ),
+                "avoid_when": (
+                    "Avoid when the same path is already present in prefetch reads "
+                    "or tool observations unless more detail is required."
+                ),
+            },
+            "find": {
+                "responsibility": "Find likely relevant memory file paths by name/path semantics",
+                "args_schema": {
+                    "path": "string",
+                    "pattern": "string",
+                    "max_results": "integer",
+                },
+                "when_to_use": (
+                    "Use when you know the branch but need candidate file paths "
+                    "before choosing an edit target."
+                ),
+                "avoid_when": (
+                    "Avoid when prefetch search hints or directory listings "
+                    "already identify the likely file."
+                ),
+            },
         }
         return [
-            {"name": tool_name, "responsibility": responsibilities[tool_name]}
+            {"name": tool_name, **definitions[tool_name]}
             for tool_name in SUPPORTED_PLANNER_TOOLS
         ]
 
@@ -498,4 +559,53 @@ class ExtractPromptComposer:
             "operations": [item.model_dump(mode="python", exclude_none=True) for item in working_state.operations],
             "summary_plan": [item.model_dump(mode="python", exclude_none=True) for item in working_state.summary_plan],
             "completed_steps": list(working_state.completed_steps),
+        }
+
+    def _planning_schema_summary(self) -> list[dict]:
+        return [
+            {
+                "memory_type": item["memory_type"],
+                "description": item.get("description"),
+                "target_directory_template": item.get("directory"),
+                "filename_template": item.get("filename_template"),
+                "memory_mode": item.get("memory_mode"),
+                "field_expectations": [
+                    {
+                        "name": field.get("name"),
+                        "type": field.get("type"),
+                        "description": field.get("description"),
+                    }
+                    for field in item.get("fields") or []
+                ],
+            }
+            for item in self.registry.summary()
+        ]
+
+    def _source_material_payload(self) -> dict:
+        return {
+            "messages": self.prepared.messages,
+            "text_blocks": self.prepared.text_blocks,
+        }
+
+    def _prefetch_payload(self) -> dict:
+        prefetched = self.prepared.prefetched_context
+        file_reads = prefetched.get("file_reads") or []
+        return {
+            "directory_views": prefetched.get("directory_views") or [],
+            "l0_l1_reads": [
+                item
+                for item in file_reads
+                if str(item.get("path") or "").endswith("overview.md")
+                or str(item.get("path") or "").endswith("summary.md")
+            ],
+            "other_file_reads": [
+                item
+                for item in file_reads
+                if not (
+                    str(item.get("path") or "").endswith("overview.md")
+                    or str(item.get("path") or "").endswith("summary.md")
+                )
+            ],
+            "search_hints": prefetched.get("search_results") or [],
+            "already_read_paths": prefetched.get("already_read_paths") or [],
         }
