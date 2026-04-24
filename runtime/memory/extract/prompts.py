@@ -83,7 +83,27 @@ No markdown.
 No code fences.
 No explanation outside the JSON object.
 
-You must output EXACTLY ONE of the following shapes:
+Preferred shape - explicit orchestrator action:
+{
+  "action": "request_tools" | "update_state" | "stop_noop",
+  "step": "change_plan" | "operations" | "summary",
+  "tool_requests": [{"tool": "ls" | "read" | "find", "args": {...}}],
+  "state_delta": {
+    "identified_memories": [...],
+    "change_plan": [...],
+    "operations": [...],
+    "summary_plan": [...]
+  }
+}
+
+Rules for the explicit shape:
+- Use `request_tools` when you need more context.
+- Use `update_state` when you are updating any orchestrator state.
+- Use `stop_noop` when nothing should be written.
+- You MAY emit `step="change_plan"` even if the current focus later in the loop
+  is operations or summary when new evidence forces a plan revision.
+
+Compatibility shape - also accepted:
 
 Shape A — tool request:
 {
@@ -166,7 +186,24 @@ No markdown.
 No code fences.
 No explanation outside the JSON object.
 
-You must output EXACTLY ONE of the following shapes:
+Preferred shape - explicit orchestrator action:
+{
+  "action": "request_tools" | "update_state",
+  "step": "change_plan" | "operations" | "summary",
+  "tool_requests": [{"tool": "ls" | "read" | "find", "args": {...}}],
+  "state_delta": {
+    "identified_memories": [...],
+    "change_plan": [...],
+    "operations": [...],
+    "summary_plan": [...]
+  }
+}
+
+Rules for the explicit shape:
+- Prefer `step="operations"` for normal operation updates.
+- If new evidence forces a change-plan correction, you MAY return `step="change_plan"` instead of guessing.
+
+Compatibility shapes - also accepted:
 
 Shape A - tool request:
 {
@@ -225,7 +262,25 @@ No markdown.
 No code fences.
 No explanation outside the JSON object.
 
-You must output EXACTLY ONE of the following shapes:
+Preferred shape - explicit orchestrator action:
+{
+  "action": "request_tools" | "update_state",
+  "step": "change_plan" | "operations" | "summary",
+  "tool_requests": [{"tool": "ls" | "read" | "find", "args": {...}}],
+  "state_delta": {
+    "identified_memories": [...],
+    "change_plan": [...],
+    "operations": [...],
+    "summary_plan": [...]
+  }
+}
+
+Rules for the explicit shape:
+- Prefer `step="summary"` for normal summary updates.
+- If new evidence from the current branch forces a plan or operation correction,
+  you MAY return `step="change_plan"` or `step="operations"` instead.
+
+Compatibility shapes - also accepted:
 
 Shape A - tool request:
 {

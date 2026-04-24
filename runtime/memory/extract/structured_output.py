@@ -24,6 +24,9 @@ def parse_step_action(
     raw_text: str,
 ) -> OrchestratorAction:
     payload = _load_json_payload(raw_text)
+    if isinstance(payload, dict) and payload.get("action") is not None:
+        return _normalize_explicit_action(OrchestratorAction.model_validate(payload))
+
     if step == OrchestratorStep.CHANGE_PLAN:
         tool_requests = _extract_tool_requests(payload)
         if tool_requests:
@@ -155,3 +158,75 @@ def _extract_tool_requests(payload: Any) -> list[PlannerToolRequest]:
     if isinstance(payload, dict) and isinstance(payload.get("tool_requests"), list):
         return [_normalize_tool_request(item) for item in payload.get("tool_requests") or []]
     return []
+
+
+def _normalize_explicit_action(action: OrchestratorAction) -> OrchestratorAction:
+    if action.action != "update_state" or action.step is None or action.state_delta is None:
+        return action
+
+    if action.step == OrchestratorStep.CHANGE_PLAN:
+        _ensure_only_fields(
+            action,
+            allowed_fields={"identified_memories", "change_plan", "completed_steps"},
+        )
+        identified_memories = action.state_delta.identified_memories or []
+        change_plan = action.state_delta.change_plan or []
+        if not identified_memories and not change_plan:
+            return OrchestratorAction(action="stop_noop")
+        return OrchestratorAction(
+            action="update_state",
+            step=action.step,
+            state_delta=OrchestratorStateDelta(
+                identified_memories=identified_memories,
+                change_plan=change_plan,
+                completed_steps=action.state_delta.completed_steps,
+            ),
+        )
+
+    if action.step == OrchestratorStep.OPERATIONS:
+        _ensure_only_fields(
+            action,
+            allowed_fields={"operations", "completed_steps"},
+        )
+        raw_operations = [
+            item.model_dump(mode="python", exclude_none=True)
+            for item in (action.state_delta.operations or [])
+        ]
+        normalized_operations = _normalize_operations_list(raw_operations, MemorySchemaRegistry.load())
+        return OrchestratorAction(
+            action="update_state",
+            step=action.step,
+            state_delta=OrchestratorStateDelta(
+                operations=normalized_operations,
+                completed_steps=action.state_delta.completed_steps,
+            ),
+        )
+
+    _ensure_only_fields(
+        action,
+        allowed_fields={"summary_plan", "completed_steps"},
+    )
+    summary_plan = action.state_delta.summary_plan or []
+    if not summary_plan:
+        raise ValueError("summary update_state requires summary_plan")
+    return OrchestratorAction(
+        action="update_state",
+        step=action.step,
+        state_delta=OrchestratorStateDelta(
+            summary_plan=summary_plan,
+            completed_steps=action.state_delta.completed_steps,
+        ),
+    )
+
+
+def _ensure_only_fields(action: OrchestratorAction, *, allowed_fields: set[str]) -> None:
+    if action.state_delta is None:
+        return
+    provided = {
+        key
+        for key, value in action.state_delta.model_dump(mode="python", exclude_none=True).items()
+        if value not in (None, [], {})
+    }
+    unexpected = sorted(provided - allowed_fields)
+    if unexpected:
+        raise ValueError(f"explicit {action.step} update_state contains unexpected fields: {', '.join(unexpected)}")

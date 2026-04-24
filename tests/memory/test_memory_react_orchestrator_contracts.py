@@ -207,6 +207,88 @@ def test_apply_state_delta_updates_generic_working_state() -> None:
     assert OrchestratorStep.CHANGE_PLAN in state.completed_steps
 
 
+def test_apply_state_delta_invalidates_downstream_outputs_when_change_plan_changes() -> None:
+    state = OrchestratorWorkingState(
+        change_plan=[
+            MemoryChangePlanItem(
+                memory_type="preference",
+                intent="write",
+                target_branch="users/u1/memories/preference",
+                title_hint="python-style",
+                reasoning="initial plan",
+                evidence=["prefers concise Python"],
+            )
+        ],
+        operations=[
+            ExtractedMemoryOperation(
+                op="write",
+                memory_type="preference",
+                fields={"topic": "Python code style"},
+                content="Initial operation",
+                evidence=[{"kind": "message", "content": "prefers concise Python"}],
+                confidence=0.8,
+            )
+        ],
+        summary_plan=[
+            L0L1SummaryResult(
+                branch_path="users/u1/memories/preference",
+                overview_md="# Old Overview",
+                summary_md="Old Summary",
+            )
+        ],
+        completed_steps=[
+            OrchestratorStep.CHANGE_PLAN,
+            OrchestratorStep.OPERATIONS,
+            OrchestratorStep.SUMMARY,
+        ],
+    )
+
+    state.apply_state_delta(
+        step=OrchestratorStep.CHANGE_PLAN,
+        state_delta=OrchestratorStateDelta(
+            change_plan=[
+                MemoryChangePlanItem(
+                    memory_type="preference",
+                    intent="edit",
+                    target_branch="users/u1/memories/preference",
+                    title_hint="python-style",
+                    reasoning="revised plan",
+                    requires_existing_read=True,
+                    evidence=["prefers concise Python"],
+                )
+            ],
+        ),
+    )
+
+    assert state.change_plan[0].intent == "edit"
+    assert state.operations == []
+    assert state.summary_plan == []
+    assert OrchestratorStep.CHANGE_PLAN in state.completed_steps
+    assert OrchestratorStep.OPERATIONS not in state.completed_steps
+    assert OrchestratorStep.SUMMARY not in state.completed_steps
+
+
+def test_apply_state_delta_rejects_empty_operations_for_executable_change_plan() -> None:
+    state = OrchestratorWorkingState(
+        change_plan=[
+            MemoryChangePlanItem(
+                memory_type="preference",
+                intent="write",
+                target_branch="users/u1/memories/preference",
+                title_hint="python-style",
+                reasoning="needs a write op",
+                evidence=["prefers concise Python"],
+            )
+        ]
+    )
+
+    with pytest.raises(ValueError, match="non-empty operations"):
+        state.apply_state_delta(
+            step=OrchestratorStep.OPERATIONS,
+            state_delta=OrchestratorStateDelta(operations=[]),
+        )
+
+
 def test_orchestrator_working_state_tracks_pending_summary_branches() -> None:
     state = OrchestratorWorkingState(
         change_plan=[

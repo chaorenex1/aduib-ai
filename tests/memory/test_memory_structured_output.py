@@ -45,3 +45,51 @@ def test_parse_step_action_returns_update_summary_for_summary_step() -> None:
     assert action.state_delta is not None
     assert action.state_delta.summary_plan is not None
     assert action.state_delta.summary_plan[0].branch_path == "users/u1/memories/preference"
+
+
+def test_parse_step_action_accepts_explicit_orchestrator_action_payload() -> None:
+    payload = (
+        '{"action":"update_state","step":"change_plan","state_delta":'
+        '{"identified_memories":[{"memory_type":"preference","target_branch":"users/u1/memories/preference",'
+        '"title_hint":"python-style","confidence":0.9,"reasoning":"stable","evidence":["prefers concise Python"]}],'
+        '"change_plan":[{"memory_type":"preference","intent":"edit","target_branch":"users/u1/memories/preference",'
+        '"title_hint":"python-style","reasoning":"revised","requires_existing_read":true,'
+        '"evidence":["prefers concise Python"]}]}}'
+    )
+    action = parse_step_action(
+        step=OrchestratorStep.OPERATIONS,
+        raw_text=payload,
+    )
+
+    assert action.action == "update_state"
+    assert action.step == OrchestratorStep.CHANGE_PLAN
+    assert action.state_delta is not None
+    assert action.state_delta.change_plan is not None
+    assert action.state_delta.change_plan[0].intent == "edit"
+
+
+def test_parse_step_action_converts_empty_explicit_change_plan_update_to_stop_noop() -> None:
+    action = parse_step_action(
+        step=OrchestratorStep.CHANGE_PLAN,
+        raw_text='{"action":"update_state","step":"change_plan","state_delta":{}}',
+    )
+
+    assert action.action == "stop_noop"
+
+
+def test_parse_step_action_normalizes_explicit_operation_payload() -> None:
+    payload = (
+        '{"action":"update_state","step":"operations","state_delta":{"operations":['
+        '{"op":"write","memory_type":"preference","fields":{"topic":"Python style","bogus":"drop-me"},'
+        '"content":"User prefers concise Python code.","confidence":0.9,'
+        '"evidence":[{"kind":"message","content":"prefers concise Python"}]}]}}'
+    )
+    action = parse_step_action(
+        step=OrchestratorStep.OPERATIONS,
+        raw_text=payload,
+    )
+
+    assert action.action == "update_state"
+    assert action.state_delta is not None
+    assert action.state_delta.operations is not None
+    assert action.state_delta.operations[0].fields == {"topic": "Python style"}

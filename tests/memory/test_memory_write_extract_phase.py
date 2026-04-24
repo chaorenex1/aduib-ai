@@ -625,3 +625,189 @@ def test_extract_operations_runs_unified_next_action_loop(monkeypatch: pytest.Mo
     assert result["structured_operations"][0]["op"] == "write"
     assert result["summary_plan"][0]["branch_path"] == "users/u1/memories/preference"
     assert result["tools_used"][0]["tool"] == "read"
+
+
+def test_extract_operations_revisits_downstream_steps_after_change_plan_revision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actions = iter(
+        [
+            OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.CHANGE_PLAN,
+                state_delta=OrchestratorStateDelta(
+                    identified_memories=[
+                        {
+                            "memory_type": "preference",
+                            "target_branch": "users/u1/memories/preference",
+                            "title_hint": "python-code-style",
+                            "confidence": 0.9,
+                            "reasoning": "initial preference",
+                            "evidence": ["User prefers concise Python code."],
+                        }
+                    ],
+                    change_plan=[
+                        MemoryChangePlanItem(
+                            memory_type="preference",
+                            intent="write",
+                            target_branch="users/u1/memories/preference",
+                            title_hint="python-code-style",
+                            reasoning="initial plan",
+                            evidence=["User prefers concise Python code."],
+                        )
+                    ],
+                ),
+            ),
+            OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.OPERATIONS,
+                state_delta=OrchestratorStateDelta(
+                    operations=[
+                        {
+                            "op": "write",
+                            "memory_type": "preference",
+                            "fields": {"topic": "Python code style"},
+                            "content": "Initial operation",
+                            "confidence": 0.8,
+                            "evidence": [{"kind": "message", "content": "User prefers concise Python code."}],
+                        }
+                    ],
+                ),
+            ),
+            OrchestratorAction(
+                action="request_tools",
+                step=OrchestratorStep.SUMMARY,
+                tool_requests=[
+                    PlannerToolRequest(
+                        tool="read",
+                        args={"path": "users/u1/memories/preference/python-style.md", "max_chars": 300},
+                    )
+                ],
+            ),
+            OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.CHANGE_PLAN,
+                state_delta=OrchestratorStateDelta(
+                    change_plan=[
+                        MemoryChangePlanItem(
+                            memory_type="preference",
+                            intent="edit",
+                            target_branch="users/u1/memories/preference",
+                            title_hint="python-code-style",
+                            reasoning="revised plan after summary-stage read",
+                            requires_existing_read=True,
+                            evidence=["Existing file says concise Python code."],
+                        )
+                    ],
+                ),
+            ),
+            OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.OPERATIONS,
+                state_delta=OrchestratorStateDelta(
+                    operations=[
+                        {
+                            "op": "edit",
+                            "memory_type": "preference",
+                            "fields": {"topic": "Python code style"},
+                            "content": "Revised operation",
+                            "confidence": 0.92,
+                            "evidence": [
+                                {
+                                    "kind": "read",
+                                    "content": "Existing file says concise Python code.",
+                                    "path": "users/u1/memories/preference/python-style.md",
+                                }
+                            ],
+                        }
+                    ],
+                ),
+            ),
+            OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.SUMMARY,
+                state_delta=OrchestratorStateDelta(
+                    summary_plan=[
+                        L0L1SummaryResult(
+                            branch_path="users/u1/memories/preference",
+                            overview_md="# Revised Overview",
+                            summary_md="Revised Summary",
+                        )
+                    ],
+                ),
+            ),
+            OrchestratorAction(action="finalize"),
+        ]
+    )
+
+    monkeypatch.setattr(
+        "runtime.memory.extract.planner.LLMPlanner.next_action",
+        lambda self, working_state: next(actions),
+    )
+    monkeypatch.setattr(
+        "runtime.memory.extract.tools.PlannerToolExecutor.execute_sync",
+        lambda self, request, message_id=None: PlannerToolUseResult(
+            tool=request.tool,
+            args=request.args,
+            result={"path": request.args["path"], "content": "Existing file says concise Python code."},
+        ),
+    )
+
+    result = run_memory_write_task_phase(
+        task_id="task-extract",
+        phase=MemoryTaskPhase.EXTRACT_OPERATIONS,
+        task=_build_task_view(task_id="task-extract"),
+        phase_results={"prepare_extract_context": _build_prepare_result()},
+    )
+
+    assert result["planner_status"] == "planned"
+    assert result["change_plan"][0]["intent"] == "edit"
+    assert result["structured_operations"][0]["op"] == "edit"
+    assert result["structured_operations"][0]["content"] == "Revised operation"
+    assert result["summary_plan"][0]["summary_md"] == "Revised Summary"
+    assert result["tools_used"][0]["tool"] == "read"
+
+
+def test_extract_operations_rejects_empty_operations_for_executable_plan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actions = iter(
+        [
+            OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.CHANGE_PLAN,
+                state_delta=OrchestratorStateDelta(
+                    change_plan=[
+                        MemoryChangePlanItem(
+                            memory_type="preference",
+                            intent="write",
+                            target_branch="users/u1/memories/preference",
+                            title_hint="python-style",
+                            reasoning="requires a concrete write",
+                            evidence=["User prefers concise Python code."],
+                        )
+                    ],
+                ),
+            ),
+            OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.OPERATIONS,
+                state_delta=OrchestratorStateDelta(operations=[]),
+            ),
+        ]
+    )
+
+    monkeypatch.setattr(
+        "runtime.memory.extract.planner.LLMPlanner.next_action",
+        lambda self, working_state: next(actions),
+    )
+
+    result = run_memory_write_task_phase(
+        task_id="task-extract",
+        phase=MemoryTaskPhase.EXTRACT_OPERATIONS,
+        task=_build_task_view(task_id="task-extract"),
+        phase_results={"prepare_extract_context": _build_prepare_result()},
+    )
+
+    assert result["planner_status"] == "planner_failed"
+    assert "non-empty operations" in result["planner_error"]

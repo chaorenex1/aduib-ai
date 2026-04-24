@@ -296,12 +296,25 @@ class OrchestratorWorkingState(MemoryContract):
             self.completed_steps.append(step)
 
     def apply_state_delta(self, *, step: OrchestratorStep, state_delta: OrchestratorStateDelta) -> None:
+        change_plan_updated = (
+            state_delta.identified_memories is not None
+            or state_delta.change_plan is not None
+        )
+        operations_updated = state_delta.operations is not None
+
+        if change_plan_updated:
+            self._invalidate_downstream(from_step=OrchestratorStep.CHANGE_PLAN)
+        elif operations_updated:
+            self._invalidate_downstream(from_step=OrchestratorStep.OPERATIONS)
+
         if state_delta.identified_memories is not None:
             self.identified_memories = list(state_delta.identified_memories)
         if state_delta.change_plan is not None:
             self.change_plan = list(state_delta.change_plan)
         if state_delta.operations is not None:
             self.operations = list(state_delta.operations)
+            if not self.operations and self._has_executable_change_plan():
+                raise ValueError("operations step requires non-empty operations for executable change plan")
         if state_delta.summary_plan is not None:
             for summary in state_delta.summary_plan:
                 self._upsert_summary(summary)
@@ -317,6 +330,23 @@ class OrchestratorWorkingState(MemoryContract):
 
     def _upsert_summary(self, summary: L0L1SummaryResult) -> None:
         self.summary_plan = [item for item in self.summary_plan if item.branch_path != summary.branch_path] + [summary]
+
+    def _invalidate_downstream(self, *, from_step: OrchestratorStep) -> None:
+        if from_step == OrchestratorStep.CHANGE_PLAN:
+            self.operations = []
+            self.summary_plan = []
+            self._discard_completed(OrchestratorStep.OPERATIONS)
+            self._discard_completed(OrchestratorStep.SUMMARY)
+            return
+        if from_step == OrchestratorStep.OPERATIONS:
+            self.summary_plan = []
+            self._discard_completed(OrchestratorStep.SUMMARY)
+
+    def _discard_completed(self, step: OrchestratorStep) -> None:
+        self.completed_steps = [item for item in self.completed_steps if item != step]
+
+    def _has_executable_change_plan(self) -> bool:
+        return any(item.intent in {"write", "edit", "delete"} for item in self.change_plan)
 
 
 class OrchestratorStateDelta(MemoryContract):
