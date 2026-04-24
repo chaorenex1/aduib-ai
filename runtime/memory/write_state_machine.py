@@ -146,11 +146,11 @@ def _materialize_worker_archive(*, task_id: str, worker_task_id: str | None) -> 
     from service.memory.base.enums import MemoryTriggerType
 
     task = MemoryWriteTaskService.get_task(task_id)
-    if task.trigger_type != MemoryTriggerType.MEMORY_API or task.source_ref.type != "conversation":
+    if task.trigger_type != MemoryTriggerType.MEMORY_API:
         return None
 
     try:
-        archive_ref = MemorySourceArchiveRuntime.freeze_conversation_source(task)
+        archive_ref = MemorySourceArchiveRuntime.freeze_memory_api_conversation_source(task)
         MemoryWriteTaskService.attach_archive_ref(task_id, archive_ref=archive_ref)
         return archive_ref
     except Exception as exc:

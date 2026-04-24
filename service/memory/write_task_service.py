@@ -43,7 +43,7 @@ class MemoryWriteTaskService:
                 task_id=task_id,
                 trace_id=trace_id,
             )
-        elif source_ref.type == "conversation":
+        elif trigger_type == MemoryTriggerType.MEMORY_API:
             source_ref = cls._normalize_conversation_source_ref(payload)
 
         task = cls.create_task(

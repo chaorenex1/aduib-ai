@@ -13,19 +13,6 @@ def normalize_path_segment(value: str) -> str:
     return normalized.strip("-") or "unknown"
 
 
-def build_memory_api_archive_path(*, user_id: str, task_id: str) -> str:
-    return "/".join(
-        [
-            config.MEMORY_TREE_ROOT_DIR,
-            "users",
-            user_id,
-            "sources",
-            "memory_api",
-            f"{task_id}.json",
-        ]
-    )
-
-
 def build_memory_api_conversation_archive_path(*, user_id: str, conversation_id: str, task_id: str) -> str:
     external_source, external_session_id = parse_conversation_id(conversation_id)
     conversation_key = build_conversation_key(
@@ -39,7 +26,6 @@ def build_memory_api_conversation_archive_path(*, user_id: str, conversation_id:
             user_id,
             "sources",
             "memory_api",
-            "conversations",
             f"{conversation_key}__{normalize_path_segment(task_id)}.jsonl",
         ]
     )

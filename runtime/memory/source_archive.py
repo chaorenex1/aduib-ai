@@ -14,47 +14,17 @@ from service.memory.base.contracts import (
 from service.memory.base.enums import MemoryTriggerType
 from service.memory.base.errors import MemoryArchiveError, MemoryValidationError
 from service.memory.base.paths import (
-    build_memory_api_archive_path,
     build_memory_api_conversation_archive_path,
     build_session_commit_archive_path,
 )
 
 
 class MemorySourceArchiveRuntime:
-    @staticmethod
-    async def archive_memory_api(
-        payload: MemoryWriteCommand,
-        *,
-        task_id: str,
-        trace_id: str,
-    ) -> ArchivedSourceRef:
-        content = await MemorySourceArchiveRuntime._extract_payload_text(payload)
-        snapshot = {
-            "trigger_type": MemoryTriggerType.MEMORY_API.value,
-            "task_id": task_id,
-            "trace_id": trace_id,
-            "scope": {
-                "user_id": payload.user_id,
-                "agent_id": payload.agent_id,
-                "project_id": payload.project_id,
-            },
-            "payload": {
-                "content": content,
-                "memory_source": payload.memory_source,
-                "summary_enabled": payload.summary_enabled,
-                "file_name": payload.file_name,
-            },
-        }
-        archive_text = json.dumps(snapshot, ensure_ascii=False, indent=2)
-        archive_path = build_memory_api_archive_path(user_id=payload.user_id, task_id=task_id)
-        return MemorySourceArchiveRuntime._write_archive(archive_path=archive_path, archive_text=archive_text)
 
     @staticmethod
-    def freeze_conversation_source(
+    def freeze_memory_api_conversation_source(
         task: MemoryWriteTaskView,
     ) -> ArchivedSourceRef:
-        if task.source_ref.type != "conversation":
-            raise MemoryValidationError("freeze_conversation_source requires conversation source_ref")
 
         from service.memory import ConversationRepository
 
