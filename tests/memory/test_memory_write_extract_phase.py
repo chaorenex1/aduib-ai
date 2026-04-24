@@ -129,15 +129,15 @@ def test_extract_operations_runs_memory_react_orchestrator(monkeypatch: pytest.M
 
     monkeypatch.setattr(
         "runtime.memory.extract.planner.LLMPlanner.request_change_plan",
-        lambda self, tool_results=None: ChangePlanStepResult(change_plan=change_plan_result),
+        lambda self, working_state: ChangePlanStepResult(change_plan=change_plan_result),
     )
     monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.generate_operations",
-        lambda self, change_plan: operation_result,
+        "runtime.memory.extract.planner.LLMPlanner.request_operation_step",
+        lambda self, working_state: OrchestratorAction(action="update_operations", operations=operation_result),
     )
     monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.generate_l0_l1_summary",
-        lambda self, change_plan, operations, branch_path: summary_result,
+        "runtime.memory.extract.planner.LLMPlanner.request_summary_step",
+        lambda self, working_state, branch_path: OrchestratorAction(action="update_summary", summary=summary_result),
     )
 
     result = run_memory_write_task_phase(
@@ -163,7 +163,7 @@ def test_extract_operations_marks_planner_failed_when_change_plan_is_invalid(
 ) -> None:
     monkeypatch.setattr(
         "runtime.memory.extract.planner.LLMPlanner.request_change_plan",
-        lambda self, tool_results=None: (_ for _ in ()).throw(ValueError("not json")),
+        lambda self, working_state: (_ for _ in ()).throw(ValueError("not json")),
     )
 
     result = run_memory_write_task_phase(
@@ -249,15 +249,15 @@ def test_extract_operations_executes_request_tools_before_final_plan(
 
     monkeypatch.setattr(
         "runtime.memory.extract.planner.LLMPlanner.request_change_plan",
-        lambda self, tool_results=None: next(change_plan_responses),
+        lambda self, working_state: next(change_plan_responses),
     )
     monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.generate_operations",
-        lambda self, change_plan: operation_result,
+        "runtime.memory.extract.planner.LLMPlanner.request_operation_step",
+        lambda self, working_state: OrchestratorAction(action="update_operations", operations=operation_result),
     )
     monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.generate_l0_l1_summary",
-        lambda self, change_plan, operations, branch_path: summary_result,
+        "runtime.memory.extract.planner.LLMPlanner.request_summary_step",
+        lambda self, working_state, branch_path: OrchestratorAction(action="update_summary", summary=summary_result),
     )
     monkeypatch.setattr(
         "runtime.memory.extract.tools.PlannerToolExecutor.execute_sync",
@@ -296,6 +296,214 @@ def test_extract_operations_executes_request_tools_before_final_plan(
         }
     ]
     assert result["tools_available"] == ["ls", "read", "find"]
+
+
+def test_extract_operations_can_request_tools_during_operation_and_summary_steps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    operation_actions = iter(
+        [
+            OrchestratorAction(
+                action="request_tools",
+                tool_requests=[
+                    PlannerToolRequest(
+                        tool="read",
+                        args={"path": "users/u1/memories/preference/python-style.md", "max_chars": 400},
+                    )
+                ],
+            ),
+            OrchestratorAction(
+                action="update_operations",
+                operations=MemoryOperationGenerationResult(
+                    operations=[
+                        {
+                            "op": "edit",
+                            "memory_type": "preference",
+                            "fields": {"topic": "Python code style"},
+                            "content": "User prefers concise Python code and direct implementation.",
+                            "confidence": 0.9,
+                            "evidence": [
+                                {
+                                    "kind": "read",
+                                    "content": "Existing file confirms the preference.",
+                                    "path": "users/u1/memories/preference/python-style.md",
+                                }
+                            ],
+                        }
+                    ]
+                ),
+            ),
+        ]
+    )
+    summary_actions = iter(
+        [
+            OrchestratorAction(
+                action="request_tools",
+                tool_requests=[
+                    PlannerToolRequest(
+                        tool="ls",
+                        args={"path": "users/u1/memories/preference", "include_files": True},
+                    )
+                ],
+            ),
+            OrchestratorAction(
+                action="update_summary",
+                summary=L0L1SummaryResult(
+                    branch_path="users/u1/memories/preference",
+                    overview_md="# Overview\n\nUpdated from tool-assisted summary step.",
+                    summary_md="Preference branch summary after extra reads.",
+                ),
+            ),
+        ]
+    )
+
+    monkeypatch.setattr(
+        "runtime.memory.extract.planner.LLMPlanner.request_change_plan",
+        lambda self, working_state: ChangePlanStepResult(
+            change_plan=MemoryChangePlanResult(
+                identified_memories=[
+                    {
+                        "memory_type": "preference",
+                        "target_branch": "users/u1/memories/preference",
+                        "title_hint": "python-code-style",
+                        "confidence": 0.95,
+                        "reasoning": "Stable coding preference.",
+                        "evidence": ["User prefers concise Python code."],
+                    }
+                ],
+                change_plan=[
+                    {
+                        "memory_type": "preference",
+                        "intent": "edit",
+                        "target_branch": "users/u1/memories/preference",
+                        "title_hint": "python-code-style",
+                        "reasoning": "Existing file should be refined.",
+                        "requires_existing_read": True,
+                        "evidence": ["User prefers concise Python code."],
+                    }
+                ],
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "runtime.memory.extract.planner.LLMPlanner.request_operation_step",
+        lambda self, working_state: next(operation_actions),
+    )
+    monkeypatch.setattr(
+        "runtime.memory.extract.planner.LLMPlanner.request_summary_step",
+        lambda self, working_state, branch_path: next(summary_actions),
+    )
+    monkeypatch.setattr(
+        "runtime.memory.extract.tools.PlannerToolExecutor.execute_sync",
+        lambda self, request, message_id=None: PlannerToolUseResult(
+            tool=request.tool,
+            args=request.args,
+            result={"path": request.args["path"], "content": "tool-result"},
+        ),
+    )
+
+    result = run_memory_write_task_phase(
+        task_id="task-extract",
+        phase=MemoryTaskPhase.EXTRACT_OPERATIONS,
+        task=_build_task_view(task_id="task-extract"),
+        phase_results={"prepare_extract_context": _build_prepare_result()},
+    )
+
+    assert result["planner_status"] == "planned"
+    assert [item["tool"] for item in result["tools_used"]] == ["read", "ls"]
+    assert result["structured_operations"][0]["op"] == "edit"
+    assert result["summary_plan"][0]["summary_md"] == "Preference branch summary after extra reads."
+
+
+def test_extract_operations_keeps_tool_failures_inside_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "runtime.memory.extract.planner.LLMPlanner.request_change_plan",
+        lambda self, working_state: (
+            ChangePlanStepResult(
+                tool_requests=[
+                    PlannerToolRequest(
+                        tool="read",
+                        args={"path": "users/u1/memories/preference/missing.md"},
+                    )
+                ]
+            )
+            if "change_plan" not in working_state.completed_steps and not working_state.tool_results
+            else ChangePlanStepResult(
+                change_plan=MemoryChangePlanResult(
+                    identified_memories=[
+                        {
+                            "memory_type": "preference",
+                            "target_branch": "users/u1/memories/preference",
+                            "title_hint": "python-code-style",
+                            "confidence": 0.82,
+                            "reasoning": "Fallback to conversation evidence after failed read.",
+                            "evidence": ["User prefers concise Python code."],
+                        }
+                    ],
+                    change_plan=[
+                        {
+                            "memory_type": "preference",
+                            "intent": "write",
+                            "target_branch": "users/u1/memories/preference",
+                            "title_hint": "python-code-style",
+                            "reasoning": "Proceed despite failed read.",
+                            "requires_existing_read": False,
+                            "evidence": ["User prefers concise Python code."],
+                        }
+                    ],
+                )
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "runtime.memory.extract.planner.LLMPlanner.request_operation_step",
+        lambda self, working_state: OrchestratorAction(
+            action="update_operations",
+            operations=MemoryOperationGenerationResult(
+                operations=[
+                    {
+                        "op": "write",
+                        "memory_type": "preference",
+                        "fields": {"topic": "Python code style"},
+                        "content": "User prefers concise Python code.",
+                        "confidence": 0.8,
+                        "evidence": [{"kind": "message", "content": "User prefers concise Python code."}],
+                    }
+                ]
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "runtime.memory.extract.planner.LLMPlanner.request_summary_step",
+        lambda self, working_state, branch_path: OrchestratorAction(
+            action="update_summary",
+            summary=L0L1SummaryResult(
+                branch_path="users/u1/memories/preference",
+                overview_md="# Overview\n\nGenerated after a failed tool call.",
+                summary_md="Summary generated after a failed tool call.",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "runtime.memory.extract.tools.PlannerToolExecutor.execute_sync",
+        lambda self, request, message_id=None: PlannerToolUseResult(
+            tool=request.tool,
+            args=request.args,
+            result={"error": "file not found", "builtin_tool": "mem-read"},
+        ),
+    )
+
+    result = run_memory_write_task_phase(
+        task_id="task-extract",
+        phase=MemoryTaskPhase.EXTRACT_OPERATIONS,
+        task=_build_task_view(task_id="task-extract"),
+        phase_results={"prepare_extract_context": _build_prepare_result()},
+    )
+
+    assert result["planner_status"] == "planned"
+    assert result["tools_used"][0]["result"]["error"] == "file not found"
+    assert result["change_plan"][0]["intent"] == "write"
+    assert result["summary_plan"][0]["branch_path"] == "users/u1/memories/preference"
 
 
 def test_extract_operations_runs_unified_next_action_loop(monkeypatch: pytest.MonkeyPatch) -> None:

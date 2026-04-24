@@ -20,6 +20,8 @@ from .structured_output import (
     parse_l0_l1_summary_output,
     parse_memory_change_plan_step_output,
     parse_memory_operation_generation_output,
+    parse_memory_operation_step_output,
+    parse_summary_step_output,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,15 +33,18 @@ class LLMPlanner:
         self.registry = registry
         self.prompt_composer = ExtractPromptComposer(prepared=prepared, registry=registry)
 
-    def request_change_plan(self, *, tool_results: list | None = None) -> ChangePlanStepResult:
+    def request_change_plan(self, *, working_state: OrchestratorWorkingState) -> ChangePlanStepResult:
         raw = self._invoke(
-            messages=self.prompt_composer.build_change_plan_messages(tool_results=tool_results),
+            messages=self.prompt_composer.build_change_plan_messages(
+                working_state=working_state,
+                tool_results=working_state.tool_results,
+            ),
         )
         return parse_memory_change_plan_step_output(raw)
 
     def next_action(self, *, working_state: OrchestratorWorkingState) -> OrchestratorAction:
         if "change_plan" not in working_state.completed_steps:
-            step_result = self.request_change_plan(tool_results=working_state.tool_results)
+            step_result = self.request_change_plan(working_state=working_state)
             if step_result.tool_requests:
                 return OrchestratorAction(action="request_tools", tool_requests=step_result.tool_requests)
             change_plan = step_result.change_plan or MemoryChangePlanResult()
@@ -48,31 +53,55 @@ class LLMPlanner:
             return OrchestratorAction(action="update_change_plan", change_plan=change_plan)
 
         if "operations" not in working_state.completed_steps:
-            operations = self.generate_operations(
-                change_plan=MemoryChangePlanResult(
-                    identified_memories=working_state.identified_memories,
-                    change_plan=working_state.change_plan,
-                )
-            )
-            return OrchestratorAction(action="update_operations", operations=operations)
+            return self.request_operation_step(working_state=working_state)
 
         pending_summary_branches = working_state.pending_summary_branches()
         if pending_summary_branches:
-            summary = self.generate_l0_l1_summary(
-                change_plan=MemoryChangePlanResult(
-                    identified_memories=working_state.identified_memories,
-                    change_plan=working_state.change_plan,
-                ),
-                operations=MemoryOperationGenerationResult(operations=working_state.operations),
+            return self.request_summary_step(
+                working_state=working_state,
                 branch_path=pending_summary_branches[0],
             )
-            return OrchestratorAction(action="update_summary", summary=summary)
 
         return OrchestratorAction(action="finalize")
 
+    def request_operation_step(self, *, working_state: OrchestratorWorkingState) -> OrchestratorAction:
+        raw = self._invoke(
+            messages=self.prompt_composer.build_operation_generation_messages(
+                working_state=working_state,
+                tool_results=working_state.tool_results,
+            ),
+        )
+        tool_requests, operations = parse_memory_operation_step_output(raw)
+        if tool_requests:
+            return OrchestratorAction(action="request_tools", tool_requests=tool_requests)
+        return OrchestratorAction(action="update_operations", operations=operations)
+
+    def request_summary_step(
+        self,
+        *,
+        working_state: OrchestratorWorkingState,
+        branch_path: str,
+    ) -> OrchestratorAction:
+        raw = self._invoke(
+            messages=self.prompt_composer.build_l0_l1_summary_messages(
+                working_state=working_state,
+                branch_path=branch_path,
+                tool_results=working_state.tool_results,
+            )
+        )
+        tool_requests, summary = parse_summary_step_output(raw)
+        if tool_requests:
+            return OrchestratorAction(action="request_tools", tool_requests=tool_requests)
+        return OrchestratorAction(action="update_summary", summary=summary)
+
     def generate_operations(self, *, change_plan: MemoryChangePlanResult) -> MemoryOperationGenerationResult:
         raw = self._invoke(
-            messages=self.prompt_composer.build_operation_generation_messages(change_plan=change_plan),
+            messages=self.prompt_composer.build_operation_generation_messages(
+                working_state=OrchestratorWorkingState(
+                    identified_memories=change_plan.identified_memories,
+                    change_plan=change_plan.change_plan,
+                ),
+            ),
         )
         return parse_memory_operation_generation_output(raw)
 
@@ -85,8 +114,11 @@ class LLMPlanner:
     ) -> L0L1SummaryResult:
         raw = self._invoke(
             messages=self.prompt_composer.build_l0_l1_summary_messages(
-                change_plan=change_plan,
-                operations=operations,
+                working_state=OrchestratorWorkingState(
+                    identified_memories=change_plan.identified_memories,
+                    change_plan=change_plan.change_plan,
+                    operations=operations.operations,
+                ),
                 branch_path=branch_path,
             )
         )

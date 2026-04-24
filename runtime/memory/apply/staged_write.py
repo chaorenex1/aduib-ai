@@ -27,9 +27,13 @@ SUPPORTED_NAVIGATION_DIRECTORIES = {
 def build_staged_write_set(context: MemoryWritePipelineContext) -> dict:
     prepared = PreparedExtractContext.model_validate(context.phase_results.get("prepare_extract_context") or {})
     resolve_result = context.phase_results.get("resolve_operations") or {}
+    extract_result = context.phase_results.get("extract_operations") or {}
     resolved_operations = [
         ResolvedMemoryOperation.model_validate(item) for item in resolve_result.get("resolved_operations") or []
     ]
+    summary_plan_by_branch = {
+        item["branch_path"]: item for item in extract_result.get("summary_plan") or [] if item.get("branch_path")
+    }
     memory_mutations: list[dict[str, Any]] = []
     snapshot_targets: list[str] = []
     for operation in resolved_operations:
@@ -64,6 +68,8 @@ def build_staged_write_set(context: MemoryWritePipelineContext) -> dict:
             "directory_path": directory_path,
             "overview_path": f"{directory_path}/overview.md",
             "summary_path": f"{directory_path}/summary.md",
+            "desired_overview_md": (summary_plan_by_branch.get(directory_path) or {}).get("overview_md"),
+            "desired_summary_md": (summary_plan_by_branch.get(directory_path) or {}).get("summary_md"),
         }
         for directory_path in resolve_result.get("navigation_scopes") or []
         if _is_supported_navigation_dir(directory_path)

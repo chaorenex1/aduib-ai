@@ -6,6 +6,7 @@ from runtime.entities import PromptMessageRole, SystemPromptMessage, UserPromptM
 from service.memory.base.contracts import (
     MemoryChangePlanResult,
     MemoryOperationGenerationResult,
+    OrchestratorWorkingState,
     PlannerToolUseResult,
     PreparedExtractContext,
 )
@@ -89,7 +90,7 @@ Shape A — tool request:
 {
   "tool_requests": [
     {
-      "tool": "ls" | "read" | "find" | "search",
+      "tool": "ls" | "read" | "find",
       "args": { ... }
     }
   ]
@@ -156,7 +157,7 @@ You are given:
 - a validated memory change plan
 - the conversation source material
 - pre-fetched context
-- optional tool observations
+- optional tool observations already collected during this loop
 - the allowed memory schema registry
 
 Your task is to convert the accepted change plan into final memory operations.
@@ -166,7 +167,19 @@ No markdown.
 No code fences.
 No explanation outside the JSON object.
 
-Schema:
+You must output EXACTLY ONE of the following shapes:
+
+Shape A - tool request:
+{
+  "tool_requests": [
+    {
+      "tool": "ls" | "read" | "find",
+      "args": { ... }
+    }
+  ]
+}
+
+Shape B - operations:
 {
   "operations": [
     {
@@ -185,6 +198,11 @@ Schema:
     }
   ]
 }
+
+Request tools instead of guessing when:
+- an `edit` depends on confirming the current file contents
+- nearby file names or branch structure are needed to choose safe fields/content
+- the prefetched context is insufficient to emit a safe final operation
 """
 
 MEMORY_L0_L1_SUMMARY_PROMPT = """You are the branch-summary generator
@@ -201,18 +219,35 @@ You are given:
 - relevant source material
 - prefetched branch context
 - planned memory operations
+- optional tool observations already collected during this loop
 
 Output ONLY valid JSON.
 No markdown.
 No code fences.
 No explanation outside the JSON object.
 
-Schema:
+You must output EXACTLY ONE of the following shapes:
+
+Shape A - tool request:
+{
+  "tool_requests": [
+    {
+      "tool": "ls" | "read" | "find",
+      "args": { ... }
+    }
+  ]
+}
+
+Shape B - branch summary:
 {
   "branch_path": "<string>",
   "overview_md": "<string>",
   "summary_md": "<string>"
 }
+
+Request tools instead of guessing when:
+- current branch files should be re-read before summary generation
+- prefetched branch context is clearly insufficient
 """
 
 
@@ -224,8 +259,10 @@ class ExtractPromptComposer:
     def build_change_plan_messages(
         self,
         *,
+        working_state: OrchestratorWorkingState | None = None,
         tool_results: list[PlannerToolUseResult] | None = None,
     ) -> list:
+        state = working_state or OrchestratorWorkingState()
         messages = [
             SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=MEMORY_CHANGE_PLAN_PROMPT),
             SystemPromptMessage(
@@ -245,12 +282,7 @@ class ExtractPromptComposer:
                     messages_json=self._dump_json(self.prepared.messages),
                     text_blocks_json=self._dump_json(self.prepared.text_blocks),
                     prefetched_context_json=self._dump_json(self.prepared.prefetched_context),
-                    working_state_json=self._dump_json(
-                        {
-                            "identified_memories": [],
-                            "change_plan": [],
-                        }
-                    ),
+                    working_state_json=self._dump_json(self._working_state_payload(state)),
                 ),
             ),
         ]
@@ -270,9 +302,14 @@ class ExtractPromptComposer:
     def build_operation_generation_messages(
         self,
         *,
-        change_plan: MemoryChangePlanResult,
+        working_state: OrchestratorWorkingState,
+        tool_results: list[PlannerToolUseResult] | None = None,
     ) -> list:
-        return [
+        change_plan = MemoryChangePlanResult(
+            identified_memories=working_state.identified_memories,
+            change_plan=working_state.change_plan,
+        )
+        messages = [
             SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=MEMORY_OPERATION_GENERATION_PROMPT),
             SystemPromptMessage(
                 role=PromptMessageRole.SYSTEM,
@@ -294,28 +331,37 @@ class ExtractPromptComposer:
                             "text_blocks": self.prepared.text_blocks,
                         },
                         "prefetched_context": self.prepared.prefetched_context,
-                        "working_state": {
-                            "identified_memories": [
-                                item.model_dump(mode="python", exclude_none=True)
-                                for item in change_plan.identified_memories
-                            ],
-                            "change_plan": [
-                                item.model_dump(mode="python", exclude_none=True) for item in change_plan.change_plan
-                            ],
-                        },
+                        "working_state": self._working_state_payload(working_state),
                     }
                 ),
             ),
         ]
+        if tool_results:
+            messages.append(
+                UserPromptMessage(
+                    role=PromptMessageRole.USER,
+                    content=MEMORY_CHANGE_PLAN_TOOL_OBSERVATION_TEMPLATE.format(
+                        tool_results_json=self._dump_json(
+                            [item.model_dump(mode="python", exclude_none=True) for item in tool_results]
+                        )
+                    ),
+                )
+            )
+        return messages
 
     def build_l0_l1_summary_messages(
         self,
         *,
-        change_plan: MemoryChangePlanResult,
-        operations: MemoryOperationGenerationResult,
+        working_state: OrchestratorWorkingState,
         branch_path: str,
+        tool_results: list[PlannerToolUseResult] | None = None,
     ) -> list:
-        return [
+        change_plan = MemoryChangePlanResult(
+            identified_memories=working_state.identified_memories,
+            change_plan=working_state.change_plan,
+        )
+        operations = MemoryOperationGenerationResult(operations=working_state.operations)
+        messages = [
             SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=MEMORY_L0_L1_SUMMARY_PROMPT),
             SystemPromptMessage(
                 role=PromptMessageRole.SYSTEM,
@@ -337,18 +383,23 @@ class ExtractPromptComposer:
                             "text_blocks": self.prepared.text_blocks,
                         },
                         "prefetched_context": self.prepared.prefetched_context,
-                        "working_state": {
-                            "change_plan": [
-                                item.model_dump(mode="python", exclude_none=True) for item in change_plan.change_plan
-                            ],
-                            "operations": [
-                                item.model_dump(mode="python", exclude_none=True) for item in operations.operations
-                            ],
-                        },
+                        "working_state": self._working_state_payload(working_state),
                     }
                 ),
             ),
         ]
+        if tool_results:
+            messages.append(
+                UserPromptMessage(
+                    role=PromptMessageRole.USER,
+                    content=MEMORY_CHANGE_PLAN_TOOL_OBSERVATION_TEMPLATE.format(
+                        tool_results_json=self._dump_json(
+                            [item.model_dump(mode="python", exclude_none=True) for item in tool_results]
+                        )
+                    ),
+                )
+            )
+        return messages
 
     @staticmethod
     def _dump_json(payload: dict) -> str:
@@ -365,3 +416,15 @@ class ExtractPromptComposer:
             {"name": tool_name, "responsibility": responsibilities[tool_name]}
             for tool_name in SUPPORTED_PLANNER_TOOLS
         ]
+
+    @staticmethod
+    def _working_state_payload(working_state: OrchestratorWorkingState) -> dict:
+        return {
+            "identified_memories": [
+                item.model_dump(mode="python", exclude_none=True) for item in working_state.identified_memories
+            ],
+            "change_plan": [item.model_dump(mode="python", exclude_none=True) for item in working_state.change_plan],
+            "operations": [item.model_dump(mode="python", exclude_none=True) for item in working_state.operations],
+            "summary_plan": [item.model_dump(mode="python", exclude_none=True) for item in working_state.summary_plan],
+            "completed_steps": list(working_state.completed_steps),
+        }

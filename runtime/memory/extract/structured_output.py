@@ -70,9 +70,30 @@ def parse_memory_operation_generation_output(raw_text: str) -> MemoryOperationGe
     return MemoryOperationGenerationResult(operations=normalized_operations)
 
 
+def parse_memory_operation_step_output(
+    raw_text: str,
+) -> tuple[list[PlannerToolRequest], MemoryOperationGenerationResult]:
+    payload = _load_json_payload(raw_text)
+    tool_requests = _extract_tool_requests(payload)
+    if tool_requests:
+        return tool_requests, MemoryOperationGenerationResult()
+    normalized_operations = _normalize_operations_list(payload.get("operations") or [], MemorySchemaRegistry.load())
+    return [], MemoryOperationGenerationResult(operations=normalized_operations)
+
+
 def parse_l0_l1_summary_output(raw_text: str) -> L0L1SummaryResult:
     payload = _load_json_payload(raw_text)
     return L0L1SummaryResult.model_validate(payload)
+
+
+def parse_summary_step_output(
+    raw_text: str,
+) -> tuple[list[PlannerToolRequest], L0L1SummaryResult | None]:
+    payload = _load_json_payload(raw_text)
+    tool_requests = _extract_tool_requests(payload)
+    if tool_requests:
+        return tool_requests, None
+    return [], L0L1SummaryResult.model_validate(payload)
 
 
 def _load_json_payload(raw_text: str) -> Any:
@@ -183,3 +204,9 @@ def _normalize_tool_request(value: Any) -> PlannerToolRequest:
         tool=str(value.get("tool") or "").strip().lower(),
         args=value.get("args") if isinstance(value.get("args"), dict) else {},
     )
+
+
+def _extract_tool_requests(payload: Any) -> list[PlannerToolRequest]:
+    if isinstance(payload, dict) and isinstance(payload.get("tool_requests"), list):
+        return [_normalize_tool_request(item) for item in payload.get("tool_requests") or []]
+    return []

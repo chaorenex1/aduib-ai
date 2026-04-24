@@ -10,7 +10,12 @@ if str(PROJECT_ROOT) not in sys.path:
 from runtime.entities import PromptMessageRole
 from runtime.memory.extract.prompts import ExtractPromptComposer
 from runtime.memory.schema.registry import MemorySchemaRegistry
-from service.memory.base.contracts import PlannerToolUseResult, PreparedExtractContext
+from service.memory.base.contracts import (
+    MemoryChangePlanItem,
+    OrchestratorWorkingState,
+    PlannerToolUseResult,
+    PreparedExtractContext,
+)
 
 
 def _build_prepared() -> PreparedExtractContext:
@@ -35,8 +40,21 @@ def _build_prepared() -> PreparedExtractContext:
 
 def test_change_plan_prompt_composer_separates_runtime_context_and_task_input() -> None:
     composer = ExtractPromptComposer(prepared=_build_prepared(), registry=MemorySchemaRegistry.load())
+    working_state = OrchestratorWorkingState(
+        change_plan=[
+            MemoryChangePlanItem(
+                memory_type="preference",
+                intent="write",
+                target_branch="users/u1/memories/preference",
+                title_hint="python-style",
+                reasoning="Stable coding preference.",
+                evidence=["User prefers concise Python code."],
+            )
+        ],
+        completed_steps=["change_plan"],
+    )
 
-    messages = composer.build_change_plan_messages()
+    messages = composer.build_change_plan_messages(working_state=working_state)
 
     assert len(messages) == 3
     assert messages[0].role == PromptMessageRole.SYSTEM
@@ -48,12 +66,15 @@ def test_change_plan_prompt_composer_separates_runtime_context_and_task_input() 
     runtime_context = json.loads(messages[1].content)
     assert "memory_schema" in runtime_context
     assert "tools" in runtime_context
+    assert [item["name"] for item in runtime_context["tools"]] == ["ls", "read", "find"]
     assert "tool_observations" not in runtime_context
 
     task_input = messages[2].content
     assert "Conversation Source Material" in task_input
     assert "Pre-fetched Context" in task_input
     assert "Current Change-Planning State" in task_input
+    assert '"completed_steps": [' in task_input
+    assert '"intent": "write"' in task_input
     assert "memory_schema" not in task_input
     assert '"tools"' not in task_input
 

@@ -27,31 +27,43 @@ class PlannerToolExecutor:
     async def execute(self, request: PlannerToolRequest, *, message_id: str | None = None) -> PlannerToolUseResult:
         builtin_tool_name = PLANNER_TOOL_TO_BUILTIN.get(request.tool)
         if not builtin_tool_name:
-            raise ValueError(f"unsupported planner tool: {request.tool}")
+            return self._failure_result(
+                request=request,
+                builtin_tool_name=None,
+                error=f"unsupported planner tool: {request.tool}",
+            )
 
-        result = await self.tool_manager.invoke_tool(
-            tool_name=builtin_tool_name,
-            tool_arguments=request.args,
-            tool_provider="builtin",
-            tool_call_id=self._tool_call_id(request),
-            message_id=message_id,
-        )
+        try:
+            result = await self.tool_manager.invoke_tool(
+                tool_name=builtin_tool_name,
+                tool_arguments=request.args,
+                tool_provider="builtin",
+                tool_call_id=self._tool_call_id(request),
+                message_id=message_id,
+            )
+        except Exception as exc:
+            return self._failure_result(
+                request=request,
+                builtin_tool_name=builtin_tool_name,
+                error=str(exc) or f"builtin tool failed: {builtin_tool_name}",
+            )
+
         if result is None:
-            raise ValueError(f"builtin tool returned no result: {builtin_tool_name}")
+            return self._failure_result(
+                request=request,
+                builtin_tool_name=builtin_tool_name,
+                error=f"builtin tool returned no result: {builtin_tool_name}",
+            )
         if not result.success:
-            raise ValueError(result.error or f"builtin tool failed: {builtin_tool_name}")
+            return self._failure_result(
+                request=request,
+                builtin_tool_name=builtin_tool_name,
+                error=result.error or f"builtin tool failed: {builtin_tool_name}",
+            )
 
         data = result.data
-        if isinstance(data, dict):
-            normalized = data
-        else:
-            normalized = {"value": data}
-
-        return PlannerToolUseResult(
-            tool=request.tool,
-            args=request.args,
-            result=normalized,
-        )
+        normalized = data if isinstance(data, dict) else {"value": data}
+        return PlannerToolUseResult(tool=request.tool, args=request.args, result=normalized)
 
     def execute_sync(self, request: PlannerToolRequest, *, message_id: str | None = None) -> PlannerToolUseResult:
         return anyio.run(self.execute, request, message_id)
@@ -61,6 +73,22 @@ class PlannerToolExecutor:
         encoded = json.dumps(request.args, ensure_ascii=False, sort_keys=True)
         digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
         return f"planner_{request.tool}_{digest}"
+
+    @staticmethod
+    def _failure_result(
+        *,
+        request: PlannerToolRequest,
+        builtin_tool_name: str | None,
+        error: str,
+    ) -> PlannerToolUseResult:
+        result = {"error": str(error or "tool execution failed")}
+        if builtin_tool_name:
+            result["builtin_tool"] = builtin_tool_name
+        return PlannerToolUseResult(
+            tool=request.tool,
+            args=request.args,
+            result=result,
+        )
 
 
 class _PlannerBuiltinToolController:

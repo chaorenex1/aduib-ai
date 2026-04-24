@@ -37,15 +37,17 @@ def refresh_navigation(context: MemoryWritePipelineContext) -> dict:
                 metadata, _body = parse_markdown_document(storage_manager.read_text(_to_scoped_path(path)))
                 title = str(metadata.get("title") or title).strip()
             navigable_entries.append({"path": path, "type": entry["type"], "title": title})
-        overview_content = _render_navigation_document(
+        overview_content = _build_navigation_content(
             kind="overview",
             scope_path=directory_path,
             navigable_entries=navigable_entries,
+            desired_markdown=mutation.get("desired_overview_md"),
         )
-        summary_content = _render_navigation_document(
+        summary_content = _build_navigation_content(
             kind="summary",
             scope_path=directory_path,
             navigable_entries=navigable_entries,
+            desired_markdown=mutation.get("desired_summary_md"),
         )
         storage_manager.write_text_atomic(_to_scoped_path(mutation["overview_path"]), overview_content)
         storage_manager.write_text_atomic(_to_scoped_path(mutation["summary_path"]), summary_content)
@@ -55,6 +57,27 @@ def refresh_navigation(context: MemoryWritePipelineContext) -> dict:
         "phase": "refresh_navigation",
         "navigation_files": navigation_files,
     }
+
+
+def _build_navigation_content(
+    *,
+    kind: str,
+    scope_path: str,
+    navigable_entries: list[dict[str, Any]],
+    desired_markdown: str | None,
+) -> str:
+    if desired_markdown:
+        return _render_planned_navigation_document(
+            kind=kind,
+            scope_path=scope_path,
+            navigable_entries=navigable_entries,
+            markdown_body=desired_markdown,
+        )
+    return _render_navigation_document(
+        kind=kind,
+        scope_path=scope_path,
+        navigable_entries=navigable_entries,
+    )
 
 
 def _render_navigation_document(*, kind: str, scope_path: str, navigable_entries: list[dict[str, Any]]) -> str:
@@ -97,6 +120,33 @@ def _render_navigation_document(*, kind: str, scope_path: str, navigable_entries
             ]
         )
     return serialize_markdown_document(metadata=metadata, body=body)
+
+
+def _render_planned_navigation_document(
+    *,
+    kind: str,
+    scope_path: str,
+    navigable_entries: list[dict[str, Any]],
+    markdown_body: str,
+) -> str:
+    now = datetime.now(UTC).isoformat()
+    title = f"{scope_path.rsplit('/', 1)[-1].replace('-', ' ').title()} {kind.title()}"
+    metadata = {
+        "schema_version": 1,
+        "kind": kind,
+        "scope_path": scope_path,
+        "title": title,
+        "created_at": now,
+        "updated_at": now,
+        "source": {"type": "planner_summary", "trace": f"generated_directory_{kind}"},
+        "visibility": "internal",
+        "status": "active",
+        "target_token_range": "1000-2000" if kind == "overview" else "100-200",
+        "entry_count": len(navigable_entries),
+        "top_entries": [entry["title"] for entry in navigable_entries[:3]],
+        "keywords": [entry["title"] for entry in navigable_entries[:3]],
+    }
+    return serialize_markdown_document(metadata=metadata, body=markdown_body.strip())
 
 
 def _to_scoped_path(relative_path: str) -> str:
