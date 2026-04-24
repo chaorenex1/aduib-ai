@@ -6,94 +6,61 @@ from typing import Any
 from pydantic import TypeAdapter
 
 from service.memory.base.contracts import (
-    ChangePlanStepResult,
     ExtractedMemoryOperation,
     L0L1SummaryResult,
-    MemoryChangePlanResult,
     MemoryOperationEvidence,
-    MemoryOperationGenerationResult,
+    OrchestratorAction,
+    OrchestratorStateDelta,
     PlannerToolRequest,
 )
+from service.memory.base.enums import OrchestratorStep
 
 from ..schema.registry import MemorySchemaRegistry, normalize_memory_type
 
-GROUPED_OUTPUT_KEYS = {
-    "profile": "profile",
-    "preferences": "preference",
-    "events": "event",
-    "entities": "entity",
-    "tasks": "task",
-    "verifications": "verification",
-    "reviews": "review",
-    "solutions": "solution",
-    "patterns": "pattern",
-    "tools": "tool",
-    "skills": "skill",
-    "runbooks": "runbook",
-    "deployments": "deployment",
-    "incidents": "incident",
-    "rollbacks": "rollback",
-}
 
-
-def parse_planner_output(
-    raw_text: str, registry: MemorySchemaRegistry
-) -> tuple[list[ExtractedMemoryOperation], list[PlannerToolRequest]]:
-    payload = _load_json_payload(raw_text)
-    if isinstance(payload, dict) and isinstance(payload.get("tool_requests"), list):
-        tool_requests = [_normalize_tool_request(item) for item in payload.get("tool_requests") or []]
-        if tool_requests:
-            return [], tool_requests
-    operations = _extract_operations(payload=payload, registry=registry)
-    return operations, []
-
-
-def parse_memory_change_plan_output(raw_text: str) -> MemoryChangePlanResult:
-    payload = _load_json_payload(raw_text)
-    return MemoryChangePlanResult.model_validate(payload)
-
-
-def parse_memory_change_plan_step_output(
+def parse_step_action(
+    *,
+    step: OrchestratorStep,
     raw_text: str,
-) -> ChangePlanStepResult:
+) -> OrchestratorAction:
     payload = _load_json_payload(raw_text)
-    if isinstance(payload, dict) and isinstance(payload.get("tool_requests"), list):
-        tool_requests = [_normalize_tool_request(item) for item in payload.get("tool_requests") or []]
+    if step == OrchestratorStep.CHANGE_PLAN:
+        tool_requests = _extract_tool_requests(payload)
         if tool_requests:
-            return ChangePlanStepResult(tool_requests=tool_requests)
-    return ChangePlanStepResult(change_plan=MemoryChangePlanResult.model_validate(payload))
+            return OrchestratorAction(action="request_tools", step=step, tool_requests=tool_requests)
+        identified_memories = payload.get("identified_memories") or []
+        change_plan = payload.get("change_plan") or []
+        if not identified_memories and not change_plan:
+            return OrchestratorAction(action="stop_noop")
+        return OrchestratorAction(
+            action="update_state",
+            step=step,
+            state_delta=OrchestratorStateDelta(
+                identified_memories=identified_memories,
+                change_plan=change_plan,
+            ),
+        )
 
+    if step == OrchestratorStep.OPERATIONS:
+        tool_requests = _extract_tool_requests(payload)
+        if tool_requests:
+            return OrchestratorAction(action="request_tools", step=step, tool_requests=tool_requests)
+        operations = _normalize_operations_list(payload.get("operations") or [], MemorySchemaRegistry.load())
+        return OrchestratorAction(
+            action="update_state",
+            step=step,
+            state_delta=OrchestratorStateDelta(operations=operations),
+        )
 
-def parse_memory_operation_generation_output(raw_text: str) -> MemoryOperationGenerationResult:
-    payload = _load_json_payload(raw_text)
-    normalized_operations = _normalize_operations_list(payload.get("operations") or [], MemorySchemaRegistry.load())
-    return MemoryOperationGenerationResult(operations=normalized_operations)
-
-
-def parse_memory_operation_step_output(
-    raw_text: str,
-) -> tuple[list[PlannerToolRequest], MemoryOperationGenerationResult]:
-    payload = _load_json_payload(raw_text)
     tool_requests = _extract_tool_requests(payload)
     if tool_requests:
-        return tool_requests, MemoryOperationGenerationResult()
-    normalized_operations = _normalize_operations_list(payload.get("operations") or [], MemorySchemaRegistry.load())
-    return [], MemoryOperationGenerationResult(operations=normalized_operations)
-
-
-def parse_l0_l1_summary_output(raw_text: str) -> L0L1SummaryResult:
-    payload = _load_json_payload(raw_text)
-    return L0L1SummaryResult.model_validate(payload)
-
-
-def parse_summary_step_output(
-    raw_text: str,
-) -> tuple[list[PlannerToolRequest], L0L1SummaryResult | None]:
-    payload = _load_json_payload(raw_text)
-    tool_requests = _extract_tool_requests(payload)
-    if tool_requests:
-        return tool_requests, None
-    return [], L0L1SummaryResult.model_validate(payload)
+        return OrchestratorAction(action="request_tools", step=step, tool_requests=tool_requests)
+    summary = L0L1SummaryResult.model_validate(payload)
+    return OrchestratorAction(
+        action="update_state",
+        step=step,
+        state_delta=OrchestratorStateDelta(summary_plan=[] if summary is None else [summary]),
+    )
 
 
 def _load_json_payload(raw_text: str) -> Any:
@@ -112,28 +79,6 @@ def _load_json_payload(raw_text: str) -> Any:
         except json.JSONDecodeError:
             continue
     raise ValueError("planner output is not valid JSON")
-
-
-def _extract_operations(payload: Any, registry: MemorySchemaRegistry) -> list[ExtractedMemoryOperation]:
-    if isinstance(payload, dict) and isinstance(payload.get("operations"), list):
-        return _normalize_operations_list(payload.get("operations") or [], registry)
-    if isinstance(payload, dict):
-        grouped_operations: list[dict[str, Any]] = []
-        for key, memory_type in GROUPED_OUTPUT_KEYS.items():
-            if key not in payload:
-                continue
-            value = payload.get(key)
-            if isinstance(value, dict):
-                grouped_operations.append({"op": "write", "memory_type": memory_type, **value})
-            elif isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict):
-                        grouped_operations.append({"op": "write", "memory_type": memory_type, **item})
-        if grouped_operations:
-            return _normalize_operations_list(grouped_operations, registry)
-    return []
-
-
 def _normalize_operations_list(items: list[Any], registry: MemorySchemaRegistry) -> list[ExtractedMemoryOperation]:
     normalized: list[ExtractedMemoryOperation] = []
     for item in items:

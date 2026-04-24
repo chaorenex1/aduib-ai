@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -16,6 +18,7 @@ from service.memory.base.contracts import (
     PlannerToolUseResult,
     PreparedExtractContext,
 )
+from service.memory.base.enums import OrchestratorStep
 
 
 def _build_prepared() -> PreparedExtractContext:
@@ -51,10 +54,10 @@ def test_change_plan_prompt_composer_separates_runtime_context_and_task_input() 
                 evidence=["User prefers concise Python code."],
             )
         ],
-        completed_steps=["change_plan"],
+        completed_steps=[OrchestratorStep.CHANGE_PLAN],
     )
 
-    messages = composer.build_change_plan_messages(working_state=working_state)
+    messages = composer.build_step_messages(step=OrchestratorStep.CHANGE_PLAN, working_state=working_state)
 
     assert len(messages) == 3
     assert messages[0].role == PromptMessageRole.SYSTEM
@@ -82,7 +85,9 @@ def test_change_plan_prompt_composer_separates_runtime_context_and_task_input() 
 def test_change_plan_prompt_composer_puts_tool_results_in_observation_message() -> None:
     composer = ExtractPromptComposer(prepared=_build_prepared(), registry=MemorySchemaRegistry.load())
 
-    messages = composer.build_change_plan_messages(
+    messages = composer.build_step_messages(
+        step=OrchestratorStep.CHANGE_PLAN,
+        working_state=OrchestratorWorkingState(),
         tool_results=[
             PlannerToolUseResult(
                 tool="read",
@@ -98,3 +103,10 @@ def test_change_plan_prompt_composer_puts_tool_results_in_observation_message() 
     assert '"tool": "read"' in observation
     assert "memory_schema" not in observation
     assert '"tools"' not in observation
+
+
+def test_summary_step_requires_branch_path() -> None:
+    composer = ExtractPromptComposer(prepared=_build_prepared(), registry=MemorySchemaRegistry.load())
+
+    with pytest.raises(ValueError, match="branch_path"):
+        composer.build_step_messages(step=OrchestratorStep.SUMMARY, working_state=OrchestratorWorkingState())

@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType
+from .enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType, OrchestratorStep
 
 
 class MemoryContract(BaseModel):
@@ -256,24 +256,6 @@ class PlannerToolUseResult(MemoryContract):
     result: dict[str, Any] = Field(default_factory=dict)
 
 
-class MemoryChangePlanResult(MemoryContract):
-    identified_memories: list[IdentifiedMemoryCandidate] = Field(default_factory=list)
-    change_plan: list[MemoryChangePlanItem] = Field(default_factory=list)
-
-
-class ChangePlanStepResult(MemoryContract):
-    change_plan: MemoryChangePlanResult | None = None
-    tool_requests: list[PlannerToolRequest] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def validate_step_result(self) -> ChangePlanStepResult:
-        has_plan = self.change_plan is not None
-        has_tools = bool(self.tool_requests)
-        if has_plan == has_tools:
-            raise ValueError("change plan step must contain exactly one of change_plan or tool_requests")
-        return self
-
-
 class ExtractedMemoryOperation(MemoryContract):
     op: Literal["write", "edit", "delete"]
     memory_type: str = Field(..., min_length=1)
@@ -281,10 +263,6 @@ class ExtractedMemoryOperation(MemoryContract):
     content: str = ""
     evidence: list[MemoryOperationEvidence] = Field(default_factory=list)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
-
-
-class MemoryOperationGenerationResult(MemoryContract):
-    operations: list[ExtractedMemoryOperation] = Field(default_factory=list)
 
 
 class L0L1SummaryResult(MemoryContract):
@@ -299,7 +277,7 @@ class OrchestratorWorkingState(MemoryContract):
     operations: list[ExtractedMemoryOperation] = Field(default_factory=list)
     summary_plan: list[L0L1SummaryResult] = Field(default_factory=list)
     tool_results: list[PlannerToolUseResult] = Field(default_factory=list)
-    completed_steps: list[str] = Field(default_factory=list)
+    completed_steps: list[OrchestratorStep] = Field(default_factory=list)
 
     def pending_summary_branches(self) -> list[str]:
         target_branches = {
@@ -310,32 +288,63 @@ class OrchestratorWorkingState(MemoryContract):
         completed_branches = {item.branch_path for item in self.summary_plan}
         return sorted(target_branches - completed_branches)
 
+    def has_completed(self, step: OrchestratorStep) -> bool:
+        return step in self.completed_steps
+
+    def mark_completed(self, step: OrchestratorStep) -> None:
+        if step not in self.completed_steps:
+            self.completed_steps.append(step)
+
+    def apply_state_delta(self, *, step: OrchestratorStep, state_delta: OrchestratorStateDelta) -> None:
+        if state_delta.identified_memories is not None:
+            self.identified_memories = list(state_delta.identified_memories)
+        if state_delta.change_plan is not None:
+            self.change_plan = list(state_delta.change_plan)
+        if state_delta.operations is not None:
+            self.operations = list(state_delta.operations)
+        if state_delta.summary_plan is not None:
+            for summary in state_delta.summary_plan:
+                self._upsert_summary(summary)
+        if state_delta.completed_steps:
+            for completed_step in state_delta.completed_steps:
+                self.mark_completed(completed_step)
+
+        if step == OrchestratorStep.SUMMARY:
+            if not self.pending_summary_branches():
+                self.mark_completed(step)
+            return
+        self.mark_completed(step)
+
+    def _upsert_summary(self, summary: L0L1SummaryResult) -> None:
+        self.summary_plan = [item for item in self.summary_plan if item.branch_path != summary.branch_path] + [summary]
+
+
+class OrchestratorStateDelta(MemoryContract):
+    identified_memories: list[IdentifiedMemoryCandidate] | None = None
+    change_plan: list[MemoryChangePlanItem] | None = None
+    operations: list[ExtractedMemoryOperation] | None = None
+    summary_plan: list[L0L1SummaryResult] | None = None
+    completed_steps: list[OrchestratorStep] | None = None
+
 
 class OrchestratorAction(MemoryContract):
     action: Literal[
         "request_tools",
-        "update_change_plan",
-        "update_operations",
-        "update_summary",
+        "update_state",
         "finalize",
         "stop_noop",
     ]
+    step: OrchestratorStep | None = None
     reasoning: str = ""
     tool_requests: list[PlannerToolRequest] = Field(default_factory=list)
-    change_plan: MemoryChangePlanResult | None = None
-    operations: MemoryOperationGenerationResult | None = None
-    summary: L0L1SummaryResult | None = None
+    state_delta: OrchestratorStateDelta | None = None
 
     @model_validator(mode="after")
     def validate_action_payload(self) -> OrchestratorAction:
-        if self.action == "request_tools" and not self.tool_requests:
+        if self.action == "request_tools" and (not self.tool_requests or self.step is None):
             raise ValueError("request_tools action requires tool_requests")
-        if self.action == "update_change_plan" and self.change_plan is None:
-            raise ValueError("update_change_plan action requires change_plan")
-        if self.action == "update_operations" and self.operations is None:
-            raise ValueError("update_operations action requires operations")
-        if self.action == "update_summary" and self.summary is None:
-            raise ValueError("update_summary action requires summary")
+        if self.action == "update_state" and (self.state_delta is None or self.step is None):
+            raise ValueError("update_state action requires step and state_delta")
         return self
 
 

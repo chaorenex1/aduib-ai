@@ -8,7 +8,6 @@ from .builders import (
 )
 from .contracts import (
     ArchivedSourceRef,
-    ChangePlanStepResult,
     ConversationAppendResult,
     ConversationMessageRecord,
     ConversationMessageRef,
@@ -21,8 +20,6 @@ from .contracts import (
     IdentifiedMemoryCandidate,
     L0L1SummaryResult,
     MemoryChangePlanItem,
-    MemoryChangePlanResult,
-    MemoryOperationGenerationResult,
     MemoryRetrievedMemory,
     MemoryRetrieveQuery,
     MemorySourceRef,
@@ -32,12 +29,13 @@ from .contracts import (
     MemoryWriteTaskResult,
     MemoryWriteTaskView,
     OrchestratorAction,
+    OrchestratorStateDelta,
     OrchestratorWorkingState,
     PlannerToolRequest,
     PlannerToolUseResult,
     ReasoningTraceStep,
 )
-from .enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType
+from .enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType, OrchestratorStep
 from .errors import (
     ConversationSourceConflictError,
     ConversationSourceCorruptedError,
@@ -73,7 +71,6 @@ from .paths import (
 
 __all__ = [
     "ArchivedSourceRef",
-    "ChangePlanStepResult",
     "ConversationAppendResult",
     "ConversationMessageRecord",
     "ConversationMessageRef",
@@ -92,8 +89,6 @@ __all__ = [
     "L0L1SummaryResult",
     "MemoryArchiveError",
     "MemoryChangePlanItem",
-    "MemoryChangePlanResult",
-    "MemoryOperationGenerationResult",
     "MemoryRetrieveQuery",
     "MemoryRetrievedMemory",
     "MemoryServiceBase",
@@ -112,6 +107,8 @@ __all__ = [
     "MemoryWriteTaskResult",
     "MemoryWriteTaskView",
     "OrchestratorAction",
+    "OrchestratorStateDelta",
+    "OrchestratorStep",
     "OrchestratorWorkingState",
     "PlannerToolRequest",
     "PlannerToolUseResult",

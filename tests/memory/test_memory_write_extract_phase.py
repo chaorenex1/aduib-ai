@@ -11,18 +11,16 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from runtime.memory.write_pipeline import run_memory_write_task_phase
 from service.memory.base.contracts import (
-    ChangePlanStepResult,
     L0L1SummaryResult,
     MemoryChangePlanItem,
-    MemoryChangePlanResult,
-    MemoryOperationGenerationResult,
     MemorySourceRef,
     MemoryWriteTaskView,
     OrchestratorAction,
+    OrchestratorStateDelta,
     PlannerToolRequest,
     PlannerToolUseResult,
 )
-from service.memory.base.enums import MemoryTaskPhase, MemoryTriggerType
+from service.memory.base.enums import MemoryTaskPhase, MemoryTriggerType, OrchestratorStep
 
 
 def _build_task_view(*, task_id: str) -> MemoryWriteTaskView:
@@ -81,64 +79,71 @@ def _build_prepare_result() -> dict:
 
 
 def test_extract_operations_runs_memory_react_orchestrator(monkeypatch: pytest.MonkeyPatch) -> None:
-    change_plan_result = MemoryChangePlanResult(
-        identified_memories=[
-            {
-                "memory_type": "preference",
-                "target_branch": "users/u1/memories/preference",
-                "title_hint": "python-code-style",
-                "confidence": 0.93,
-                "reasoning": "Stable coding preference explicitly stated.",
-                "evidence": ["User prefers concise Python code."],
-            }
-        ],
-        change_plan=[
-            {
-                "memory_type": "preference",
-                "intent": "write",
-                "target_branch": "users/u1/memories/preference",
-                "title_hint": "python-code-style",
-                "reasoning": "Material new preference for future coding tasks.",
-                "requires_existing_read": False,
-                "evidence": ["User prefers concise Python code."],
-            }
-        ],
-    )
-    operation_result = MemoryOperationGenerationResult(
-        operations=[
-            {
-                "op": "write",
-                "memory_type": "preference",
-                "fields": {"topic": "Python code style"},
-                "content": "User prefers concise Python code and direct implementation.",
-                "confidence": 0.91,
-                "evidence": [
-                    {
-                        "kind": "message",
-                        "content": "User prefers concise Python code and direct implementation.",
-                    }
-                ],
-            }
-        ]
-    )
+    identified_memories = [
+        {
+            "memory_type": "preference",
+            "target_branch": "users/u1/memories/preference",
+            "title_hint": "python-code-style",
+            "confidence": 0.93,
+            "reasoning": "Stable coding preference explicitly stated.",
+            "evidence": ["User prefers concise Python code."],
+        }
+    ]
+    change_plan = [
+        {
+            "memory_type": "preference",
+            "intent": "write",
+            "target_branch": "users/u1/memories/preference",
+            "title_hint": "python-code-style",
+            "reasoning": "Material new preference for future coding tasks.",
+            "requires_existing_read": False,
+            "evidence": ["User prefers concise Python code."],
+        }
+    ]
+    operations = [
+        {
+            "op": "write",
+            "memory_type": "preference",
+            "fields": {"topic": "Python code style"},
+            "content": "User prefers concise Python code and direct implementation.",
+            "confidence": 0.91,
+            "evidence": [
+                {
+                    "kind": "message",
+                    "content": "User prefers concise Python code and direct implementation.",
+                }
+            ],
+        }
+    ]
     summary_result = L0L1SummaryResult(
         branch_path="users/u1/memories/preference",
         overview_md="# Preference Overview\n\nThe user consistently prefers concise Python code.",
         summary_md="Prefers concise Python code and direct implementation.",
     )
 
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_change_plan",
-        lambda self, working_state: ChangePlanStepResult(change_plan=change_plan_result),
-    )
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_operation_step",
-        lambda self, working_state: OrchestratorAction(action="update_operations", operations=operation_result),
-    )
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_summary_step",
-        lambda self, working_state, branch_path: OrchestratorAction(action="update_summary", summary=summary_result),
-    )
+    def _fake_request_step_action(self, *, step, working_state, branch_path=None):
+        if step == OrchestratorStep.CHANGE_PLAN:
+            return OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.CHANGE_PLAN,
+                state_delta=OrchestratorStateDelta(
+                    identified_memories=identified_memories,
+                    change_plan=change_plan,
+                ),
+            )
+        if step == OrchestratorStep.OPERATIONS:
+            return OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.OPERATIONS,
+                state_delta=OrchestratorStateDelta(operations=operations),
+            )
+        return OrchestratorAction(
+            action="update_state",
+            step=OrchestratorStep.SUMMARY,
+            state_delta=OrchestratorStateDelta(summary_plan=[summary_result]),
+        )
+
+    monkeypatch.setattr("runtime.memory.extract.planner.LLMPlanner._request_step_action", _fake_request_step_action)
 
     result = run_memory_write_task_phase(
         task_id="task-extract",
@@ -162,8 +167,8 @@ def test_extract_operations_marks_planner_failed_when_change_plan_is_invalid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_change_plan",
-        lambda self, working_state: (_ for _ in ()).throw(ValueError("not json")),
+        "runtime.memory.extract.planner.LLMPlanner._request_step_action",
+        lambda self, step, working_state, branch_path=None: (_ for _ in ()).throw(ValueError("not json")),
     )
 
     result = run_memory_write_task_phase(
@@ -188,16 +193,20 @@ def test_extract_operations_executes_request_tools_before_final_plan(
 ) -> None:
     change_plan_responses = iter(
         [
-            ChangePlanStepResult(
+            OrchestratorAction(
+                action="request_tools",
+                step=OrchestratorStep.CHANGE_PLAN,
                 tool_requests=[
                     PlannerToolRequest(
                         tool="read",
                         args={"path": "users/u1/memories/preference/python-style.md", "max_chars": 500},
                     )
-                ]
+                ],
             ),
-            ChangePlanStepResult(
-                change_plan=MemoryChangePlanResult(
+            OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.CHANGE_PLAN,
+                state_delta=OrchestratorStateDelta(
                     identified_memories=[
                         {
                             "memory_type": "preference",
@@ -219,46 +228,48 @@ def test_extract_operations_executes_request_tools_before_final_plan(
                             evidence=["User prefers concise Python code."],
                         )
                     ],
-                )
+                ),
             ),
         ]
     )
-    operation_result = MemoryOperationGenerationResult(
-        operations=[
-            {
-                "op": "edit",
-                "memory_type": "preference",
-                "fields": {"topic": "Python code style"},
-                "content": "User prefers concise Python code, direct implementation, and minimal ceremony.",
-                "confidence": 0.9,
-                "evidence": [
-                    {
-                        "kind": "read",
-                        "content": "Existing file says concise Python code.",
-                        "path": "users/u1/memories/preference/python-style.md",
-                    }
-                ],
-            }
-        ]
-    )
+    operation_result = [
+        {
+            "op": "edit",
+            "memory_type": "preference",
+            "fields": {"topic": "Python code style"},
+            "content": "User prefers concise Python code, direct implementation, and minimal ceremony.",
+            "confidence": 0.9,
+            "evidence": [
+                {
+                    "kind": "read",
+                    "content": "Existing file says concise Python code.",
+                    "path": "users/u1/memories/preference/python-style.md",
+                }
+            ],
+        }
+    ]
     summary_result = L0L1SummaryResult(
         branch_path="users/u1/memories/preference",
         overview_md="# Preference Overview\n\nThe branch captures stable coding style preferences.",
         summary_md="Prefers concise Python code and direct implementation.",
     )
 
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_change_plan",
-        lambda self, working_state: next(change_plan_responses),
-    )
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_operation_step",
-        lambda self, working_state: OrchestratorAction(action="update_operations", operations=operation_result),
-    )
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_summary_step",
-        lambda self, working_state, branch_path: OrchestratorAction(action="update_summary", summary=summary_result),
-    )
+    def _fake_request_step_action(self, *, step, working_state, branch_path=None):
+        if step == OrchestratorStep.CHANGE_PLAN:
+            return next(change_plan_responses)
+        if step == OrchestratorStep.OPERATIONS:
+            return OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.OPERATIONS,
+                state_delta=OrchestratorStateDelta(operations=operation_result),
+            )
+        return OrchestratorAction(
+            action="update_state",
+            step=OrchestratorStep.SUMMARY,
+            state_delta=OrchestratorStateDelta(summary_plan=[summary_result]),
+        )
+
+    monkeypatch.setattr("runtime.memory.extract.planner.LLMPlanner._request_step_action", _fake_request_step_action)
     monkeypatch.setattr(
         "runtime.memory.extract.tools.PlannerToolExecutor.execute_sync",
         lambda self, request, message_id=None: PlannerToolUseResult(
@@ -305,6 +316,7 @@ def test_extract_operations_can_request_tools_during_operation_and_summary_steps
         [
             OrchestratorAction(
                 action="request_tools",
+                step=OrchestratorStep.OPERATIONS,
                 tool_requests=[
                     PlannerToolRequest(
                         tool="read",
@@ -313,8 +325,9 @@ def test_extract_operations_can_request_tools_during_operation_and_summary_steps
                 ],
             ),
             OrchestratorAction(
-                action="update_operations",
-                operations=MemoryOperationGenerationResult(
+                action="update_state",
+                step=OrchestratorStep.OPERATIONS,
+                state_delta=OrchestratorStateDelta(
                     operations=[
                         {
                             "op": "edit",
@@ -330,7 +343,7 @@ def test_extract_operations_can_request_tools_during_operation_and_summary_steps
                                 }
                             ],
                         }
-                    ]
+                    ],
                 ),
             ),
         ]
@@ -339,6 +352,7 @@ def test_extract_operations_can_request_tools_during_operation_and_summary_steps
         [
             OrchestratorAction(
                 action="request_tools",
+                step=OrchestratorStep.SUMMARY,
                 tool_requests=[
                     PlannerToolRequest(
                         tool="ls",
@@ -347,52 +361,55 @@ def test_extract_operations_can_request_tools_during_operation_and_summary_steps
                 ],
             ),
             OrchestratorAction(
-                action="update_summary",
-                summary=L0L1SummaryResult(
-                    branch_path="users/u1/memories/preference",
-                    overview_md="# Overview\n\nUpdated from tool-assisted summary step.",
-                    summary_md="Preference branch summary after extra reads.",
+                action="update_state",
+                step=OrchestratorStep.SUMMARY,
+                state_delta=OrchestratorStateDelta(
+                    summary_plan=[
+                        L0L1SummaryResult(
+                            branch_path="users/u1/memories/preference",
+                            overview_md="# Overview\n\nUpdated from tool-assisted summary step.",
+                            summary_md="Preference branch summary after extra reads.",
+                        )
+                    ],
                 ),
             ),
         ]
     )
 
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_change_plan",
-        lambda self, working_state: ChangePlanStepResult(
-            change_plan=MemoryChangePlanResult(
-                identified_memories=[
-                    {
-                        "memory_type": "preference",
-                        "target_branch": "users/u1/memories/preference",
-                        "title_hint": "python-code-style",
-                        "confidence": 0.95,
-                        "reasoning": "Stable coding preference.",
-                        "evidence": ["User prefers concise Python code."],
-                    }
-                ],
-                change_plan=[
-                    {
-                        "memory_type": "preference",
-                        "intent": "edit",
-                        "target_branch": "users/u1/memories/preference",
-                        "title_hint": "python-code-style",
-                        "reasoning": "Existing file should be refined.",
-                        "requires_existing_read": True,
-                        "evidence": ["User prefers concise Python code."],
-                    }
-                ],
+    def _fake_request_step_action(self, *, step, working_state, branch_path=None):
+        if step == OrchestratorStep.CHANGE_PLAN:
+            return OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.CHANGE_PLAN,
+                state_delta=OrchestratorStateDelta(
+                    identified_memories=[
+                        {
+                            "memory_type": "preference",
+                            "target_branch": "users/u1/memories/preference",
+                            "title_hint": "python-code-style",
+                            "confidence": 0.95,
+                            "reasoning": "Stable coding preference.",
+                            "evidence": ["User prefers concise Python code."],
+                        }
+                    ],
+                    change_plan=[
+                        {
+                            "memory_type": "preference",
+                            "intent": "edit",
+                            "target_branch": "users/u1/memories/preference",
+                            "title_hint": "python-code-style",
+                            "reasoning": "Existing file should be refined.",
+                            "requires_existing_read": True,
+                            "evidence": ["User prefers concise Python code."],
+                        }
+                    ],
+                ),
             )
-        ),
-    )
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_operation_step",
-        lambda self, working_state: next(operation_actions),
-    )
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_summary_step",
-        lambda self, working_state, branch_path: next(summary_actions),
-    )
+        if step == OrchestratorStep.OPERATIONS:
+            return next(operation_actions)
+        return next(summary_actions)
+
+    monkeypatch.setattr("runtime.memory.extract.planner.LLMPlanner._request_step_action", _fake_request_step_action)
     monkeypatch.setattr(
         "runtime.memory.extract.tools.PlannerToolExecutor.execute_sync",
         lambda self, request, message_id=None: PlannerToolUseResult(
@@ -416,20 +433,23 @@ def test_extract_operations_can_request_tools_during_operation_and_summary_steps
 
 
 def test_extract_operations_keeps_tool_failures_inside_loop(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_change_plan",
-        lambda self, working_state: (
-            ChangePlanStepResult(
-                tool_requests=[
-                    PlannerToolRequest(
-                        tool="read",
-                        args={"path": "users/u1/memories/preference/missing.md"},
-                    )
-                ]
-            )
-            if "change_plan" not in working_state.completed_steps and not working_state.tool_results
-            else ChangePlanStepResult(
-                change_plan=MemoryChangePlanResult(
+    def _fake_request_step_action(self, *, step, working_state, branch_path=None):
+        if step == OrchestratorStep.CHANGE_PLAN:
+            if OrchestratorStep.CHANGE_PLAN not in working_state.completed_steps and not working_state.tool_results:
+                return OrchestratorAction(
+                    action="request_tools",
+                    step=OrchestratorStep.CHANGE_PLAN,
+                    tool_requests=[
+                        PlannerToolRequest(
+                            tool="read",
+                            args={"path": "users/u1/memories/preference/missing.md"},
+                        )
+                    ],
+                )
+            return OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.CHANGE_PLAN,
+                state_delta=OrchestratorStateDelta(
                     identified_memories=[
                         {
                             "memory_type": "preference",
@@ -451,39 +471,40 @@ def test_extract_operations_keeps_tool_failures_inside_loop(monkeypatch: pytest.
                             "evidence": ["User prefers concise Python code."],
                         }
                     ],
-                )
+                ),
             )
-        ),
-    )
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_operation_step",
-        lambda self, working_state: OrchestratorAction(
-            action="update_operations",
-            operations=MemoryOperationGenerationResult(
-                operations=[
-                    {
-                        "op": "write",
-                        "memory_type": "preference",
-                        "fields": {"topic": "Python code style"},
-                        "content": "User prefers concise Python code.",
-                        "confidence": 0.8,
-                        "evidence": [{"kind": "message", "content": "User prefers concise Python code."}],
-                    }
-                ]
+        if step == OrchestratorStep.OPERATIONS:
+            return OrchestratorAction(
+                action="update_state",
+                step=OrchestratorStep.OPERATIONS,
+                state_delta=OrchestratorStateDelta(
+                    operations=[
+                        {
+                            "op": "write",
+                            "memory_type": "preference",
+                            "fields": {"topic": "Python code style"},
+                            "content": "User prefers concise Python code.",
+                            "confidence": 0.8,
+                            "evidence": [{"kind": "message", "content": "User prefers concise Python code."}],
+                        }
+                    ],
+                ),
+            )
+        return OrchestratorAction(
+            action="update_state",
+            step=OrchestratorStep.SUMMARY,
+            state_delta=OrchestratorStateDelta(
+                summary_plan=[
+                    L0L1SummaryResult(
+                        branch_path="users/u1/memories/preference",
+                        overview_md="# Overview\n\nGenerated after a failed tool call.",
+                        summary_md="Summary generated after a failed tool call.",
+                    )
+                ],
             ),
-        ),
-    )
-    monkeypatch.setattr(
-        "runtime.memory.extract.planner.LLMPlanner.request_summary_step",
-        lambda self, working_state, branch_path: OrchestratorAction(
-            action="update_summary",
-            summary=L0L1SummaryResult(
-                branch_path="users/u1/memories/preference",
-                overview_md="# Overview\n\nGenerated after a failed tool call.",
-                summary_md="Summary generated after a failed tool call.",
-            ),
-        ),
-    )
+        )
+
+    monkeypatch.setattr("runtime.memory.extract.planner.LLMPlanner._request_step_action", _fake_request_step_action)
     monkeypatch.setattr(
         "runtime.memory.extract.tools.PlannerToolExecutor.execute_sync",
         lambda self, request, message_id=None: PlannerToolUseResult(
@@ -511,6 +532,7 @@ def test_extract_operations_runs_unified_next_action_loop(monkeypatch: pytest.Mo
         [
             OrchestratorAction(
                 action="request_tools",
+                step=OrchestratorStep.CHANGE_PLAN,
                 tool_requests=[
                     PlannerToolRequest(
                         tool="read",
@@ -519,8 +541,9 @@ def test_extract_operations_runs_unified_next_action_loop(monkeypatch: pytest.Mo
                 ],
             ),
             OrchestratorAction(
-                action="update_change_plan",
-                change_plan=MemoryChangePlanResult(
+                action="update_state",
+                step=OrchestratorStep.CHANGE_PLAN,
+                state_delta=OrchestratorStateDelta(
                     identified_memories=[
                         {
                             "memory_type": "preference",
@@ -545,8 +568,9 @@ def test_extract_operations_runs_unified_next_action_loop(monkeypatch: pytest.Mo
                 ),
             ),
             OrchestratorAction(
-                action="update_operations",
-                operations=MemoryOperationGenerationResult(
+                action="update_state",
+                step=OrchestratorStep.OPERATIONS,
+                state_delta=OrchestratorStateDelta(
                     operations=[
                         {
                             "op": "write",
@@ -556,15 +580,20 @@ def test_extract_operations_runs_unified_next_action_loop(monkeypatch: pytest.Mo
                             "confidence": 0.9,
                             "evidence": [{"kind": "message", "content": "User prefers concise Python code."}],
                         }
-                    ]
+                    ],
                 ),
             ),
             OrchestratorAction(
-                action="update_summary",
-                summary=L0L1SummaryResult(
-                    branch_path="users/u1/memories/preference",
-                    overview_md="# Overview\n\nPreference overview.",
-                    summary_md="Preference summary.",
+                action="update_state",
+                step=OrchestratorStep.SUMMARY,
+                state_delta=OrchestratorStateDelta(
+                    summary_plan=[
+                        L0L1SummaryResult(
+                            branch_path="users/u1/memories/preference",
+                            overview_md="# Overview\n\nPreference overview.",
+                            summary_md="Preference summary.",
+                        )
+                    ],
                 ),
             ),
             OrchestratorAction(action="finalize"),

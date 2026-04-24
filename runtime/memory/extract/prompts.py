@@ -4,12 +4,11 @@ import json
 
 from runtime.entities import PromptMessageRole, SystemPromptMessage, UserPromptMessage
 from service.memory.base.contracts import (
-    MemoryChangePlanResult,
-    MemoryOperationGenerationResult,
     OrchestratorWorkingState,
     PlannerToolUseResult,
     PreparedExtractContext,
 )
+from service.memory.base.enums import OrchestratorStep
 
 from ..schema.registry import MemorySchemaRegistry
 from .tools import SUPPORTED_PLANNER_TOOLS
@@ -256,10 +255,36 @@ class ExtractPromptComposer:
         self.prepared = prepared
         self.registry = registry
 
-    def build_change_plan_messages(
+    def build_step_messages(
         self,
         *,
-        working_state: OrchestratorWorkingState | None = None,
+        step: OrchestratorStep,
+        working_state: OrchestratorWorkingState,
+        branch_path: str | None = None,
+        tool_results: list[PlannerToolUseResult] | None = None,
+    ) -> list:
+        if step == OrchestratorStep.CHANGE_PLAN:
+            return self._build_change_plan_messages(
+                working_state=working_state,
+                tool_results=tool_results,
+            )
+        if step == OrchestratorStep.OPERATIONS:
+            return self._build_operation_generation_messages(
+                working_state=working_state,
+                tool_results=tool_results,
+            )
+        if branch_path is None:
+            raise ValueError("summary step requires branch_path")
+        return self._build_l0_l1_summary_messages(
+            working_state=working_state,
+            branch_path=branch_path,
+            tool_results=tool_results,
+        )
+
+    def _build_change_plan_messages(
+        self,
+        *,
+        working_state: OrchestratorWorkingState,
         tool_results: list[PlannerToolUseResult] | None = None,
     ) -> list:
         state = working_state or OrchestratorWorkingState()
@@ -299,16 +324,12 @@ class ExtractPromptComposer:
             )
         return messages
 
-    def build_operation_generation_messages(
+    def _build_operation_generation_messages(
         self,
         *,
         working_state: OrchestratorWorkingState,
         tool_results: list[PlannerToolUseResult] | None = None,
     ) -> list:
-        change_plan = MemoryChangePlanResult(
-            identified_memories=working_state.identified_memories,
-            change_plan=working_state.change_plan,
-        )
         messages = [
             SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=MEMORY_OPERATION_GENERATION_PROMPT),
             SystemPromptMessage(
@@ -349,18 +370,13 @@ class ExtractPromptComposer:
             )
         return messages
 
-    def build_l0_l1_summary_messages(
+    def _build_l0_l1_summary_messages(
         self,
         *,
         working_state: OrchestratorWorkingState,
         branch_path: str,
         tool_results: list[PlannerToolUseResult] | None = None,
     ) -> list:
-        change_plan = MemoryChangePlanResult(
-            identified_memories=working_state.identified_memories,
-            change_plan=working_state.change_plan,
-        )
-        operations = MemoryOperationGenerationResult(operations=working_state.operations)
         messages = [
             SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=MEMORY_L0_L1_SUMMARY_PROMPT),
             SystemPromptMessage(

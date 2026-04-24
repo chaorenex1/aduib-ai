@@ -4,13 +4,13 @@ import logging
 
 from service.memory.base.contracts import (
     ExtractOperationsPhaseResult,
-    L0L1SummaryResult,
-    MemoryChangePlanResult,
     MemoryWritePipelineContext,
+    OrchestratorAction,
     OrchestratorWorkingState,
     PreparedExtractContext,
     ReasoningTraceStep,
 )
+from service.memory.base.enums import OrchestratorStep
 
 from ..schema.registry import MemorySchemaRegistry
 from .planner import LLMPlanner
@@ -42,20 +42,8 @@ class ReActOrchestrator:
                         tool_result = self.tool_executor.execute_sync(request)
                         working_state.tool_results.append(tool_result)
                     continue
-                if action.action == "update_change_plan":
-                    change_plan = action.change_plan or MemoryChangePlanResult()
-                    working_state.identified_memories = list(change_plan.identified_memories)
-                    working_state.change_plan = list(change_plan.change_plan)
-                    self._mark_completed(working_state, "change_plan")
-                    continue
-                if action.action == "update_operations":
-                    working_state.operations = list((action.operations or []).operations)
-                    self._mark_completed(working_state, "operations")
-                    continue
-                if action.action == "update_summary":
-                    self._upsert_summary(working_state, action.summary)
-                    if not working_state.pending_summary_branches():
-                        self._mark_completed(working_state, "summary")
+                if action.action == "update_state":
+                    self._apply_state_action(working_state, action)
                     continue
                 if action.action == "stop_noop":
                     return self._build_phase_result(
@@ -97,20 +85,13 @@ class ReActOrchestrator:
         )
 
     @staticmethod
-    def _upsert_summary(
+    def _apply_state_action(
         working_state: OrchestratorWorkingState,
-        summary: L0L1SummaryResult | None,
+        action: OrchestratorAction,
     ) -> None:
-        if summary is None:
-            return
-        working_state.summary_plan = [
-            item for item in working_state.summary_plan if item.branch_path != summary.branch_path
-        ] + [summary]
-
-    @staticmethod
-    def _mark_completed(working_state: OrchestratorWorkingState, step: str) -> None:
-        if step not in working_state.completed_steps:
-            working_state.completed_steps.append(step)
+        if action.step is None or action.state_delta is None:
+            raise ValueError("update_state action requires step and state_delta")
+        working_state.apply_state_delta(step=action.step, state_delta=action.state_delta)
 
     @staticmethod
     def _build_reasoning_trace(
@@ -118,18 +99,18 @@ class ReActOrchestrator:
     ) -> list[ReasoningTraceStep]:
         return [
             ReasoningTraceStep(
-                step="change_plan",
+                step=OrchestratorStep.CHANGE_PLAN,
                 metadata={
                     "identified_memory_count": len(working_state.identified_memories),
                     "planned_change_count": len(working_state.change_plan),
                 },
             ),
             ReasoningTraceStep(
-                step="operation_generation",
+                step=OrchestratorStep.OPERATIONS,
                 metadata={"operation_count": len(working_state.operations)},
             ),
             ReasoningTraceStep(
-                step="summary_generation",
+                step=OrchestratorStep.SUMMARY,
                 metadata={"summary_count": len(working_state.summary_plan)},
             ),
         ]

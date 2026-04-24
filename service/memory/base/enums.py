@@ -23,3 +23,9 @@ class MemoryTaskPhase(StrEnum):
     REFRESH_NAVIGATION = "refresh_navigation"
     REFRESH_METADATA = "refresh_metadata"
     COMMITTED = "committed"
+
+
+class OrchestratorStep(StrEnum):
+    CHANGE_PLAN = "change_plan"
+    OPERATIONS = "operations"
+    SUMMARY = "summary"
