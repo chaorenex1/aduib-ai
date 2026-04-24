@@ -366,7 +366,7 @@ class ExtractPromptComposer:
                 role=PromptMessageRole.SYSTEM,
                 content=self._dump_json(
                     {
-                        "memory_schema": self._planning_schema_summary(),
+                        "memory_schema": self.registry.summary(),
                         "tools": self._tool_definitions(),
                     }
                 ),
@@ -560,26 +560,6 @@ class ExtractPromptComposer:
             "summary_plan": [item.model_dump(mode="python", exclude_none=True) for item in working_state.summary_plan],
             "completed_steps": list(working_state.completed_steps),
         }
-
-    def _planning_schema_summary(self) -> list[dict]:
-        return [
-            {
-                "memory_type": item["memory_type"],
-                "description": item.get("description"),
-                "target_directory_template": item.get("directory"),
-                "filename_template": item.get("filename_template"),
-                "memory_mode": item.get("memory_mode"),
-                "field_expectations": [
-                    {
-                        "name": field.get("name"),
-                        "type": field.get("type"),
-                        "description": field.get("description"),
-                    }
-                    for field in item.get("fields") or []
-                ],
-            }
-            for item in self.registry.summary()
-        ]
 
     def _source_material_payload(self) -> dict:
         return {
