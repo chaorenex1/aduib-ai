@@ -7,7 +7,11 @@ from typing import Any
 
 import yaml
 
-from runtime.memory.base.contracts import PreparedExtractContext, ResolvedMemoryOperation
+from runtime.memory.base.contracts import (
+    PreparedExtractContext,
+    ResolvedMemoryFieldPlan,
+    ResolvedMemoryOperation,
+)
 
 
 def build_desired_document(
@@ -17,14 +21,12 @@ def build_desired_document(
     operation: ResolvedMemoryOperation,
     current_content: str | None,
 ) -> str:
-    current_text = str(current_content or "")
-    if operation.op == "edit" and _has_line_operations(operation):
-        current_text = _apply_field_line_operations(current_text, operation)
-    current_metadata, current_body = parse_markdown_document(current_content or "")
-    if current_text != str(current_content or ""):
-        current_metadata, current_body = parse_markdown_document(current_text)
+    current_metadata, current_body = _current_document_state(
+        operation=operation,
+        current_content=current_content,
+    )
     merged_fields = _merge_fields(operation=operation, current_metadata=current_metadata)
-    body = _merge_body(operation=operation, current_body=current_body, merged_fields=merged_fields)
+    body = _merge_body(operation=operation, current_body=current_body)
     metadata = _build_document_metadata(
         task_id=task_id,
         prepared=prepared,
@@ -33,6 +35,26 @@ def build_desired_document(
         merged_fields=merged_fields,
     )
     return serialize_markdown_document(metadata=metadata, body=body)
+
+
+def build_templated_content_field_plan(
+    *,
+    operation: ResolvedMemoryOperation,
+    current_content: str | None,
+    content_template: str,
+) -> ResolvedMemoryFieldPlan:
+    current_metadata, _current_body = _current_document_state(
+        operation=operation,
+        current_content=current_content,
+    )
+    merged_fields = _merge_fields(operation=operation, current_metadata=current_metadata)
+    render_values = {**merged_fields, **_derive_template_values(merged_fields)}
+    return ResolvedMemoryFieldPlan(
+        name="content",
+        value=content_template.format(**render_values).strip(),
+        merge_op="replace",
+        line_operations=[],
+    )
 
 
 def parse_markdown_document(content: str) -> tuple[dict[str, Any], str]:
@@ -58,33 +80,54 @@ def compute_content_sha256(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def _current_document_state(
+    *,
+    operation: ResolvedMemoryOperation,
+    current_content: str | None,
+) -> tuple[dict[str, Any], str]:
+    current_text = str(current_content or "")
+    if operation.op == "edit" and _has_line_operations(operation):
+        current_text = _apply_field_line_operations(current_text, operation)
+    return parse_markdown_document(current_text)
+
+
 def _merge_fields(*, operation: ResolvedMemoryOperation, current_metadata: dict[str, Any]) -> dict[str, Any]:
     merged: dict[str, Any] = {}
-    line_operation_fields = {plan.name for plan in operation.field_plans if plan.line_operations}
-    field_names = set(operation.field_merge_ops) | set(operation.fields) | line_operation_fields
-    for field_name in sorted(field_names):
-        if field_name == "content":
+    for plan in operation.field_plans:
+        if plan.name == "content":
             continue
-        if field_name in line_operation_fields:
-            merged[field_name] = current_metadata.get(field_name)
+        if plan.line_operations:
+            merged[plan.name] = current_metadata.get(plan.name)
             continue
-        merge_op = operation.field_merge_ops.get(field_name, "patch")
-        old_value = current_metadata.get(field_name)
-        new_value = operation.fields.get(field_name)
-        merged[field_name] = _merge_value(old_value=old_value, new_value=new_value, merge_op=merge_op)
+        merged[plan.name] = _merge_value(
+            old_value=current_metadata.get(plan.name),
+            new_value=plan.value,
+            merge_op=plan.merge_op,
+        )
     return merged
 
 
-def _merge_body(*, operation: ResolvedMemoryOperation, current_body: str, merged_fields: dict[str, Any]) -> str:
+def _merge_body(*, operation: ResolvedMemoryOperation, current_body: str) -> str:
     if operation.op == "delete":
         return ""
-    content_field_has_line_ops = any(plan.name == "content" and plan.line_operations for plan in operation.field_plans)
-    if content_field_has_line_ops:
+    content_plan = _content_field_plan(operation)
+    if content_plan is None:
         return current_body
-    if operation.memory_mode == "template" and operation.content_template:
-        render_values = {**merged_fields, **_derive_template_values(merged_fields)}
-        return operation.content_template.format(**render_values).strip()
-    return _patch_text(current_body, operation.content)
+    if content_plan.line_operations:
+        return current_body
+    merged = _merge_value(
+        old_value=current_body,
+        new_value=str(content_plan.value or ""),
+        merge_op=content_plan.merge_op,
+    )
+    return str(merged or "").strip()
+
+
+def _content_field_plan(operation: ResolvedMemoryOperation) -> ResolvedMemoryFieldPlan | None:
+    for plan in operation.field_plans:
+        if plan.name == "content":
+            return plan
+    return None
 
 
 def _build_document_metadata(
@@ -161,11 +204,7 @@ def _has_line_operations(operation: ResolvedMemoryOperation) -> bool:
 
 def _apply_field_line_operations(text: str, operation: ResolvedMemoryOperation) -> str:
     updated_text = str(text or "")
-    all_operations = [
-        line_operation
-        for plan in operation.field_plans
-        for line_operation in plan.line_operations
-    ]
+    all_operations = [line_operation for plan in operation.field_plans for line_operation in plan.line_operations]
     for line_operation in _sort_line_operations(all_operations):
         updated_text = _apply_single_line_operation(updated_text, line_operation)
     return updated_text

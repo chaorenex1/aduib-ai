@@ -164,14 +164,18 @@ Rules:
 - Use the planned `target_branch` and `filename` as hard constraints.
 - Put only schema-defined fields inside `fields`.
 - Do NOT output top-level `op`, `content`, `evidence`, or `confidence`.
-- If the schema defines a `content` field, put the body text in the `content` field item.
+- If `memory_schema.has_content_template` is `true`, omit the `content` field and update only the structured fields.
+- If `memory_schema.has_content_template` is `false` and the schema defines a `content` field,
+  put the body text in the `content` field item.
 - If a field is not defined by the chosen schema, omit it instead of inventing it.
 - If the target is an `edit` and `current_target_read_evidence` is absent,
   request a `read` tool call instead of emitting an operation.
 - When `current_target_read_evidence` is present, use it as the primary edit baseline.
 - Keep `merge_op` on every field item and make it exactly match the schema.
-- For `edit`, use `fields[*].line_operations` to make the modification explicit, especially for
-  body/content changes and line-level deletions.
+- For `edit`, every field whose `merge_op` is `patch` MUST include non-empty `line_operations`.
+- This rule applies to all patch fields, not only `content`.
+- For `edit`, do not rely on field `value` alone for patch fields; represent the change through
+  `line_operations`.
 - If new evidence shows the current target identity is wrong, you MAY return `step=\"change_plan\"`
   with a corrected single `change_plan_item` plus `supersedes_target_key` instead of guessing.
 
@@ -372,7 +376,7 @@ class ExtractPromptComposer:
                             "description": current_schema.description,
                             "directory": current_schema.directory,
                             "filename_template": current_schema.filename_template,
-                            "memory_mode": current_schema.memory_mode,
+                            "has_content_template": bool(current_schema.content_template),
                             "fields": [
                                 field.model_dump(mode="python", exclude_none=True)
                                 for field in current_schema.fields

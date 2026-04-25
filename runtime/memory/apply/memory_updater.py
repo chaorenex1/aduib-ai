@@ -19,6 +19,7 @@ from runtime.memory.base.contracts import (
     PatchPlanResult,
     PlannerToolUseResult,
     PreparedExtractContext,
+    ResolvedMemoryFieldPlan,
     ResolvedMemoryOperation,
     ResolveOperationsResult,
 )
@@ -47,8 +48,7 @@ class MemoryUpdater:
             change_plan=self.update_ctx.extract_result.change_plan,
             extracted_operations=self.update_ctx.extract_result.structured_operations,
             tools_used=[
-                item.model_dump(mode="python", exclude_none=True)
-                for item in self.update_ctx.extract_result.tools_used
+                item.model_dump(mode="python", exclude_none=True) for item in self.update_ctx.extract_result.tools_used
             ],
         )
 
@@ -77,6 +77,9 @@ class MemoryUpdater:
             resolved_operations=resolved_operations,
             prepared=prepared_context,
             tools_used=tools_used,
+        )
+        cls._validate_edit_patch_field_plans(
+            resolved_operations=resolved_operations,
         )
         navigation_scopes = sorted(
             {str(Path(item.target_path).parent).replace("\\", "/") for item in resolved_operations}
@@ -206,7 +209,6 @@ class MemoryUpdater:
         merge_strategy = (
             "delete" if planned_item.op == "delete" else ("template_fields" if definition.content_template else "patch")
         )
-        field_values = MemoryUpdater._field_values_map(operation.fields)
         resolved = ResolvedMemoryOperation(
             op=planned_item.op,
             memory_type=definition.memory_type,
@@ -214,11 +216,10 @@ class MemoryUpdater:
             target_name=target_name,
             file_exists=file_exists,
             merge_strategy=merge_strategy,
-            fields={key: value for key, value in field_values.items() if key != "content"},
-            field_merge_ops={key: value for key, value in definition.field_merge_ops.items() if key != "content"},
-            field_plans=operation.fields,
-            content=str(field_values.get("content") or ""),
-            content_template=definition.content_template,
+            field_plans=MemoryUpdater._build_resolved_field_plans(
+                extracted_field_plans=operation.fields,
+                content_template=definition.content_template,
+            ),
             schema_path=definition.path,
         )
         if validate_existence:
@@ -234,15 +235,7 @@ class MemoryUpdater:
         if all(item.op == "delete" for item in items):
             return first
 
-        merged_fields: dict[str, Any] = {}
-        merged_field_plans: list[ExtractedMemoryFieldPlan] = []
-        merged_content = ""
         file_exists = any(item.file_exists for item in items)
-        for item in items:
-            merged_fields.update(item.fields)
-            merged_field_plans.extend(item.field_plans)
-            if item.content:
-                merged_content = item.content
         merged_op = "edit" if file_exists or any(item.op == "edit" for item in items) else "write"
         return ResolvedMemoryOperation(
             op=merged_op,
@@ -251,12 +244,7 @@ class MemoryUpdater:
             target_name=first.target_name,
             file_exists=file_exists,
             merge_strategy=first.merge_strategy,
-            memory_mode=first.memory_mode,
-            fields=merged_fields,
-            field_merge_ops=first.field_merge_ops,
-            field_plans=merged_field_plans,
-            content=merged_content,
-            content_template=first.content_template,
+            field_plans=MemoryUpdater._merge_field_plans(items),
             schema_path=first.schema_path,
         )
 
@@ -279,6 +267,27 @@ class MemoryUpdater:
                 continue
             if operation.target_path not in observed_read_paths:
                 raise ValueError(f"edit requires prior read of target_path: {operation.target_path}")
+
+    @staticmethod
+    def _validate_edit_patch_field_plans(
+        *,
+        resolved_operations: list[ResolvedMemoryOperation],
+    ) -> None:
+        for operation in resolved_operations:
+            if operation.op != "edit":
+                continue
+            missing_fields = sorted(
+                {
+                    field_plan.name
+                    for field_plan in operation.field_plans
+                    if field_plan.merge_op == "patch" and not field_plan.line_operations
+                }
+            )
+            if missing_fields:
+                raise ValueError(
+                    "edit patch fields require line_operations for target_path: "
+                    f"{operation.target_path}; fields={', '.join(missing_fields)}"
+                )
 
     @staticmethod
     def _validate_operations_match_change_plan(
@@ -361,11 +370,42 @@ class MemoryUpdater:
         return format_values
 
     @staticmethod
-    def _field_values_map(field_plans: list[ExtractedMemoryFieldPlan]) -> dict[str, Any]:
-        values: dict[str, Any] = {}
-        for plan in field_plans:
-            values[plan.name] = plan.value
-        return values
+    def _build_resolved_field_plans(
+        *,
+        extracted_field_plans: list[ExtractedMemoryFieldPlan],
+        content_template: str | None,
+    ) -> list[ResolvedMemoryFieldPlan]:
+        resolved = [
+            ResolvedMemoryFieldPlan(
+                name=plan.name,
+                value=plan.value,
+                merge_op=plan.merge_op,
+                line_operations=list(plan.line_operations),
+            )
+            for plan in extracted_field_plans
+        ]
+        if content_template:
+            resolved = [plan for plan in resolved if plan.name != "content"]
+        return resolved
 
-
-MemoryUpdator = MemoryUpdater
+    @staticmethod
+    def _merge_field_plans(items: list[ResolvedMemoryOperation]) -> list[ResolvedMemoryFieldPlan]:
+        merged: dict[str, ResolvedMemoryFieldPlan] = {}
+        ordered_names: list[str] = []
+        for item in items:
+            for field_plan in item.field_plans:
+                existing = merged.get(field_plan.name)
+                if existing is None:
+                    merged[field_plan.name] = field_plan.model_copy(deep=True)
+                    ordered_names.append(field_plan.name)
+                    continue
+                if existing.merge_op != field_plan.merge_op:
+                    raise ValueError(
+                        "conflicting merge_op for target field: "
+                        f"{item.target_path} {field_plan.name} {existing.merge_op} != {field_plan.merge_op}"
+                    )
+                if field_plan.value is not None:
+                    existing.value = field_plan.value
+                if field_plan.line_operations:
+                    existing.line_operations.extend(field_plan.line_operations)
+        return [merged[name] for name in ordered_names]

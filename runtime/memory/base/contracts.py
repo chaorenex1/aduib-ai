@@ -198,11 +198,7 @@ class PreparedExtractContext(MemoryContract):
     def prefetched_read_paths(self) -> set[str]:
         prefetched = self.prefetched_context or {}
         file_reads = prefetched.get("file_reads") or []
-        paths = {
-            str(path).strip()
-            for path in (prefetched.get("already_read_paths") or [])
-            if str(path).strip()
-        }
+        paths = {str(path).strip() for path in (prefetched.get("already_read_paths") or []) if str(path).strip()}
         paths.update(
             str(item.get("path") or "").strip()
             for item in file_reads
@@ -260,6 +256,13 @@ class ExtractedMemoryOperation(MemoryContract):
     filename: str = Field(..., min_length=1)
     reasoning: str = Field(..., min_length=1)
     fields: list[ExtractedMemoryFieldPlan] = Field(default_factory=list)
+
+
+class ResolvedMemoryFieldPlan(MemoryContract):
+    name: str = Field(..., min_length=1)
+    value: Any = None
+    merge_op: Literal["patch", "sum", "replace", "immutable"]
+    line_operations: list[MemoryLineOperation] = Field(default_factory=list)
 
 
 class MemoryReadEvidence(MemoryContract):
@@ -573,11 +576,7 @@ class ResolvedMemoryOperation(MemoryContract):
     target_name: str = Field(..., min_length=1)
     file_exists: bool
     merge_strategy: str = Field(..., min_length=1)
-    fields: dict[str, Any] = Field(default_factory=dict)
-    field_merge_ops: dict[str, str] = Field(default_factory=dict)
-    field_plans: list[ExtractedMemoryFieldPlan] = Field(default_factory=list)
-    content: str = ""
-    content_template: str | None = None
+    field_plans: list[ResolvedMemoryFieldPlan] = Field(default_factory=list)
     schema_path: str | None = None
 
 

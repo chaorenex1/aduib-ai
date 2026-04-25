@@ -12,11 +12,13 @@ from runtime.memory.base.contracts import (
     PatchApplyResult,
     PatchPlanResult,
     PreparedExtractContext,
+    ResolvedMemoryOperation,
     ResolveOperationsResult,
     RollbackPlan,
 )
+from runtime.memory.schema.registry import MemorySchemaRegistry
 
-from .patch import build_desired_document
+from .patch import build_desired_document, build_templated_content_field_plan
 from .rollback import deserialize_snapshot, serialize_snapshot
 
 
@@ -41,6 +43,7 @@ class PatchHandler:
         prepared_context: PreparedExtractContext,
         resolve_result: ResolveOperationsResult,
     ) -> PatchPlanResult:
+        registry = MemorySchemaRegistry.load()
         memory_mutations: list[MemoryMutationPlan] = []
         snapshot_targets: list[str] = []
         for operation in resolve_result.resolved_operations:
@@ -48,12 +51,18 @@ class PatchHandler:
             current_content = (
                 storage_manager.read_text(cls._to_scoped_path(operation.target_path)) if operation.file_exists else None
             )
+            definition = registry.require(operation.memory_type)
+            materialized_operation = cls._materialize_operation(
+                operation=operation,
+                current_content=current_content,
+                content_template=definition.content_template,
+            )
             desired_content = None
             if operation.op != "delete":
                 desired_content = build_desired_document(
                     task_id=task_id,
                     prepared=prepared_context,
-                    operation=operation,
+                    operation=materialized_operation,
                     current_content=current_content,
                 )
             memory_mutations.append(
@@ -65,7 +74,7 @@ class PatchHandler:
                     desired_content=desired_content,
                     previous_content=current_content,
                     file_exists=operation.file_exists,
-                    memory_mode=operation.memory_mode,
+                    memory_mode="template" if definition.content_template else "patch",
                     merge_strategy=operation.merge_strategy,
                 )
             )
@@ -176,3 +185,24 @@ class PatchHandler:
     @staticmethod
     def _to_scoped_path(relative_path: str) -> str:
         return "/".join(part for part in [config.MEMORY_TREE_ROOT_DIR, relative_path] if part)
+
+    @staticmethod
+    def _materialize_operation(
+        *,
+        operation: ResolvedMemoryOperation,
+        current_content: str | None,
+        content_template: str | None,
+    ) -> ResolvedMemoryOperation:
+        if operation.op == "delete" or not content_template:
+            return operation
+        materialized_operation = operation.model_copy(deep=True)
+        rendered_content_plan = build_templated_content_field_plan(
+            operation=materialized_operation,
+            current_content=current_content,
+            content_template=content_template,
+        )
+        materialized_operation.field_plans = [
+            plan for plan in materialized_operation.field_plans if plan.name != "content"
+        ]
+        materialized_operation.field_plans.append(rendered_content_plan)
+        return materialized_operation

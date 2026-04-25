@@ -98,6 +98,7 @@ class LLMPlanner:
         return parse_step_action(
             step=step,
             raw_text=raw,
+            current_target=current_target,
         )
 
     def _current_target_read_evidence(

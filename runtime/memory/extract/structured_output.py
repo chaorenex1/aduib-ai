@@ -10,6 +10,7 @@ from runtime.memory.base.contracts import (
     ExtractedMemoryOperation,
     MemoryChangePlanItem,
     MemoryLineOperation,
+    MemoryTargetProgress,
     OrchestratorAction,
     OrchestratorStateDelta,
     PlannerToolRequest,
@@ -23,11 +24,15 @@ def parse_step_action(
     *,
     step: OrchestratorStep,
     raw_text: str,
+    current_target: MemoryTargetProgress | None = None,
 ) -> OrchestratorAction:
     payload = _load_json_payload(raw_text)
     _reject_legacy_batch_fields(payload)
     if isinstance(payload, dict) and payload.get("action") is not None:
-        return _normalize_explicit_action(OrchestratorAction.model_validate(payload))
+        return _normalize_explicit_action(
+            OrchestratorAction.model_validate(payload),
+            current_target=current_target,
+        )
 
     tool_requests = _extract_tool_requests(payload)
     if tool_requests:
@@ -70,7 +75,11 @@ def parse_step_action(
         action="update_state",
         step=OrchestratorStep.OPERATIONS,
         state_delta=OrchestratorStateDelta(
-            operation_item=_normalize_single_operation_item(payload.get("operation_item"), MemorySchemaRegistry.load())
+            operation_item=_normalize_single_operation_item(
+                payload.get("operation_item"),
+                MemorySchemaRegistry.load(),
+                expected_op=current_target.change_plan_item.op if current_target is not None else None,
+            )
         ),
     )
 
@@ -110,7 +119,12 @@ def _normalize_change_plan_item(value: Any) -> MemoryChangePlanItem:
     return MemoryChangePlanItem.model_validate(value)
 
 
-def _normalize_single_operation_item(value: Any, registry: MemorySchemaRegistry) -> ExtractedMemoryOperation:
+def _normalize_single_operation_item(
+    value: Any,
+    registry: MemorySchemaRegistry,
+    *,
+    expected_op: str | None = None,
+) -> ExtractedMemoryOperation:
     if not isinstance(value, dict):
         raise ValueError("operation_item must be an object")
     memory_type = normalize_memory_type(value.get("memory_type"))
@@ -126,7 +140,13 @@ def _normalize_single_operation_item(value: Any, registry: MemorySchemaRegistry)
         fields=field_plans,
     )
     adapter = TypeAdapter(ExtractedMemoryOperation)
-    return adapter.validate_python(operation.model_dump(mode="python"))
+    normalized = adapter.validate_python(operation.model_dump(mode="python"))
+    _validate_operation_item(
+        normalized,
+        expected_op=expected_op,
+        has_content_template=bool(definition.content_template),
+    )
+    return normalized
 
 
 def _normalize_field_plans(raw_fields: Any, schema_fields: list) -> list[ExtractedMemoryFieldPlan]:
@@ -154,6 +174,31 @@ def _normalize_field_plans(raw_fields: Any, schema_fields: list) -> list[Extract
             )
         )
     return normalized
+
+
+def _validate_operation_item(
+    operation: ExtractedMemoryOperation,
+    *,
+    expected_op: str | None,
+    has_content_template: bool,
+) -> None:
+    if has_content_template:
+        templated_content_fields = [field.name for field in operation.fields if field.name == "content"]
+        if templated_content_fields:
+            raise ValueError("templated schemas must omit the content field from operation_item.fields")
+
+    if expected_op != "edit":
+        return
+
+    missing_fields = sorted(
+        {
+            field.name
+            for field in operation.fields
+            if field.merge_op == "patch" and not field.line_operations
+        }
+    )
+    if missing_fields:
+        raise ValueError("edit patch fields require line_operations: " + ", ".join(missing_fields))
 
 
 def _normalize_line_operations(value: Any) -> list[MemoryLineOperation]:
@@ -184,7 +229,11 @@ def _normalize_optional_string(value: Any) -> str | None:
     return text or None
 
 
-def _normalize_explicit_action(action: OrchestratorAction) -> OrchestratorAction:
+def _normalize_explicit_action(
+    action: OrchestratorAction,
+    *,
+    current_target: MemoryTargetProgress | None = None,
+) -> OrchestratorAction:
     if action.action != "update_state" or action.step is None or action.state_delta is None:
         return action
 
@@ -218,6 +267,7 @@ def _normalize_explicit_action(action: OrchestratorAction) -> OrchestratorAction
     normalized_operation = _normalize_single_operation_item(
         action.state_delta.operation_item.model_dump(mode="python", exclude_none=True),
         MemorySchemaRegistry.load(),
+        expected_op=current_target.change_plan_item.op if current_target is not None else None,
     )
     return OrchestratorAction(
         action="update_state",

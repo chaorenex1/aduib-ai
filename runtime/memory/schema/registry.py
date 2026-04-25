@@ -103,7 +103,7 @@ class MemorySchemaRegistry:
                 "description": definition.description,
                 "directory": definition.directory,
                 "filename_template": definition.filename_template,
-                "memory_mode": definition.memory_mode,
+                "has_content_template": bool(definition.content_template),
                 "fields": [field.model_dump(mode="python") for field in definition.fields],
             }
             for definition in self.list()
