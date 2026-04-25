@@ -3,9 +3,9 @@ from __future__ import annotations
 import datetime
 
 from models import MemoryWriteTask
-from runtime.tasks.celery_app import celery_app
 
 from .base.builders import (
+    MEMORY_WRITE_TASK_NAME,
     build_task_request_idempotency_key,
     new_task_id,
     new_trace_id,
@@ -21,8 +21,6 @@ from .base.contracts import (
 from .base.enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType
 from .base.errors import MemoryValidationError, MemoryWritePublishError, MemoryWriteTaskNotFoundError
 from .repository import MemoryWriteTaskRepository
-
-MEMORY_WRITE_TASK_NAME = "runtime.tasks.memory_write.execute"
 
 
 class MemoryWriteTaskService:
@@ -56,7 +54,7 @@ class MemoryWriteTaskService:
             source_ref=source_ref,
             archive_ref=archive_ref,
         )
-        queued_task = cls._publish_task(task)
+        queued_task = await cls._publish_task(task)
         return cls._accepted_response(queued_task)
 
     @classmethod
@@ -127,12 +125,11 @@ class MemoryWriteTaskService:
         return MEMORY_WRITE_TASK_NAME
 
     @classmethod
-    def _publish_task(cls, task: MemoryWriteTaskView) -> MemoryWriteTaskView:
+    async def _publish_task(cls, task: MemoryWriteTaskView) -> MemoryWriteTaskView:
+        from runtime.memory.task_queue import MemoryWriteTaskQueueRuntime
+
         try:
-            celery_app.send_task(
-                cls.get_queue_task_name(),
-                kwargs={"task_id": task.task_id},
-            )
+            await MemoryWriteTaskQueueRuntime.enqueue(task_id=task.task_id)
         except Exception as exc:
             cls.mark_publish_failed(task.task_id, str(exc))
             raise MemoryWritePublishError(str(exc), task_id=task.task_id) from exc

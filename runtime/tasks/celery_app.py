@@ -37,7 +37,7 @@ celery_app = Celery(
     "aduib_ai",
     broker=broker_url,
     backend=backend_url,
-    include=["runtime.tasks.event_tasks", "runtime.tasks.task_job_runner", "runtime.tasks.memory_write_tasks"],
+    include=["runtime.tasks.event_tasks", "runtime.tasks.task_job_runner"],
 )
 
 celery_app.conf.task_default_queue = getattr(config, "CELERY_TASK_DEFAULT_QUEUE", "aduib_ai")

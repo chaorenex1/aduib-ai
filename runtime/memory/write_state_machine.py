@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from runtime.memory.apply.memory_updater import MemoryUpdater
 from runtime.memory.prepare_context.extract_context_runtime import ExtractContextRuntime
 
@@ -17,7 +19,11 @@ class MemoryStateMachineRuntime:
     APPLY_COORDINATION_PHASE = str(MemoryTaskPhase.MEMORY_UPDATER)
 
     @classmethod
-    def execute_memory_write_task(cls, task_id: str) -> dict:
+    async def execute_memory_write_task(cls, task_id: str) -> dict:
+        return await asyncio.to_thread(cls._execute_memory_write_task_sync, task_id)
+
+    @classmethod
+    def _execute_memory_write_task_sync(cls, task_id: str) -> dict:
         archive_ref = None
         current_phase = str(MemoryTaskPhase.PREPARE_EXTRACT_CONTEXT)
         try:

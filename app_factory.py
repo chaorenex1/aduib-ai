@@ -187,71 +187,85 @@ async def lifespan(app: AduibAIApp) -> AsyncIterator[None]:
     """
     log.info("Lifespan is starting")
 
-    asyncio.create_task(run_service_register(app))
-
-    from event.event_manager import EventManager
-
-    event_manager: EventManager = app.extensions.get("event_manager")
-    if event_manager:
-        event_manager.start()
-        log.info("Event manager started")
-
-    # Ensure default admin account exists
-    try:
-        from service.user_service import UserService
-
-        UserService.ensure_admin_exists()
-    except Exception as e:
-        log.exception("Failed to ensure admin account")
-
-    # Register builtin agents and initialize OrchestrationManager
-    try:
-
-        from runtime.agent.builtin_agents import register_builtin_agents
-        from runtime.tasks.cron_scheduler import cron_scheduler
-
-        register_builtin_agents()
-        cron_scheduler.start()
-    except Exception as e:
-        log.exception("Failed to register builtin agents/workflows")
-
-    try:
-        from runtime.agent_manager import AgentManager
-
-        app.agent_manager = AgentManager("supervisor_agent_v3")
-        log.info("AgentManager initialized")
-    except Exception as e:
-        log.exception("Failed to initialize AgentManager")
-
     from libs.context import app_context
 
     with app_context.temporary_set(app):
+        asyncio.create_task(run_service_register(app))
+
+        from event.event_manager import EventManager
+
+        event_manager: EventManager = app.extensions.get("event_manager")
+        if event_manager:
+            event_manager.start()
+            log.info("Event manager started")
+
+        try:
+            from runtime.memory.task_queue import MemoryWriteTaskQueueRuntime
+
+            await MemoryWriteTaskQueueRuntime.start(app)
+        except Exception:
+            log.exception("Failed to initialize memory write task queue")
+
+        # Ensure default admin account exists
+        try:
+            from service.user_service import UserService
+
+            UserService.ensure_admin_exists()
+        except Exception as e:
+            log.exception("Failed to ensure admin account")
+
+        # Register builtin agents and initialize OrchestrationManager
+        try:
+
+            from runtime.agent.builtin_agents import register_builtin_agents
+            from runtime.tasks.cron_scheduler import cron_scheduler
+
+            register_builtin_agents()
+            cron_scheduler.start()
+        except Exception as e:
+            log.exception("Failed to register builtin agents/workflows")
+
+        try:
+            from runtime.agent_manager import AgentManager
+
+            app.agent_manager = AgentManager("supervisor_agent_v3")
+            log.info("AgentManager initialized")
+        except Exception as e:
+            log.exception("Failed to initialize AgentManager")
+
         yield None
 
-    # Shutdown logic
-    log.info("Application is shutting down, cleaning up resources...")
+        # Shutdown logic
+        log.info("Application is shutting down, cleaning up resources...")
 
-    # Stop event manager
-    if event_manager:
+        # Stop event manager
+        if event_manager:
+            try:
+                await event_manager.stop()
+                log.info("Event manager stopped")
+            except Exception as e:
+                log.exception("Error stopping event manager")
+
         try:
-            await event_manager.stop()
-            log.info("Event manager stopped")
+            from runtime.tasks.cron_scheduler import cron_scheduler
+
+            cron_scheduler.stop()
         except Exception as e:
-            log.exception("Error stopping event manager")
+            log.exception("Error stopping cron scheduler")
 
-    try:
-        from runtime.tasks.cron_scheduler import cron_scheduler
+        try:
+            from runtime.memory.task_queue import MemoryWriteTaskQueueRuntime
 
-        cron_scheduler.stop()
-    except Exception as e:
-        log.exception("Error stopping cron scheduler")
+            await MemoryWriteTaskQueueRuntime.stop(app)
+        except Exception:
+            log.exception("Error stopping memory write task queue")
 
-    # Close database connections
-    try:
-        from models.engine import engine
+        # Close database connections
+        try:
+            from models.engine import engine
 
-        engine.dispose()
-        log.info("Database connections closed")
-    except Exception as e:
-        log.exception("Error closing database connections")
-    log.info("Application shutdown complete")
+            engine.dispose()
+            log.info("Database connections closed")
+        except Exception as e:
+            log.exception("Error closing database connections")
+        log.info("Application shutdown complete")
