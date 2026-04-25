@@ -10,7 +10,7 @@ from runtime.tool.builtin_tool.providers.mem_ls.mem_ls import MemLsTool
 from runtime.tool.builtin_tool.providers.mem_read.mem_read import MemReadTool
 from runtime.tool.entities import ToolEntity, ToolProviderType
 from runtime.tool.tool_manager import ToolManager
-from service.memory.base.contracts import PlannerToolRequest, PlannerToolUseResult
+from runtime.memory.base.contracts import PlannerToolRequest, PlannerToolUseResult
 
 SUPPORTED_PLANNER_TOOLS = ("ls", "read", "find")
 PLANNER_TOOL_TO_BUILTIN = {

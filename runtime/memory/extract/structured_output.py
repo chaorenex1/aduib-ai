@@ -5,15 +5,16 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
-from service.memory.base.contracts import (
+from runtime.memory.base.contracts import (
+    ExtractedMemoryFieldPlan,
     ExtractedMemoryOperation,
     L0L1SummaryResult,
-    MemoryOperationEvidence,
+    MemoryLineOperation,
     OrchestratorAction,
     OrchestratorStateDelta,
     PlannerToolRequest,
 )
-from service.memory.base.enums import OrchestratorStep
+from runtime.memory.base.enums import OrchestratorStep
 
 from ..schema.registry import MemorySchemaRegistry, normalize_memory_type
 
@@ -31,15 +32,13 @@ def parse_step_action(
         tool_requests = _extract_tool_requests(payload)
         if tool_requests:
             return OrchestratorAction(action="request_tools", step=step, tool_requests=tool_requests)
-        identified_memories = payload.get("identified_memories") or []
         change_plan = payload.get("change_plan") or []
-        if not identified_memories and not change_plan:
+        if not change_plan:
             return OrchestratorAction(action="stop_noop")
         return OrchestratorAction(
             action="update_state",
             step=step,
             state_delta=OrchestratorStateDelta(
-                identified_memories=identified_memories,
                 change_plan=change_plan,
             ),
         )
@@ -64,8 +63,6 @@ def parse_step_action(
         step=step,
         state_delta=OrchestratorStateDelta(summary_plan=[] if summary is None else [summary]),
     )
-
-
 def _load_json_payload(raw_text: str) -> Any:
     text = str(raw_text or "").strip()
     if not text:
@@ -82,6 +79,8 @@ def _load_json_payload(raw_text: str) -> Any:
         except json.JSONDecodeError:
             continue
     raise ValueError("planner output is not valid JSON")
+
+
 def _normalize_operations_list(items: list[Any], registry: MemorySchemaRegistry) -> list[ExtractedMemoryOperation]:
     normalized: list[ExtractedMemoryOperation] = []
     for item in items:
@@ -94,55 +93,53 @@ def _normalize_operations_list(items: list[Any], registry: MemorySchemaRegistry)
         operation = str(item.get("op") or "write").strip().lower()
         if operation not in {"write", "edit", "delete"}:
             continue
-        allowed_field_names = {field.name for field in definition.fields}
-        raw_fields = item.get("fields") if isinstance(item.get("fields"), dict) else {}
-        fields = {key: value for key, value in raw_fields.items() if key in allowed_field_names}
-        for key, value in item.items():
-            if key in {"op", "memory_type", "fields", "content", "confidence", "evidence"}:
-                continue
-            if key in allowed_field_names:
-                fields.setdefault(key, value)
-        evidence = _normalize_evidence(item.get("evidence"))
-        try:
-            confidence = float(item.get("confidence", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            confidence = 0.0
+        field_plans = _normalize_field_plans(item.get("fields"), definition.fields)
         normalized.append(
             ExtractedMemoryOperation(
-                op=operation,
                 memory_type=memory_type,
-                fields=fields,
-                content=str(item.get("content") or ""),
-                evidence=evidence,
-                confidence=max(0.0, min(confidence, 1.0)),
+                target_branch=str(item.get("target_branch") or "").strip(),
+                filename=str(item.get("filename") or "").strip(),
+                reasoning=str(item.get("reasoning") or "").strip(),
+                fields=field_plans,
             )
         )
     adapter = TypeAdapter(list[ExtractedMemoryOperation])
     return adapter.validate_python([item.model_dump(mode="python") for item in normalized])
 
 
-def _normalize_evidence(value: Any) -> list[MemoryOperationEvidence]:
-    if isinstance(value, str) and value.strip():
-        return [MemoryOperationEvidence(kind="message", content=value.strip())]
-    if not isinstance(value, list):
-        return []
-
-    evidence: list[MemoryOperationEvidence] = []
-    for item in value:
-        if isinstance(item, str) and item.strip():
-            evidence.append(MemoryOperationEvidence(kind="message", content=item.strip()))
-        elif isinstance(item, dict):
-            content = str(item.get("content") or "").strip()
-            if not content:
-                continue
-            evidence.append(
-                MemoryOperationEvidence(
-                    kind=str(item.get("kind") or "message").strip() or "message",
-                    content=content,
-                    path=str(item.get("path") or "").strip() or None,
-                )
+def _normalize_field_plans(raw_fields: Any, schema_fields: list) -> list[ExtractedMemoryFieldPlan]:
+    if not isinstance(raw_fields, list):
+        raise ValueError("operations.fields must be a list")
+    schema_merge_ops = {field.name: field.merge_op for field in schema_fields}
+    normalized: list[ExtractedMemoryFieldPlan] = []
+    for item in raw_fields:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name or name not in schema_merge_ops:
+            raise ValueError(f"operations field is not defined in schema: {name or '<empty>'}")
+        merge_op = str(item.get("merge_op") or "").strip().lower()
+        expected_merge_op = str(schema_merge_ops[name] or "").strip().lower()
+        if merge_op != expected_merge_op:
+            raise ValueError(f"operations field merge_op does not match schema: {name} {merge_op}")
+        normalized.append(
+            ExtractedMemoryFieldPlan(
+                name=name,
+                value=item.get("value"),
+                merge_op=expected_merge_op,
+                line_operations=_normalize_line_operations(item.get("line_operations")),
+                reasoning=str(item.get("reasoning") or "").strip(),
             )
-    return evidence
+        )
+    return normalized
+
+
+def _normalize_line_operations(value: Any) -> list[MemoryLineOperation]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("field line_operations must be a list")
+    return [MemoryLineOperation.model_validate(item) for item in value if isinstance(item, dict)]
 
 
 def _normalize_tool_request(value: Any) -> PlannerToolRequest:
@@ -167,17 +164,15 @@ def _normalize_explicit_action(action: OrchestratorAction) -> OrchestratorAction
     if action.step == OrchestratorStep.CHANGE_PLAN:
         _ensure_only_fields(
             action,
-            allowed_fields={"identified_memories", "change_plan", "completed_steps"},
+            allowed_fields={"change_plan", "completed_steps"},
         )
-        identified_memories = action.state_delta.identified_memories or []
         change_plan = action.state_delta.change_plan or []
-        if not identified_memories and not change_plan:
+        if not change_plan:
             return OrchestratorAction(action="stop_noop")
         return OrchestratorAction(
             action="update_state",
             step=action.step,
             state_delta=OrchestratorStateDelta(
-                identified_memories=identified_memories,
                 change_plan=change_plan,
                 completed_steps=action.state_delta.completed_steps,
             ),

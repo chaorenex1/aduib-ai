@@ -6,17 +6,14 @@ from pydantic import BaseModel
 
 from .base.contracts import MemoryWritePipelineContext
 from .base.enums import MemoryTaskPhase, MemoryTaskFinalStatus
-
-from .write_pipeline import run_memory_write_task_phase
-
-from runtime.memory.prepare_context.prepare_context import prepare_extract_context
+from .prepare_context.prepare_context import prepare_extract_context
 
 from .apply.file_commit import apply_memory_files
 from .apply.metadata_refresh import refresh_metadata
 from .apply.navigation_refresh import refresh_navigation
 from .apply.staged_write import build_staged_write_set
-from .extract.planner import extract_operations
-from .resolve_operations import resolve_operations
+from .extract.orchestrator import run_memory_react_orchestrator
+from runtime.memory.apply.resolve_operations import resolve_operations
 
 MEMORY_WRITE_STATE_TRANSITIONS = {
     MemoryTaskPhase.PREPARE_EXTRACT_CONTEXT: MemoryTaskPhase.EXTRACT_OPERATIONS,
@@ -30,13 +27,28 @@ MEMORY_WRITE_STATE_TRANSITIONS = {
 
 PHASE_HANDLERS = {
     MemoryTaskPhase.PREPARE_EXTRACT_CONTEXT: prepare_extract_context,
-    MemoryTaskPhase.EXTRACT_OPERATIONS: extract_operations,
+    MemoryTaskPhase.EXTRACT_OPERATIONS: run_memory_react_orchestrator,
     MemoryTaskPhase.RESOLVE_OPERATIONS: resolve_operations,
     MemoryTaskPhase.BUILD_STAGED_WRITE_SET: build_staged_write_set,
     MemoryTaskPhase.APPLY_MEMORY_FILES: apply_memory_files,
     MemoryTaskPhase.REFRESH_NAVIGATION: refresh_navigation,
     MemoryTaskPhase.REFRESH_METADATA: refresh_metadata,
 }
+
+
+def build_memory_write_pipeline_context(*, task_id: str, phase: str, task, phase_results: dict[str, dict]):
+    return MemoryWritePipelineContext(
+        task_id=task_id,
+        trace_id=task.trace_id,
+        trigger_type=task.trigger_type,
+        user_id=getattr(task, "user_id", None),
+        agent_id=getattr(task, "agent_id", None),
+        project_id=getattr(task, "project_id", None),
+        phase=phase,
+        source_ref=task.source_ref,
+        archive_ref=task.archive_ref,
+        phase_results=phase_results,
+    )
 
 class MemoryStateMachineRuntime:
 
@@ -53,7 +65,6 @@ class MemoryStateMachineRuntime:
 
     @classmethod
     def run_memory_write_task_phase(cls,*, task_id: str, phase: str, task, phase_results: dict[str, dict]) -> dict:
-        from .write_context import build_memory_write_pipeline_context
 
         context = build_memory_write_pipeline_context(
             task_id=task_id,
@@ -94,7 +105,7 @@ class MemoryStateMachineRuntime:
         current_phase = str(phase)
         try:
             task = MemoryWriteTaskService.mark_running(task_id, phase=current_phase)
-            checkpoint = run_memory_write_task_phase(
+            checkpoint = cls.run_memory_write_task_phase(
                 task_id=task_id,
                 phase=current_phase,
                 task=task,

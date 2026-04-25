@@ -6,6 +6,7 @@ from pathlib import Path
 
 from component.storage.base_storage import storage_manager
 from runtime.entities.llm_entities import ChatCompletionRequest
+from runtime.entities.message_entities import SystemPromptMessage, UserPromptMessage
 from runtime.memory.committed_tree import CommittedMemoryTree
 from runtime.memory.prepare_context.common import (
     CANDIDATE_DISCOVERY_ACTION_SCHEMA,
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 class CandidateDiscoveryLoop:
-    MAX_TURNS = 4
+    MAX_TURNS = 5
 
     def __init__(self, *, source: NormalizedSourceMaterial, static_context: PreparedPrefetchContext) -> None:
         self.source = source
@@ -108,46 +109,45 @@ class CandidateDiscoveryLoop:
         if model_instance is None:
             raise RuntimeError("candidate discovery model unavailable")
 
+        request_messages = [
+            SystemPromptMessage(
+                content=(
+                    "You drive only the candidate-memory discovery loop for prepare_extract_context. "
+                    "Return exactly one JSON object matching the requested action schema. "
+                    "Do not request directory tree or L0/L1 summary work. "
+                    "Use search_candidate_paths before read_candidate_files; use finalize only after useful "
+                    "candidate memories exist; use stop_noop when no useful candidate discovery remains."
+                )
+            ),
+            UserPromptMessage(
+                content=json.dumps(
+                    {
+                        "action_schema": CANDIDATE_DISCOVERY_ACTION_SCHEMA,
+                        "source_material": {
+                            "source_kind": state.source.source_kind,
+                            "text_blocks": state.source.text_blocks,
+                            "messages": state.source.messages,
+                        },
+                        "default_query": default_query,
+                        "allowed_path_scopes": roots,
+                        "query_history": [
+                            item.model_dump(mode="python", exclude_none=True) for item in state.query_history
+                        ],
+                        "search_results": [
+                            item.model_dump(mode="python", exclude_none=True) for item in state.search_results
+                        ],
+                        "candidate_memories": [
+                            item.model_dump(mode="python", exclude_none=True) for item in state.candidate_memories
+                        ],
+                        "excluded_paths": ["**/overview.md", "**/summary.md", "users/*/project/**"],
+                    },
+                    ensure_ascii=False,
+                )
+            ),
+        ]
         request = ChatCompletionRequest(
             model=model_instance.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You drive only the candidate-memory discovery loop for prepare_extract_context. "
-                        "Return exactly one JSON object matching the requested action schema. "
-                        "Do not request directory tree or L0/L1 summary work. "
-                        "Use search_candidate_paths before read_candidate_files; use finalize only after useful "
-                        "candidate memories exist; use stop_noop when no useful candidate discovery remains."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {
-                            "action_schema": CANDIDATE_DISCOVERY_ACTION_SCHEMA,
-                            "source_material": {
-                                "source_kind": state.source.source_kind,
-                                "text_blocks": state.source.text_blocks,
-                                "messages": state.source.messages,
-                            },
-                            "default_query": default_query,
-                            "allowed_path_scopes": roots,
-                            "query_history": [
-                                item.model_dump(mode="python", exclude_none=True) for item in state.query_history
-                            ],
-                            "search_results": [
-                                item.model_dump(mode="python", exclude_none=True) for item in state.search_results
-                            ],
-                            "candidate_memories": [
-                                item.model_dump(mode="python", exclude_none=True) for item in state.candidate_memories
-                            ],
-                            "excluded_paths": ["**/overview.md", "**/summary.md", "users/*/project/**"],
-                        },
-                        ensure_ascii=False,
-                    ),
-                },
-            ],
+            messages=request_messages,
             temperature=0.0,
             stream=False,
         )

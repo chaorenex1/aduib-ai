@@ -4,7 +4,7 @@ from typing import Any
 
 from component.storage.base_storage import storage_manager
 from configs import config
-from service.memory.base.contracts import (
+from runtime.memory.base.contracts import (
     MemoryWritePipelineContext,
     PreparedExtractContext,
     ResolvedMemoryOperation,

@@ -218,6 +218,21 @@ class PreparedExtractContext(MemoryContract):
     session_snapshot: dict[str, Any] | None = None
     archived_snapshot: dict[str, Any] | None = None
 
+    def prefetched_read_paths(self) -> set[str]:
+        prefetched = self.prefetched_context or {}
+        file_reads = prefetched.get("file_reads") or []
+        paths = {
+            str(path).strip()
+            for path in (prefetched.get("already_read_paths") or [])
+            if str(path).strip()
+        }
+        paths.update(
+            str(item.get("path") or "").strip()
+            for item in file_reads
+            if isinstance(item, dict) and str(item.get("path") or "").strip()
+        )
+        return paths
+
 
 class MemoryOperationEvidence(MemoryContract):
     kind: str = Field(default="message", min_length=1)
@@ -225,23 +240,12 @@ class MemoryOperationEvidence(MemoryContract):
     path: str | None = None
 
 
-class IdentifiedMemoryCandidate(MemoryContract):
-    memory_type: str = Field(..., min_length=1)
-    target_branch: str = Field(..., min_length=1)
-    title_hint: str | None = Field(None, min_length=1)
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
-    reasoning: str = Field(..., min_length=1)
-    evidence: list[str] = Field(default_factory=list)
-
-
 class MemoryChangePlanItem(MemoryContract):
     memory_type: str = Field(..., min_length=1)
-    intent: Literal["write", "edit", "delete", "ignore"]
     target_branch: str = Field(..., min_length=1)
-    title_hint: str | None = Field(None, min_length=1)
+    filename: str = Field(..., min_length=1)
+    op: Literal["write", "edit", "delete", "ignore"]
     reasoning: str = Field(..., min_length=1)
-    requires_existing_read: bool = False
-    evidence: list[str] = Field(default_factory=list)
 
 
 class PlannerToolRequest(MemoryContract):
@@ -255,13 +259,30 @@ class PlannerToolUseResult(MemoryContract):
     result: dict[str, Any] = Field(default_factory=dict)
 
 
+class MemoryLineOperation(MemoryContract):
+    kind: Literal["replace_range", "delete_range", "insert_after", "insert_before", "append_eof"]
+    start_line: int | None = Field(default=None, ge=1)
+    end_line: int | None = Field(default=None, ge=1)
+    anchor_text: str | None = None
+    old_text: str | None = None
+    new_text: str | None = None
+    reasoning: str = Field(..., min_length=1)
+
+
+class ExtractedMemoryFieldPlan(MemoryContract):
+    name: str = Field(..., min_length=1)
+    value: Any = None
+    merge_op: Literal["patch", "sum", "replace", "immutable"]
+    line_operations: list[MemoryLineOperation] = Field(default_factory=list)
+    reasoning: str = Field(..., min_length=1)
+
+
 class ExtractedMemoryOperation(MemoryContract):
-    op: Literal["write", "edit", "delete"]
     memory_type: str = Field(..., min_length=1)
-    fields: dict[str, Any] = Field(default_factory=dict)
-    content: str = ""
-    evidence: list[MemoryOperationEvidence] = Field(default_factory=list)
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    target_branch: str = Field(..., min_length=1)
+    filename: str = Field(..., min_length=1)
+    reasoning: str = Field(..., min_length=1)
+    fields: list[ExtractedMemoryFieldPlan] = Field(default_factory=list)
 
 
 class L0L1SummaryResult(MemoryContract):
@@ -271,18 +292,61 @@ class L0L1SummaryResult(MemoryContract):
 
 
 class OrchestratorWorkingState(MemoryContract):
-    identified_memories: list[IdentifiedMemoryCandidate] = Field(default_factory=list)
     change_plan: list[MemoryChangePlanItem] = Field(default_factory=list)
+    change_plan_finalized: bool = False
     operations: list[ExtractedMemoryOperation] = Field(default_factory=list)
     summary_plan: list[L0L1SummaryResult] = Field(default_factory=list)
     tool_results: list[PlannerToolUseResult] = Field(default_factory=list)
     completed_steps: list[OrchestratorStep] = Field(default_factory=list)
+    completed_operation_targets: list[str] = Field(default_factory=list)
+
+    @staticmethod
+    def operation_target_key(
+        *,
+        memory_type: str,
+        target_branch: str,
+        filename: str,
+    ) -> str:
+        return "|".join(
+            [
+                str(memory_type or "").strip(),
+                str(target_branch or "").strip(),
+                str(filename or "").strip(),
+            ]
+        )
+
+    def change_plan_targets(self) -> list[str]:
+        return [
+            self.operation_target_key(
+                memory_type=item.memory_type,
+                target_branch=item.target_branch,
+                filename=item.filename,
+            )
+            for item in self.change_plan
+            if item.op in {"write", "edit", "delete"}
+        ]
+
+    def pending_operation_targets(self) -> list[str]:
+        completed = set(self.completed_operation_targets)
+        return [target for target in self.change_plan_targets() if target not in completed]
+
+    def mark_operation_completed(self, *, memory_type: str, target_branch: str, filename: str) -> None:
+        target = self.operation_target_key(
+            memory_type=memory_type,
+            target_branch=target_branch,
+            filename=filename,
+        )
+        if target not in self.completed_operation_targets:
+            self.completed_operation_targets.append(target)
+
+    def operations_ready_for_summary(self) -> bool:
+        return not self.pending_operation_targets()
 
     def pending_summary_branches(self) -> list[str]:
         target_branches = {
             item.target_branch
             for item in self.change_plan
-            if item.intent in {"write", "edit", "delete"} and item.target_branch
+            if item.op in {"write", "edit", "delete"} and item.target_branch
         }
         completed_branches = {item.branch_path for item in self.summary_plan}
         return sorted(target_branches - completed_branches)
@@ -295,37 +359,63 @@ class OrchestratorWorkingState(MemoryContract):
             self.completed_steps.append(step)
 
     def apply_state_delta(self, *, step: OrchestratorStep, state_delta: OrchestratorStateDelta) -> None:
-        change_plan_updated = (
-            state_delta.identified_memories is not None
-            or state_delta.change_plan is not None
-        )
+        change_plan_updated = state_delta.change_plan is not None
         operations_updated = state_delta.operations is not None
+        summary_updated = state_delta.summary_plan is not None
 
         if change_plan_updated:
+            self._discard_completed(OrchestratorStep.CHANGE_PLAN)
             self._invalidate_downstream(from_step=OrchestratorStep.CHANGE_PLAN)
+            if state_delta.change_plan_finalized is None:
+                self.change_plan_finalized = False
         elif operations_updated:
+            self._discard_completed(OrchestratorStep.OPERATIONS)
             self._invalidate_downstream(from_step=OrchestratorStep.OPERATIONS)
+        if summary_updated:
+            self._discard_completed(OrchestratorStep.SUMMARY)
 
-        if state_delta.identified_memories is not None:
-            self.identified_memories = list(state_delta.identified_memories)
         if state_delta.change_plan is not None:
             self.change_plan = list(state_delta.change_plan)
+        if state_delta.change_plan_finalized is not None:
+            self.change_plan_finalized = state_delta.change_plan_finalized
         if state_delta.operations is not None:
-            self.operations = list(state_delta.operations)
-            if not self.operations and self._has_executable_change_plan():
+            for operation in state_delta.operations:
+                self._upsert_operation(operation)
+                self.mark_operation_completed(
+                    memory_type=operation.memory_type,
+                    target_branch=operation.target_branch,
+                    filename=operation.filename,
+                )
+            if not self.operations and self.has_executable_change_plan():
                 raise ValueError("operations step requires non-empty operations for executable change plan")
         if state_delta.summary_plan is not None:
             for summary in state_delta.summary_plan:
                 self._upsert_summary(summary)
+        if state_delta.completed_operation_targets:
+            for target in state_delta.completed_operation_targets:
+                if target not in self.completed_operation_targets:
+                    self.completed_operation_targets.append(target)
         if state_delta.completed_steps:
             for completed_step in state_delta.completed_steps:
                 self.mark_completed(completed_step)
 
-        if step == OrchestratorStep.SUMMARY:
-            if not self.pending_summary_branches():
-                self.mark_completed(step)
-            return
-        self.mark_completed(step)
+    def _upsert_operation(self, operation: ExtractedMemoryOperation) -> None:
+        target_key = self.operation_target_key(
+            memory_type=operation.memory_type,
+            target_branch=operation.target_branch,
+            filename=operation.filename,
+        )
+        retained = [
+            item
+            for item in self.operations
+            if self.operation_target_key(
+                memory_type=item.memory_type,
+                target_branch=item.target_branch,
+                filename=item.filename,
+            )
+            != target_key
+        ]
+        self.operations = retained + [operation]
 
     def _upsert_summary(self, summary: L0L1SummaryResult) -> None:
         self.summary_plan = [item for item in self.summary_plan if item.branch_path != summary.branch_path] + [summary]
@@ -334,6 +424,7 @@ class OrchestratorWorkingState(MemoryContract):
         if from_step == OrchestratorStep.CHANGE_PLAN:
             self.operations = []
             self.summary_plan = []
+            self.completed_operation_targets = []
             self._discard_completed(OrchestratorStep.OPERATIONS)
             self._discard_completed(OrchestratorStep.SUMMARY)
             return
@@ -344,15 +435,16 @@ class OrchestratorWorkingState(MemoryContract):
     def _discard_completed(self, step: OrchestratorStep) -> None:
         self.completed_steps = [item for item in self.completed_steps if item != step]
 
-    def _has_executable_change_plan(self) -> bool:
-        return any(item.intent in {"write", "edit", "delete"} for item in self.change_plan)
+    def has_executable_change_plan(self) -> bool:
+        return any(item.op in {"write", "edit", "delete"} for item in self.change_plan)
 
 
 class OrchestratorStateDelta(MemoryContract):
-    identified_memories: list[IdentifiedMemoryCandidate] | None = None
     change_plan: list[MemoryChangePlanItem] | None = None
+    change_plan_finalized: bool | None = None
     operations: list[ExtractedMemoryOperation] | None = None
     summary_plan: list[L0L1SummaryResult] | None = None
+    completed_operation_targets: list[str] | None = None
     completed_steps: list[OrchestratorStep] | None = None
 
 
@@ -386,7 +478,6 @@ class ExtractOperationsPhaseResult(MemoryContract):
     task_id: str = Field(..., min_length=1)
     phase: str = Field(default="extract_operations", min_length=1)
     planner_status: str = Field(..., min_length=1)
-    identified_memories: list[IdentifiedMemoryCandidate] = Field(default_factory=list)
     change_plan: list[MemoryChangePlanItem] = Field(default_factory=list)
     structured_operations: list[ExtractedMemoryOperation] = Field(default_factory=list)
     summary_plan: list[L0L1SummaryResult] = Field(default_factory=list)
@@ -406,9 +497,8 @@ class ResolvedMemoryOperation(MemoryContract):
     memory_mode: Literal["simple", "template"]
     fields: dict[str, Any] = Field(default_factory=dict)
     field_merge_ops: dict[str, str] = Field(default_factory=dict)
+    field_plans: list[ExtractedMemoryFieldPlan] = Field(default_factory=list)
     content: str = ""
-    evidence: list[MemoryOperationEvidence] = Field(default_factory=list)
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     content_template: str | None = None
     schema_path: str | None = None
 

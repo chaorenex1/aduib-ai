@@ -5,8 +5,8 @@ from typing import Any
 
 from component.storage.base_storage import storage_manager
 from configs import config
+from runtime.memory.base.contracts import MemoryWritePipelineContext
 from runtime.memory.committed_tree import CommittedMemoryTree
-from service.memory.base.contracts import MemoryWritePipelineContext
 
 from .patch import parse_markdown_document, serialize_markdown_document
 from .staged_write import _is_supported_navigation_dir

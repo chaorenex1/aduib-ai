@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from service.memory.base.contracts import (
+from runtime.memory.base.contracts import (
     ExtractOperationsPhaseResult,
     MemoryWritePipelineContext,
     OrchestratorAction,
@@ -10,7 +10,7 @@ from service.memory.base.contracts import (
     PreparedExtractContext,
     ReasoningTraceStep,
 )
-from service.memory.base.enums import OrchestratorStep
+from runtime.memory.base.enums import OrchestratorStep
 
 from ..schema.registry import MemorySchemaRegistry
 from .planner import LLMPlanner
@@ -46,11 +46,13 @@ class ReActOrchestrator:
                     self._apply_state_action(working_state, action)
                     continue
                 if action.action == "stop_noop":
+                    self._validate_noop_ready(working_state)
                     return self._build_phase_result(
                         planner_status="noop",
                         working_state=working_state,
                     )
                 if action.action == "finalize":
+                    self._validate_finalize_ready(working_state)
                     return self._build_phase_result(
                         planner_status="planned",
                         working_state=working_state,
@@ -75,7 +77,6 @@ class ReActOrchestrator:
         return ExtractOperationsPhaseResult(
             task_id=self.context.task_id,
             planner_status=planner_status,
-            identified_memories=working_state.identified_memories,
             change_plan=working_state.change_plan,
             structured_operations=working_state.operations,
             summary_plan=working_state.summary_plan,
@@ -94,6 +95,34 @@ class ReActOrchestrator:
         working_state.apply_state_delta(step=action.step, state_delta=action.state_delta)
 
     @staticmethod
+    def _validate_noop_ready(working_state: OrchestratorWorkingState) -> None:
+        if any(
+            (
+                working_state.change_plan,
+                working_state.operations,
+                working_state.summary_plan,
+                working_state.change_plan_finalized,
+                working_state.completed_operation_targets,
+            )
+        ):
+            raise ValueError("react orchestrator cannot stop_noop after planning state exists")
+
+    @staticmethod
+    def _validate_finalize_ready(working_state: OrchestratorWorkingState) -> None:
+        pending_operation_targets = working_state.pending_operation_targets()
+        if pending_operation_targets:
+            raise ValueError(
+                "react orchestrator cannot finalize with pending operation targets: "
+                + ", ".join(pending_operation_targets)
+            )
+        pending_summary_branches = working_state.pending_summary_branches()
+        if pending_summary_branches:
+            raise ValueError(
+                "react orchestrator cannot finalize with pending summary branches: "
+                + ", ".join(pending_summary_branches)
+            )
+
+    @staticmethod
     def _build_reasoning_trace(
         working_state: OrchestratorWorkingState,
     ) -> list[ReasoningTraceStep]:
@@ -101,17 +130,24 @@ class ReActOrchestrator:
             ReasoningTraceStep(
                 step=OrchestratorStep.CHANGE_PLAN,
                 metadata={
-                    "identified_memory_count": len(working_state.identified_memories),
                     "planned_change_count": len(working_state.change_plan),
+                    "change_plan_finalized": working_state.change_plan_finalized,
                 },
             ),
             ReasoningTraceStep(
                 step=OrchestratorStep.OPERATIONS,
-                metadata={"operation_count": len(working_state.operations)},
+                metadata={
+                    "operation_count": len(working_state.operations),
+                    "completed_operation_target_count": len(working_state.completed_operation_targets),
+                    "pending_operation_target_count": len(working_state.pending_operation_targets()),
+                },
             ),
             ReasoningTraceStep(
                 step=OrchestratorStep.SUMMARY,
-                metadata={"summary_count": len(working_state.summary_plan)},
+                metadata={
+                    "summary_count": len(working_state.summary_plan),
+                    "pending_summary_branch_count": len(working_state.pending_summary_branches()),
+                },
             ),
         ]
 

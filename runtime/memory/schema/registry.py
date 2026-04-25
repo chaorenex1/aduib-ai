@@ -7,7 +7,7 @@ from typing import Any
 import yaml
 from pydantic import Field
 
-from service.memory.base.contracts import MemoryContract
+from runtime.memory.base.contracts import MemoryContract
 
 ALIASES = {
     "ops_runbook": "runbook",

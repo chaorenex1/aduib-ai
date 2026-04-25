@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 
 from runtime.entities import PromptMessageRole, SystemPromptMessage, UserPromptMessage
-from service.memory.base.contracts import (
+from runtime.memory.base.contracts import (
+    ExtractedMemoryOperation,
+    MemoryChangePlanItem,
     OrchestratorWorkingState,
     PlannerToolUseResult,
     PreparedExtractContext,
 )
-from service.memory.base.enums import OrchestratorStep
+from runtime.memory.base.enums import OrchestratorStep
 
 from ..schema.registry import MemorySchemaRegistry
 from .tools import SUPPORTED_PLANNER_TOOLS
@@ -30,70 +32,24 @@ Do NOT generate overview.md or summary.md.
 Do NOT perform summary tasks.
 Do NOT invent arbitrary branches or file paths.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PLANNING PROTOCOL
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-You must follow this workflow in order:
-
-1. Consume pre-fetched context before requesting any tools.
-   - Read directory views to understand branch structure.
-   - Read pre-fetched L0/L1 files and other already-read files before deciding more reads are needed.
-   - Use search hints and already-read paths as planning evidence.
-
-2. Use the memory schema as a hard planning boundary.
-   - Map each candidate memory to an allowed `memory_type`.
-   - Map each candidate memory to an allowed `target_branch`.
-   - Use schema field expectations and directory conventions to judge whether a safe plan is possible.
-   - If no schema-aligned mapping exists, prefer `ignore` instead of inventing a type or branch.
-
-3. Decide the minimum safe change plan.
-   - Identify memory-worthy items from the conversation plus prefetch evidence.
-   - Decide whether each item should be `write`, `edit`, `delete`, or `ignore`.
-   - Prefer `edit` only when existing branch/file context is materially relevant.
-   - Mark `requires_existing_read=true` when an edit decision still depends on more file context.
-
-4. Request tools only as a fallback.
-   - Request tools only when prefetch + schema + current tool observations are insufficient for a safe plan.
-   - Prefer the narrowest tool call that can unblock the decision.
-   - Do not re-read paths already present in `already_read_paths`
-     unless the current decision explicitly requires fresher or more specific context.
-
-5. Output only change-plan state.
-   - You are planning memory changes, not generating operations or summaries.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DECISION RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- One conversation may yield multiple memory items.
-- Use only supported memory types and supported target branches.
+Rules:
+- Keep this step lightweight. Your job is to choose candidate memories and intents, not to draft final file content.
+- Output only file-level planning items.
+- Use the memory schema as a hard planning boundary.
+- Map every non-ignored item to a supported `memory_type`, a valid `target_branch`,
+  and a schema-compatible `filename`.
+- If no schema-aligned mapping exists, prefer `ignore` instead of inventing a type or branch.
 - If a memory is weak, duplicated, ephemeral, or not useful for future retrieval, mark it as `ignore`.
-- Use `edit` only when existing memory context is relevant
-  and the evidence suggests refinement rather than a brand-new memory file.
+- Prefer `edit` only when existing branch/file context is materially relevant.
+- Never emit an `edit` plan unless the target file has already been read or you are explicitly
+  requesting a `read` tool call for it first.
 - Treat pre-fetched context as the default evidence source before tools.
-- If schema constraints and prefetch evidence are enough, do not request tools.
-- If existing branch/file context is needed beyond prefetch, request tools instead of guessing.
+- Request tools only when prefetch + schema + current tool observations are insufficient for a safe plan.
+- Prefer the narrowest tool call that can unblock the decision.
+- Do not re-read paths already present in `already_read_paths`
+  unless the current decision explicitly requires fresher or more specific context.
 - Stay faithful to the source material and prefetched context.
 - Never invent facts, entities, decisions, or preferences not grounded in evidence.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TOOL USAGE RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-You may request only built-in read-only tools.
-
-Use tools when:
-- existing memory content may need to be edited and the needed file is not already covered by prefetch
-- current context is insufficient to decide between write/edit/delete/ignore after consuming prefetch and schema
-- branch state or nearby files matter for a safe planning decision and prefetch did not already answer the question
-
-Do not request tools when:
-- the conversation + prefetch + schema already give sufficient evidence
-- the plan is already obvious and low-risk
-- you are only trying to confirm something speculative without clear benefit
-- you would only repeat information already present in `already_read_paths`
-  or prior tool observations
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT RULES
@@ -107,22 +63,17 @@ No explanation outside the JSON object.
 Preferred shape - explicit orchestrator action:
 {
   "action": "request_tools" | "update_state" | "stop_noop",
-  "step": "change_plan" | "operations" | "summary",
+  "step": "change_plan",
   "tool_requests": [{"tool": "ls" | "read" | "find", "args": {...}}],
   "state_delta": {
-    "identified_memories": [...],
-    "change_plan": [...],
-    "operations": [...],
-    "summary_plan": [...]
+    "change_plan": [...]
   }
 }
 
 Rules for the explicit shape:
 - Use `request_tools` when you need more context.
-- Use `update_state` when you are updating any orchestrator state.
+- Use `update_state` only for change-plan state.
 - Use `stop_noop` when nothing should be written.
-- You MAY emit `step="change_plan"` even if the current focus later in the loop
-  is operations or summary when new evidence forces a plan revision.
 
 Compatibility shape - also accepted:
 
@@ -138,32 +89,16 @@ Shape A — tool request:
 
 Shape B — final change plan:
 {
-  "identified_memories": [
-    {
-      "memory_type": "<string>",
-      "target_branch": "<string>",
-      "title_hint": "<string>",
-      "confidence": <number>,
-      "reasoning": "<short string>",
-      "evidence": ["<short excerpt>", "..."]
-    }
-  ],
   "change_plan": [
     {
       "memory_type": "<string>",
-      "intent": "write" | "edit" | "delete" | "ignore",
       "target_branch": "<string>",
-      "title_hint": "<string>",
-      "reasoning": "<short string>",
-      "requires_existing_read": <true|false>,
-      "evidence": ["<short excerpt>", "..."]
+      "filename": "<string>",
+      "op": "write" | "edit" | "delete" | "ignore",
+      "reasoning": "<short string>"
     }
   ]
-}
-
-Confidence must be a number in [0, 1].
-Keep reasoning concise and audit-friendly.
-"""
+}"""
 
 MEMORY_CHANGE_PLAN_USER_PROMPT_TEMPLATE = """Task ID: {task_id}
 Source Kind: {source_kind}
@@ -189,14 +124,38 @@ MEMORY_CHANGE_PLAN_TOOL_OBSERVATION_TEMPLATE = """Tool Observations
 MEMORY_OPERATION_GENERATION_PROMPT = """You are the operation generator
 inside a directory-first memory write orchestrator.
 
+Your task is to convert one current planned memory target into a final file operation.
+
 You are given:
-- a validated memory change plan
+- one current planned memory target
 - the conversation source material
 - pre-fetched context
 - optional tool observations already collected during this loop
 - the allowed memory schema registry
 
-Your task is to convert the accepted change plan into final memory operations.
+Do NOT generate overview.md or summary.md.
+Do NOT generate summary_plan.
+Do NOT invent metadata fields that are not defined by the memory schema.
+
+Rules:
+- Use the memory schema as a hard execution boundary.
+- Use only `memory_type` values present in the provided `memory_schema`.
+- The current target item is the only memory file you may operate on in this turn.
+- Use the planned `target_branch` and `filename` as hard constraints.
+- Put only schema-defined fields inside `fields`.
+- Do NOT output top-level `op`, `content`, `evidence`, or `confidence`.
+- If the schema defines a `content` field, put the body text in the `content` field item.
+- If a field is not defined by the chosen schema, omit it instead of inventing it.
+- If an `edit` target has not been read yet, request a `read` tool call instead of emitting an operation update.
+- Keep `merge_op` on every field item and make it exactly match the schema.
+- For `edit`, use `fields[*].line_operations` to make the modification explicit, especially for
+  body/content changes and line-level deletions.
+- If new evidence shows the current planned file identity is wrong, you MAY return `step="change_plan"`
+  with a change-plan-only correction instead of guessing.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Output ONLY valid JSON.
 No markdown.
@@ -206,21 +165,18 @@ No explanation outside the JSON object.
 Preferred shape - explicit orchestrator action:
 {
   "action": "request_tools" | "update_state",
-  "step": "change_plan" | "operations" | "summary",
+  "step": "operations" | "change_plan",
   "tool_requests": [{"tool": "ls" | "read" | "find", "args": {...}}],
-  "state_delta": {
-    "identified_memories": [...],
-    "change_plan": [...],
-    "operations": [...],
-    "summary_plan": [...]
-  }
+  "state_delta": {"operations": [...]} | {"change_plan": [...]}
 }
 
 Rules for the explicit shape:
-- Prefer `step="operations"` for normal operation updates.
-- If new evidence forces a change-plan correction, you MAY return `step="change_plan"` instead of guessing.
+- If `step="operations"`, `state_delta` must contain only `operations` and optional
+  `completed_operation_targets` / `completed_steps`.
+- If `step="change_plan"`, `state_delta` must contain only `change_plan`
+  and optional `completed_steps`.
 
-Compatibility shapes - also accepted:
+Compatibility shape - also accepted:
 
 Shape A - tool request:
 {
@@ -236,27 +192,33 @@ Shape B - operations:
 {
   "operations": [
     {
-      "op": "write" | "edit" | "delete",
       "memory_type": "<string>",
-      "fields": {"<field_name>": "<value>"},
-      "content": "<string>",
-      "evidence": [
+      "target_branch": "<string>",
+      "filename": "<string>",
+      "reasoning": "<short string>",
+      "fields": [
         {
-          "kind": "message" | "read" | "search",
-          "content": "<short excerpt>",
-          "path": "<optional path>"
+          "name": "<schema field name>",
+          "value": "<generated value or null>",
+          "merge_op": "patch" | "sum" | "replace" | "immutable",
+          "line_operations": [
+            {
+              "kind": "replace_range" | "delete_range" | "insert_after" | "insert_before" | "append_eof",
+              "start_line": <integer or null>,
+              "end_line": <integer or null>,
+              "anchor_text": "<string or null>",
+              "old_text": "<string or null>",
+              "new_text": "<string or null>",
+              "reasoning": "<short string>"
+            }
+          ],
+          "reasoning": "<short string>"
         }
-      ],
-      "confidence": <number>
+      ]
     }
-  ]
-}
-
-Request tools instead of guessing when:
-- an `edit` depends on confirming the current file contents
-- nearby file names or branch structure are needed to choose safe fields/content
-- the prefetched context is insufficient to emit a safe final operation
-"""
+  ],
+  "completed_operation_targets": ["<memory_type>|<target_branch>|<filename>"]
+}"""
 
 MEMORY_L0_L1_SUMMARY_PROMPT = """You are the branch-summary generator
 inside a directory-first memory write orchestrator.
@@ -284,18 +246,16 @@ Preferred shape - explicit orchestrator action:
   "action": "request_tools" | "update_state",
   "step": "change_plan" | "operations" | "summary",
   "tool_requests": [{"tool": "ls" | "read" | "find", "args": {...}}],
-  "state_delta": {
-    "identified_memories": [...],
-    "change_plan": [...],
-    "operations": [...],
-    "summary_plan": [...]
-  }
+  "state_delta": {"summary_plan": [...]} | {"operations": [...]} | {"change_plan": [...]}
 }
 
 Rules for the explicit shape:
 - Prefer `step="summary"` for normal summary updates.
 - If new evidence from the current branch forces a plan or operation correction,
   you MAY return `step="change_plan"` or `step="operations"` instead.
+- If `step="summary"`, `state_delta` must contain only `summary_plan` and optional `completed_steps`.
+- If `step="operations"`, `state_delta` must contain only `operations` and optional `completed_steps`.
+- If `step="change_plan"`, `state_delta` must contain only `change_plan` and optional `completed_steps`.
 
 Compatibility shapes - also accepted:
 
@@ -333,6 +293,9 @@ class ExtractPromptComposer:
         step: OrchestratorStep,
         working_state: OrchestratorWorkingState,
         branch_path: str | None = None,
+        current_change_plan_item: MemoryChangePlanItem | None = None,
+        current_target_tool_results: list[PlannerToolUseResult] | None = None,
+        current_operation: ExtractedMemoryOperation | None = None,
         tool_results: list[PlannerToolUseResult] | None = None,
     ) -> list:
         if step == OrchestratorStep.CHANGE_PLAN:
@@ -343,6 +306,9 @@ class ExtractPromptComposer:
         if step == OrchestratorStep.OPERATIONS:
             return self._build_operation_generation_messages(
                 working_state=working_state,
+                current_change_plan_item=current_change_plan_item,
+                current_target_tool_results=current_target_tool_results,
+                current_operation=current_operation,
                 tool_results=tool_results,
             )
         if branch_path is None:
@@ -399,15 +365,31 @@ class ExtractPromptComposer:
         self,
         *,
         working_state: OrchestratorWorkingState,
+        current_change_plan_item: MemoryChangePlanItem | None = None,
+        current_target_tool_results: list[PlannerToolUseResult] | None = None,
+        current_operation: ExtractedMemoryOperation | None = None,
         tool_results: list[PlannerToolUseResult] | None = None,
     ) -> list:
+        if current_change_plan_item is None:
+            raise ValueError("operations step requires current_change_plan_item")
+        current_schema = self.registry.require(current_change_plan_item.memory_type)
         messages = [
             SystemPromptMessage(role=PromptMessageRole.SYSTEM, content=MEMORY_OPERATION_GENERATION_PROMPT),
             SystemPromptMessage(
                 role=PromptMessageRole.SYSTEM,
                 content=self._dump_json(
                     {
-                        "memory_schema": self.registry.summary(),
+                        "memory_schema": {
+                            "memory_type": current_schema.memory_type,
+                            "description": current_schema.description,
+                            "directory": current_schema.directory,
+                            "filename_template": current_schema.filename_template,
+                            "memory_mode": current_schema.memory_mode,
+                            "fields": [
+                                field.model_dump(mode="python", exclude_none=True)
+                                for field in current_schema.fields
+                            ],
+                        },
                         "tools": self._tool_definitions(),
                     }
                 ),
@@ -423,12 +405,26 @@ class ExtractPromptComposer:
                             "text_blocks": self.prepared.text_blocks,
                         },
                         "prefetched_context": self.prepared.prefetched_context,
-                        "working_state": self._working_state_payload(working_state),
+                        "current_change_plan_item": current_change_plan_item.model_dump(
+                            mode="python",
+                            exclude_none=True,
+                        ),
+                        "current_target_tool_results": [
+                            item.model_dump(mode="python", exclude_none=True)
+                            for item in (current_target_tool_results or [])
+                        ],
+                        "current_operation": current_operation.model_dump(mode="python", exclude_none=True)
+                        if current_operation is not None
+                        else None,
+                        "execution_state": self._operations_execution_state_payload(
+                            working_state=working_state,
+                            current_change_plan_item=current_change_plan_item,
+                        ),
                     }
                 ),
             ),
         ]
-        if tool_results:
+        if tool_results and not current_target_tool_results:
             messages.append(
                 UserPromptMessage(
                     role=PromptMessageRole.USER,
@@ -552,13 +548,31 @@ class ExtractPromptComposer:
     @staticmethod
     def _working_state_payload(working_state: OrchestratorWorkingState) -> dict:
         return {
-            "identified_memories": [
-                item.model_dump(mode="python", exclude_none=True) for item in working_state.identified_memories
-            ],
             "change_plan": [item.model_dump(mode="python", exclude_none=True) for item in working_state.change_plan],
+            "change_plan_finalized": working_state.change_plan_finalized,
             "operations": [item.model_dump(mode="python", exclude_none=True) for item in working_state.operations],
             "summary_plan": [item.model_dump(mode="python", exclude_none=True) for item in working_state.summary_plan],
             "completed_steps": list(working_state.completed_steps),
+            "completed_operation_targets": list(working_state.completed_operation_targets),
+            "pending_operation_targets": working_state.pending_operation_targets(),
+        }
+
+    @staticmethod
+    def _operations_execution_state_payload(
+        *,
+        working_state: OrchestratorWorkingState,
+        current_change_plan_item: MemoryChangePlanItem,
+    ) -> dict:
+        current_target = OrchestratorWorkingState.operation_target_key(
+            memory_type=current_change_plan_item.memory_type,
+            target_branch=current_change_plan_item.target_branch,
+            filename=current_change_plan_item.filename,
+        )
+        return {
+            "change_plan_finalized": working_state.change_plan_finalized,
+            "completed_operation_targets": list(working_state.completed_operation_targets),
+            "pending_operation_targets": working_state.pending_operation_targets(),
+            "current_target": current_target,
         }
 
     def _source_material_payload(self) -> dict:

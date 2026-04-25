@@ -4,13 +4,13 @@ import hashlib
 import json
 
 from component.storage.base_storage import storage_manager
-from service.memory import SessionMessageRepository
-from service.memory.base.contracts import (
+from runtime.memory.base.contracts import (
     ArchivedSourceRef,
     MemoryTaskCreateCommand,
     MemoryWriteCommand,
     MemoryWriteTaskView,
 )
+from service.memory import SessionMessageRepository
 from service.memory.base.enums import MemoryTriggerType
 from service.memory.base.errors import MemoryArchiveError, MemoryValidationError
 from service.memory.base.paths import (

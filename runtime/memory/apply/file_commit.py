@@ -4,7 +4,7 @@ import json
 
 from component.storage.base_storage import storage_manager
 from configs import config
-from service.memory.base.contracts import MemoryWritePipelineContext
+from runtime.memory.base.contracts import MemoryWritePipelineContext
 
 from .rollback import deserialize_snapshot
 
