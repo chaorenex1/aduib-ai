@@ -32,7 +32,9 @@ class ReActOrchestrator:
         self.tool_executor = PlannerToolExecutor()
 
     def run(self) -> ExtractOperationsPhaseResult:
-        working_state = OrchestratorWorkingState()
+        working_state = OrchestratorWorkingState(
+            prefetched_read_paths=sorted(self.prepared.prefetched_read_paths()),
+        )
 
         try:
             for _turn in range(self.MAX_TURNS):
@@ -40,7 +42,7 @@ class ReActOrchestrator:
                 if action.action == "request_tools":
                     for request in action.tool_requests:
                         tool_result = self.tool_executor.execute_sync(request)
-                        working_state.tool_results.append(tool_result)
+                        working_state.apply_tool_result(tool_result)
                     continue
                 if action.action == "update_state":
                     self._apply_state_action(working_state, action)
@@ -77,9 +79,8 @@ class ReActOrchestrator:
         return ExtractOperationsPhaseResult(
             task_id=self.context.task_id,
             planner_status=planner_status,
-            change_plan=working_state.change_plan,
-            structured_operations=working_state.operations,
-            summary_plan=working_state.summary_plan,
+            change_plan=working_state.finalized_change_plan(),
+            structured_operations=working_state.finalized_operations(),
             tools_available=list(SUPPORTED_PLANNER_TOOLS),
             tools_used=working_state.tool_results,
             reasoning_trace=self._build_reasoning_trace(working_state),
@@ -96,30 +97,22 @@ class ReActOrchestrator:
 
     @staticmethod
     def _validate_noop_ready(working_state: OrchestratorWorkingState) -> None:
-        if any(
-            (
-                working_state.change_plan,
-                working_state.operations,
-                working_state.summary_plan,
-                working_state.change_plan_finalized,
-                working_state.completed_operation_targets,
-            )
-        ):
+        if working_state.targets or working_state.planning_complete:
             raise ValueError("react orchestrator cannot stop_noop after planning state exists")
 
     @staticmethod
     def _validate_finalize_ready(working_state: OrchestratorWorkingState) -> None:
-        pending_operation_targets = working_state.pending_operation_targets()
-        if pending_operation_targets:
+        if not working_state.planning_complete:
+            raise ValueError("react orchestrator cannot finalize before planning_complete")
+        awaiting_read = working_state.next_target_awaiting_read()
+        if awaiting_read is not None:
             raise ValueError(
-                "react orchestrator cannot finalize with pending operation targets: "
-                + ", ".join(pending_operation_targets)
+                "react orchestrator cannot finalize with pending read target: " + awaiting_read.target_key
             )
-        pending_summary_branches = working_state.pending_summary_branches()
-        if pending_summary_branches:
+        ready_for_operation = working_state.next_target_ready_for_operation()
+        if ready_for_operation is not None:
             raise ValueError(
-                "react orchestrator cannot finalize with pending summary branches: "
-                + ", ".join(pending_summary_branches)
+                "react orchestrator cannot finalize with pending operation target: " + ready_for_operation.target_key
             )
 
     @staticmethod
@@ -130,23 +123,21 @@ class ReActOrchestrator:
             ReasoningTraceStep(
                 step=OrchestratorStep.CHANGE_PLAN,
                 metadata={
-                    "planned_change_count": len(working_state.change_plan),
-                    "change_plan_finalized": working_state.change_plan_finalized,
+                    "target_count": len(working_state.targets),
+                    "planning_complete": working_state.planning_complete,
                 },
             ),
             ReasoningTraceStep(
                 step=OrchestratorStep.OPERATIONS,
                 metadata={
-                    "operation_count": len(working_state.operations),
-                    "completed_operation_target_count": len(working_state.completed_operation_targets),
-                    "pending_operation_target_count": len(working_state.pending_operation_targets()),
-                },
-            ),
-            ReasoningTraceStep(
-                step=OrchestratorStep.SUMMARY,
-                metadata={
-                    "summary_count": len(working_state.summary_plan),
-                    "pending_summary_branch_count": len(working_state.pending_summary_branches()),
+                    "operation_count": len(working_state.finalized_operations()),
+                    "awaiting_read_count": len(
+                        [item for item in working_state.targets if item.status == "awaiting_read"]
+                    ),
+                    "ready_for_operation_count": len(
+                        [item for item in working_state.targets if item.status == "ready_for_operation"]
+                    ),
+                    "operated_count": len([item for item in working_state.targets if item.status == "operated"]),
                 },
             ),
         ]

@@ -4,23 +4,25 @@ import json
 
 from pydantic import BaseModel
 
-from .base.contracts import MemoryWritePipelineContext
-from .base.enums import MemoryTaskPhase, MemoryTaskFinalStatus
-from .prepare_context.prepare_context import prepare_extract_context
+from runtime.memory.apply.resolve_operations import resolve_operations
 
 from .apply.file_commit import apply_memory_files
 from .apply.metadata_refresh import refresh_metadata
 from .apply.navigation_refresh import refresh_navigation
 from .apply.staged_write import build_staged_write_set
+from .base.contracts import MemoryWritePipelineContext
+from .base.enums import MemoryTaskFinalStatus, MemoryTaskPhase
 from .extract.orchestrator import run_memory_react_orchestrator
-from runtime.memory.apply.resolve_operations import resolve_operations
+from .navigation.generate_summary import generate_navigation_summary
+from .prepare_context.prepare_context import prepare_extract_context
 
 MEMORY_WRITE_STATE_TRANSITIONS = {
     MemoryTaskPhase.PREPARE_EXTRACT_CONTEXT: MemoryTaskPhase.EXTRACT_OPERATIONS,
     MemoryTaskPhase.EXTRACT_OPERATIONS: MemoryTaskPhase.RESOLVE_OPERATIONS,
     MemoryTaskPhase.RESOLVE_OPERATIONS: MemoryTaskPhase.BUILD_STAGED_WRITE_SET,
     MemoryTaskPhase.BUILD_STAGED_WRITE_SET: MemoryTaskPhase.APPLY_MEMORY_FILES,
-    MemoryTaskPhase.APPLY_MEMORY_FILES: MemoryTaskPhase.REFRESH_NAVIGATION,
+    MemoryTaskPhase.APPLY_MEMORY_FILES: MemoryTaskPhase.GENERATE_NAVIGATION_SUMMARY,
+    MemoryTaskPhase.GENERATE_NAVIGATION_SUMMARY: MemoryTaskPhase.REFRESH_NAVIGATION,
     MemoryTaskPhase.REFRESH_NAVIGATION: MemoryTaskPhase.REFRESH_METADATA,
     MemoryTaskPhase.REFRESH_METADATA: MemoryTaskPhase.COMMITTED,
 }
@@ -31,6 +33,7 @@ PHASE_HANDLERS = {
     MemoryTaskPhase.RESOLVE_OPERATIONS: resolve_operations,
     MemoryTaskPhase.BUILD_STAGED_WRITE_SET: build_staged_write_set,
     MemoryTaskPhase.APPLY_MEMORY_FILES: apply_memory_files,
+    MemoryTaskPhase.GENERATE_NAVIGATION_SUMMARY: generate_navigation_summary,
     MemoryTaskPhase.REFRESH_NAVIGATION: refresh_navigation,
     MemoryTaskPhase.REFRESH_METADATA: refresh_metadata,
 }

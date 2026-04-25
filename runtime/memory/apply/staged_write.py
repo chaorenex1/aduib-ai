@@ -27,13 +27,9 @@ SUPPORTED_NAVIGATION_DIRECTORIES = {
 def build_staged_write_set(context: MemoryWritePipelineContext) -> dict:
     prepared = PreparedExtractContext.model_validate(context.phase_results.get("prepare_extract_context") or {})
     resolve_result = context.phase_results.get("resolve_operations") or {}
-    extract_result = context.phase_results.get("extract_operations") or {}
     resolved_operations = [
         ResolvedMemoryOperation.model_validate(item) for item in resolve_result.get("resolved_operations") or []
     ]
-    summary_plan_by_branch = {
-        item["branch_path"]: item for item in extract_result.get("summary_plan") or [] if item.get("branch_path")
-    }
     memory_mutations: list[dict[str, Any]] = []
     snapshot_targets: list[str] = []
     for operation in resolved_operations:
@@ -63,19 +59,17 @@ def build_staged_write_set(context: MemoryWritePipelineContext) -> dict:
             }
         )
 
-    navigation_mutations = [
+    navigation_targets = [
         {
-            "directory_path": directory_path,
+            "branch_path": directory_path,
             "overview_path": f"{directory_path}/overview.md",
             "summary_path": f"{directory_path}/summary.md",
-            "desired_overview_md": (summary_plan_by_branch.get(directory_path) or {}).get("overview_md"),
-            "desired_summary_md": (summary_plan_by_branch.get(directory_path) or {}).get("summary_md"),
         }
         for directory_path in resolve_result.get("navigation_scopes") or []
         if _is_supported_navigation_dir(directory_path)
     ]
-    snapshot_targets.extend(_to_scoped_path(item["overview_path"]) for item in navigation_mutations)
-    snapshot_targets.extend(_to_scoped_path(item["summary_path"]) for item in navigation_mutations)
+    snapshot_targets.extend(_to_scoped_path(item["overview_path"]) for item in navigation_targets)
+    snapshot_targets.extend(_to_scoped_path(item["summary_path"]) for item in navigation_targets)
     snapshot = storage_manager.snapshot(snapshot_targets)
     rollback_plan = {
         "snapshot": serialize_snapshot(snapshot),
@@ -92,13 +86,13 @@ def build_staged_write_set(context: MemoryWritePipelineContext) -> dict:
         "task_id": context.task_id,
         "phase": "build_staged_write_set",
         "memory_mutations": memory_mutations,
-        "navigation_mutations": navigation_mutations,
+        "navigation_targets": navigation_targets,
         "metadata_mutations": metadata_mutations,
         "rollback_plan": rollback_plan,
         "journal_entries": journal_entries,
         "staging_manifest": {
             "memory_mutation_count": len(memory_mutations),
-            "navigation_mutation_count": len(navigation_mutations),
+            "navigation_target_count": len(navigation_targets),
             "metadata_mutation_count": len(metadata_mutations),
         },
     }

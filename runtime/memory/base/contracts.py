@@ -285,20 +285,26 @@ class ExtractedMemoryOperation(MemoryContract):
     fields: list[ExtractedMemoryFieldPlan] = Field(default_factory=list)
 
 
-class L0L1SummaryResult(MemoryContract):
-    branch_path: str = Field(..., min_length=1)
-    overview_md: str = Field(..., min_length=1)
-    summary_md: str = Field(..., min_length=1)
+class MemoryReadEvidence(MemoryContract):
+    path: str = Field(..., min_length=1)
+    content: str = ""
+    source: Literal["prefetch", "tool_read"]
+
+
+class MemoryTargetProgress(MemoryContract):
+    target_key: str = Field(..., min_length=1)
+    change_plan_item: MemoryChangePlanItem
+    status: Literal["awaiting_read", "ready_for_operation", "operated", "ignored"]
+    required_read_path: str | None = None
+    read_evidence_paths: list[str] = Field(default_factory=list)
+    operation_item: ExtractedMemoryOperation | None = None
 
 
 class OrchestratorWorkingState(MemoryContract):
-    change_plan: list[MemoryChangePlanItem] = Field(default_factory=list)
-    change_plan_finalized: bool = False
-    operations: list[ExtractedMemoryOperation] = Field(default_factory=list)
-    summary_plan: list[L0L1SummaryResult] = Field(default_factory=list)
+    prefetched_read_paths: list[str] = Field(default_factory=list)
+    targets: list[MemoryTargetProgress] = Field(default_factory=list)
+    planning_complete: bool = False
     tool_results: list[PlannerToolUseResult] = Field(default_factory=list)
-    completed_steps: list[OrchestratorStep] = Field(default_factory=list)
-    completed_operation_targets: list[str] = Field(default_factory=list)
 
     @staticmethod
     def operation_target_key(
@@ -315,137 +321,172 @@ class OrchestratorWorkingState(MemoryContract):
             ]
         )
 
-    def change_plan_targets(self) -> list[str]:
-        return [
-            self.operation_target_key(
-                memory_type=item.memory_type,
-                target_branch=item.target_branch,
-                filename=item.filename,
-            )
-            for item in self.change_plan
-            if item.op in {"write", "edit", "delete"}
-        ]
-
-    def pending_operation_targets(self) -> list[str]:
-        completed = set(self.completed_operation_targets)
-        return [target for target in self.change_plan_targets() if target not in completed]
-
-    def mark_operation_completed(self, *, memory_type: str, target_branch: str, filename: str) -> None:
-        target = self.operation_target_key(
+    @staticmethod
+    def target_key(
+        *,
+        memory_type: str,
+        target_branch: str,
+        filename: str,
+    ) -> str:
+        return OrchestratorWorkingState.operation_target_key(
             memory_type=memory_type,
             target_branch=target_branch,
             filename=filename,
         )
-        if target not in self.completed_operation_targets:
-            self.completed_operation_targets.append(target)
-
-    def operations_ready_for_summary(self) -> bool:
-        return not self.pending_operation_targets()
-
-    def pending_summary_branches(self) -> list[str]:
-        target_branches = {
-            item.target_branch
-            for item in self.change_plan
-            if item.op in {"write", "edit", "delete"} and item.target_branch
-        }
-        completed_branches = {item.branch_path for item in self.summary_plan}
-        return sorted(target_branches - completed_branches)
-
-    def has_completed(self, step: OrchestratorStep) -> bool:
-        return step in self.completed_steps
-
-    def mark_completed(self, step: OrchestratorStep) -> None:
-        if step not in self.completed_steps:
-            self.completed_steps.append(step)
 
     def apply_state_delta(self, *, step: OrchestratorStep, state_delta: OrchestratorStateDelta) -> None:
-        change_plan_updated = state_delta.change_plan is not None
-        operations_updated = state_delta.operations is not None
-        summary_updated = state_delta.summary_plan is not None
+        if step == OrchestratorStep.CHANGE_PLAN and state_delta.operation_item is not None:
+            raise ValueError("change_plan step cannot apply operation_item")
+        if step == OrchestratorStep.OPERATIONS and state_delta.planning_complete is not None:
+            raise ValueError("operations step cannot update planning_complete")
 
-        if change_plan_updated:
-            self._discard_completed(OrchestratorStep.CHANGE_PLAN)
-            self._invalidate_downstream(from_step=OrchestratorStep.CHANGE_PLAN)
-            if state_delta.change_plan_finalized is None:
-                self.change_plan_finalized = False
-        elif operations_updated:
-            self._discard_completed(OrchestratorStep.OPERATIONS)
-            self._invalidate_downstream(from_step=OrchestratorStep.OPERATIONS)
-        if summary_updated:
-            self._discard_completed(OrchestratorStep.SUMMARY)
-
-        if state_delta.change_plan is not None:
-            self.change_plan = list(state_delta.change_plan)
-        if state_delta.change_plan_finalized is not None:
-            self.change_plan_finalized = state_delta.change_plan_finalized
-        if state_delta.operations is not None:
-            for operation in state_delta.operations:
-                self._upsert_operation(operation)
-                self.mark_operation_completed(
-                    memory_type=operation.memory_type,
-                    target_branch=operation.target_branch,
-                    filename=operation.filename,
-                )
-            if not self.operations and self.has_executable_change_plan():
-                raise ValueError("operations step requires non-empty operations for executable change plan")
-        if state_delta.summary_plan is not None:
-            for summary in state_delta.summary_plan:
-                self._upsert_summary(summary)
-        if state_delta.completed_operation_targets:
-            for target in state_delta.completed_operation_targets:
-                if target not in self.completed_operation_targets:
-                    self.completed_operation_targets.append(target)
-        if state_delta.completed_steps:
-            for completed_step in state_delta.completed_steps:
-                self.mark_completed(completed_step)
-
-    def _upsert_operation(self, operation: ExtractedMemoryOperation) -> None:
-        target_key = self.operation_target_key(
-            memory_type=operation.memory_type,
-            target_branch=operation.target_branch,
-            filename=operation.filename,
-        )
-        retained = [
-            item
-            for item in self.operations
-            if self.operation_target_key(
-                memory_type=item.memory_type,
-                target_branch=item.target_branch,
-                filename=item.filename,
+        if state_delta.change_plan_item is not None:
+            self.upsert_change_plan_item(
+                item=state_delta.change_plan_item,
+                supersedes_target_key=state_delta.supersedes_target_key,
             )
-            != target_key
-        ]
-        self.operations = retained + [operation]
+        if state_delta.planning_complete is not None:
+            self.planning_complete = state_delta.planning_complete
+        if state_delta.operation_item is not None:
+            self.apply_operation_item(state_delta.operation_item)
 
-    def _upsert_summary(self, summary: L0L1SummaryResult) -> None:
-        self.summary_plan = [item for item in self.summary_plan if item.branch_path != summary.branch_path] + [summary]
-
-    def _invalidate_downstream(self, *, from_step: OrchestratorStep) -> None:
-        if from_step == OrchestratorStep.CHANGE_PLAN:
-            self.operations = []
-            self.summary_plan = []
-            self.completed_operation_targets = []
-            self._discard_completed(OrchestratorStep.OPERATIONS)
-            self._discard_completed(OrchestratorStep.SUMMARY)
+    def apply_tool_result(self, result: PlannerToolUseResult) -> None:
+        self.tool_results.append(result)
+        if result.tool != "read":
             return
-        if from_step == OrchestratorStep.OPERATIONS:
-            self.summary_plan = []
-            self._discard_completed(OrchestratorStep.SUMMARY)
+        observed_paths = {
+            str((result.args or {}).get("path") or "").strip(),
+            str((result.result or {}).get("path") or "").strip(),
+        }
+        observed_paths = {path for path in observed_paths if path}
+        if not observed_paths:
+            return
+        for target in self.targets:
+            if target.status != "awaiting_read" or not target.required_read_path:
+                continue
+            if target.required_read_path not in observed_paths:
+                continue
+            for path in sorted(observed_paths):
+                if path not in target.read_evidence_paths:
+                    target.read_evidence_paths.append(path)
+            target.status = "ready_for_operation"
 
-    def _discard_completed(self, step: OrchestratorStep) -> None:
-        self.completed_steps = [item for item in self.completed_steps if item != step]
+    def upsert_change_plan_item(
+        self,
+        *,
+        item: MemoryChangePlanItem,
+        supersedes_target_key: str | None = None,
+    ) -> None:
+        new_target_key = self.operation_target_key(
+            memory_type=item.memory_type,
+            target_branch=item.target_branch,
+            filename=item.filename,
+        )
+        insert_index: int | None = None
+        carryover = self._pop_target(supersedes_target_key) if supersedes_target_key else None
+        if carryover is not None:
+            insert_index = carryover[0]
+        existing_same = self._pop_target(new_target_key)
+        if existing_same is not None and insert_index is None:
+            insert_index = existing_same[0]
+        existing_target = (
+            carryover[1]
+            if carryover is not None and carryover[1].target_key == new_target_key
+            else (existing_same[1] if existing_same is not None else None)
+        )
+        read_evidence_paths = list(existing_target.read_evidence_paths) if existing_target is not None else []
+        operation_item = existing_target.operation_item if existing_target is not None else None
+        target = self._build_target_progress(
+            item=item,
+            target_key=new_target_key,
+            read_evidence_paths=read_evidence_paths,
+            operation_item=operation_item,
+        )
+        if insert_index is None or insert_index >= len(self.targets):
+            self.targets.append(target)
+        else:
+            self.targets.insert(insert_index, target)
 
-    def has_executable_change_plan(self) -> bool:
-        return any(item.op in {"write", "edit", "delete"} for item in self.change_plan)
+    def apply_operation_item(self, item: ExtractedMemoryOperation) -> None:
+        target_key = self.operation_target_key(
+            memory_type=item.memory_type,
+            target_branch=item.target_branch,
+            filename=item.filename,
+        )
+        target = self._target_by_key(target_key)
+        if target is None:
+            raise ValueError(f"operation target does not exist in working state: {target_key}")
+        if target.change_plan_item.op == "ignore":
+            raise ValueError(f"operation target is ignored: {target_key}")
+        if target.status == "awaiting_read":
+            raise ValueError(f"operation target requires prior read evidence: {target_key}")
+        target.operation_item = item
+        target.status = "operated"
+
+    def next_target_awaiting_read(self) -> MemoryTargetProgress | None:
+        return next((item for item in self.targets if item.status == "awaiting_read"), None)
+
+    def next_target_ready_for_operation(self) -> MemoryTargetProgress | None:
+        return next((item for item in self.targets if item.status == "ready_for_operation"), None)
+
+    def finalized_change_plan(self) -> list[MemoryChangePlanItem]:
+        return [item.change_plan_item for item in self.targets]
+
+    def finalized_operations(self) -> list[ExtractedMemoryOperation]:
+        return [item.operation_item for item in self.targets if item.operation_item is not None]
+
+    def has_executable_targets(self) -> bool:
+        return any(item.change_plan_item.op in {"write", "edit", "delete"} for item in self.targets)
+
+    def _target_by_key(self, target_key: str) -> MemoryTargetProgress | None:
+        return next((item for item in self.targets if item.target_key == target_key), None)
+
+    def _pop_target(self, target_key: str | None) -> tuple[int, MemoryTargetProgress] | None:
+        if not target_key:
+            return None
+        for index, item in enumerate(self.targets):
+            if item.target_key == target_key:
+                self.targets.pop(index)
+                return index, item
+        return None
+
+    def _build_target_progress(
+        self,
+        *,
+        item: MemoryChangePlanItem,
+        target_key: str,
+        read_evidence_paths: list[str],
+        operation_item: ExtractedMemoryOperation | None,
+    ) -> MemoryTargetProgress:
+        required_read_path = f"{item.target_branch}/{item.filename}" if item.op == "edit" else None
+        observed_reads = {path for path in self.prefetched_read_paths if path}
+        observed_reads.update(path for path in read_evidence_paths if path)
+        if item.op == "ignore":
+            status = "ignored"
+            required_read_path = None
+            operation_item = None
+        elif required_read_path and required_read_path not in observed_reads:
+            status = "awaiting_read"
+            operation_item = None
+        elif operation_item is not None:
+            status = "operated"
+        else:
+            status = "ready_for_operation"
+        return MemoryTargetProgress(
+            target_key=target_key,
+            change_plan_item=item,
+            status=status,
+            required_read_path=required_read_path,
+            read_evidence_paths=sorted(set(read_evidence_paths)),
+            operation_item=operation_item,
+        )
 
 
 class OrchestratorStateDelta(MemoryContract):
-    change_plan: list[MemoryChangePlanItem] | None = None
-    change_plan_finalized: bool | None = None
-    operations: list[ExtractedMemoryOperation] | None = None
-    summary_plan: list[L0L1SummaryResult] | None = None
-    completed_operation_targets: list[str] | None = None
-    completed_steps: list[OrchestratorStep] | None = None
+    change_plan_item: MemoryChangePlanItem | None = None
+    supersedes_target_key: str | None = None
+    planning_complete: bool | None = None
+    operation_item: ExtractedMemoryOperation | None = None
 
 
 class OrchestratorAction(MemoryContract):
@@ -480,10 +521,37 @@ class ExtractOperationsPhaseResult(MemoryContract):
     planner_status: str = Field(..., min_length=1)
     change_plan: list[MemoryChangePlanItem] = Field(default_factory=list)
     structured_operations: list[ExtractedMemoryOperation] = Field(default_factory=list)
-    summary_plan: list[L0L1SummaryResult] = Field(default_factory=list)
     tools_available: list[str] = Field(default_factory=list)
     tools_used: list[PlannerToolUseResult] = Field(default_factory=list)
     reasoning_trace: list[ReasoningTraceStep] = Field(default_factory=list)
+    planner_error: str | None = None
+
+
+class NavigationBranchFileState(MemoryContract):
+    path: str = Field(..., min_length=1)
+    memory_type: str = Field(..., min_length=1)
+    op: Literal["write", "edit", "delete", "existing"]
+    desired_content: str | None = None
+    previous_content: str | None = None
+
+
+class NavigationDocumentPlan(MemoryContract):
+    op: Literal["write", "edit", "noop"]
+    path: str = Field(..., min_length=1)
+    markdown_body: str = ""
+    based_on_existing: bool
+
+
+class NavigationSummaryBranchPlan(MemoryContract):
+    branch_path: str = Field(..., min_length=1)
+    overview: NavigationDocumentPlan
+    summary: NavigationDocumentPlan
+
+
+class GenerateNavigationSummaryPhaseResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    phase: str = Field(default="generate_navigation_summary", min_length=1)
+    navigation_mutations: list[NavigationSummaryBranchPlan] = Field(default_factory=list)
     planner_error: str | None = None
 
 
