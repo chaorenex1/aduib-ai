@@ -1,6 +1,6 @@
 """DTOs for the programmer memory REST surface."""
 
-from typing import Any, Literal
+from typing import Literal
 
 from fastapi import UploadFile
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -156,15 +156,7 @@ class MemoryWriteAcceptedResponse(MemorySchema):
 
 
 class MemoryWriteTaskResponse(MemoryWriteAcceptedResponse):
-    queue_payload: dict[str, Any] | None = None
-    result_ref: dict[str, Any] | None = None
-    last_publish_error: str | None = None
-    failure_code: str | None = None
     failure_message: str | None = None
-    last_error: str | None = None
-    rollback_metadata: dict[str, Any] | None = None
-    journal_ref: str | None = None
-    operator_notes: str | None = None
     queued_at: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
@@ -176,11 +168,8 @@ class MemoryWriteTaskResultResponse(MemorySchema):
     task_id: str = Field(..., min_length=1)
     status: str | None = None
     phase: str = Field(..., min_length=1)
-    result_ref: dict[str, Any] | None = None
     archive_ref: MemoryArchiveRef | None = None
-    journal_ref: str | None = None
-    operator_notes: str | None = None
-    last_error: str | None = None
+    failure_message: str | None = None
 
 
 class MemoryListQuery(MemoryScope):

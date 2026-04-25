@@ -14,7 +14,7 @@ class MemoryWriteTask(Base):
         Index("idx_memory_write_task_phase", "phase"),
         Index("idx_memory_write_task_status", "status"),
         Index("idx_memory_write_task_task_id", "task_id", unique=True),
-        {"comment": "Queue-first async memory write task lifecycle and journal metadata"},
+        {"comment": "Async memory write task lifecycle state"},
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="DB row id")
@@ -33,8 +33,6 @@ class MemoryWriteTask(Base):
         comment="Stable source reference for background extraction",
     )
     archive_ref = Column(JSONB, nullable=True, comment="Archived source details used by worker")
-    queue_payload = Column(JSONB, nullable=True, comment="Metadata-only queue envelope")
-    result_ref = Column(JSONB, nullable=True, comment="Result metadata from compatibility projector")
 
     status = Column(
         String(32),
@@ -49,14 +47,7 @@ class MemoryWriteTask(Base):
         comment="Current processing phase",
     )
 
-    last_publish_error = Column(Text, nullable=True, comment="Last publish error")
-    publish_failed_at = Column(DateTime, nullable=True, comment="Publish failure timestamp")
-    failure_code = Column(String(64), nullable=True, comment="Failure code")
     failure_message = Column(Text, nullable=True, comment="Failure message")
-    last_error = Column(Text, nullable=True, comment="Last error seen by task")
-    rollback_metadata = Column(JSONB, nullable=True, comment="Rollback and recovery metadata payload")
-    journal_ref = Column(String(255), nullable=True, comment="Commit journal location")
-    operator_notes = Column(Text, nullable=True, comment="Operator notes")
     queued_at = Column(DateTime, nullable=True, comment="Queue ack timestamp")
     started_at = Column(DateTime, nullable=True, comment="Worker started timestamp")
     completed_at = Column(DateTime, nullable=True, comment="Terminal completion timestamp")

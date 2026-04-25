@@ -1,7 +1,6 @@
 from .base import MemoryServiceBase
 from .builders import (
     build_memory_api_idempotency_key,
-    build_queue_payload,
     build_task_request_idempotency_key,
     new_task_id,
     new_trace_id,
@@ -103,7 +102,6 @@ __all__ = [
     "build_conversation_source_path",
     "build_memory_api_conversation_archive_path",
     "build_memory_api_idempotency_key",
-    "build_queue_payload",
     "build_session_commit_archive_path",
     "build_task_request_idempotency_key",
     "conversation_append_request_to_command",

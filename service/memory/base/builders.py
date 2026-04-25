@@ -38,10 +38,3 @@ def build_task_request_idempotency_key(payload: MemoryTaskCreateCommand) -> str:
             "utf-8"
         )
     ).hexdigest()
-
-
-def build_queue_payload(*, celery_message_id: str) -> dict[str, str]:
-    return {
-        "celery_task_name": MEMORY_WRITE_TASK_NAME,
-        "celery_message_id": celery_message_id,
-    }

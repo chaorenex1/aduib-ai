@@ -159,15 +159,7 @@ class MemoryWriteAccepted(MemoryContract):
 
 
 class MemoryWriteTaskView(MemoryWriteAccepted):
-    queue_payload: dict[str, Any] | None = None
-    result_ref: dict[str, Any] | None = None
-    last_publish_error: str | None = None
-    failure_code: str | None = None
     failure_message: str | None = None
-    last_error: str | None = None
-    rollback_metadata: dict[str, Any] | None = None
-    journal_ref: str | None = None
-    operator_notes: str | None = None
     queued_at: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
@@ -180,11 +172,8 @@ class MemoryWriteTaskResult(MemoryContract):
     status: MemoryTaskFinalStatus | str | None = None
     phase: MemoryTaskPhase | str
     stage: str | None = None
-    result_ref: dict[str, Any] | None = None
     archive_ref: ArchivedSourceRef | None = None
-    journal_ref: str | None = None
-    operator_notes: str | None = None
-    last_error: str | None = None
+    failure_message: str | None = None
 
 
 class PreparedExtractContext(MemoryContract):
