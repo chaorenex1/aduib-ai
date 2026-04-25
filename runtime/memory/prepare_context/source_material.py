@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from runtime.memory.base.contracts import MemoryWritePipelineContext
+from runtime.memory.base.contracts import ArchivedSourceRef
+from runtime.memory.base.enums import MemoryTriggerType
 from runtime.memory.prepare_context.common import (
     collect_text_blocks,
     load_archive_snapshot,
@@ -13,13 +14,17 @@ from runtime.memory.prepare_context.types import NormalizedSourceMaterial
 
 class SourceMaterialNormalizer:
 
-    def __init__(self, context: MemoryWritePipelineContext):
-        self.context = context
+    def __init__(self,
+                 trigger_type: MemoryTriggerType,
+                 archive_ref: ArchivedSourceRef,
+                 ):
+        self.trigger_type = trigger_type
+        self.archive_ref = archive_ref
 
     def normalize(self) -> NormalizedSourceMaterial:
 
-        archived_snapshot, source_hash = load_archive_snapshot(self.context.archive_ref)
-        trigger_type = str(self.context.trigger_type)
+        archived_snapshot, source_hash = load_archive_snapshot(self.archive_ref)
+        trigger_type = str(self.trigger_type)
         if trigger_type == "memory_api":
             return self._normalize_memory_api_source(archived_snapshot=archived_snapshot, source_hash=source_hash)
 

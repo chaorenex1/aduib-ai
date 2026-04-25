@@ -19,7 +19,6 @@ class MemoryContract(BaseModel):
 class MemorySourceRef(MemoryContract):
     type: str = Field(..., min_length=1)
     conversation_id: str = Field(..., min_length=1)
-    path: str | None = None
     external_source: str | None = None
     external_session_id: str | None = None
 
@@ -154,6 +153,7 @@ class MemoryWriteAccepted(MemoryContract):
     project_id: str | None = None
     status: MemoryTaskFinalStatus | None = None
     phase: MemoryTaskPhase | str
+    stage: str | None = None
     source_ref: MemorySourceRef
     archive_ref: ArchivedSourceRef | None = None
 
@@ -179,24 +179,12 @@ class MemoryWriteTaskResult(MemoryContract):
     task_id: str = Field(..., min_length=1)
     status: MemoryTaskFinalStatus | str | None = None
     phase: MemoryTaskPhase | str
+    stage: str | None = None
     result_ref: dict[str, Any] | None = None
     archive_ref: ArchivedSourceRef | None = None
     journal_ref: str | None = None
     operator_notes: str | None = None
     last_error: str | None = None
-
-
-class MemoryWritePipelineContext(MemoryContract):
-    task_id: str = Field(..., min_length=1)
-    trace_id: str = Field(..., min_length=1)
-    trigger_type: MemoryTriggerType
-    user_id: str | None = None
-    agent_id: str | None = None
-    project_id: str | None = None
-    phase: MemoryTaskPhase | str
-    source_ref: MemorySourceRef
-    archive_ref: ArchivedSourceRef | None = None
-    phase_results: dict[str, Any] = Field(default_factory=dict)
 
 
 class PreparedExtractContext(MemoryContract):
@@ -527,6 +515,40 @@ class ExtractOperationsPhaseResult(MemoryContract):
     planner_error: str | None = None
 
 
+class MemoryUpdateContext(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    trace_id: str = Field(..., min_length=1)
+    trigger_type: MemoryTriggerType
+    user_id: str | None = None
+    agent_id: str | None = None
+    project_id: str | None = None
+    source_ref: MemorySourceRef
+    archive_ref: ArchivedSourceRef | None = None
+    prepared_context: PreparedExtractContext
+    extract_result: ExtractOperationsPhaseResult
+
+    @classmethod
+    def from_task(
+        cls,
+        *,
+        task,
+        prepared_context: PreparedExtractContext,
+        extract_result: ExtractOperationsPhaseResult,
+    ) -> MemoryUpdateContext:
+        return cls(
+            task_id=task.task_id,
+            trace_id=task.trace_id,
+            trigger_type=task.trigger_type,
+            user_id=getattr(task, "user_id", None),
+            agent_id=getattr(task, "agent_id", None),
+            project_id=getattr(task, "project_id", None),
+            source_ref=task.source_ref,
+            archive_ref=task.archive_ref,
+            prepared_context=prepared_context,
+            extract_result=extract_result,
+        )
+
+
 class NavigationBranchFileState(MemoryContract):
     path: str = Field(..., min_length=1)
     memory_type: str = Field(..., min_length=1)
@@ -562,13 +584,103 @@ class ResolvedMemoryOperation(MemoryContract):
     target_name: str = Field(..., min_length=1)
     file_exists: bool
     merge_strategy: str = Field(..., min_length=1)
-    memory_mode: Literal["simple", "template"]
     fields: dict[str, Any] = Field(default_factory=dict)
     field_merge_ops: dict[str, str] = Field(default_factory=dict)
     field_plans: list[ExtractedMemoryFieldPlan] = Field(default_factory=list)
     content: str = ""
     content_template: str | None = None
     schema_path: str | None = None
+
+
+class ResolveOperationsResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    phase: str = Field(default="resolve_operations", min_length=1)
+    resolved_operations: list[ResolvedMemoryOperation] = Field(default_factory=list)
+    navigation_scopes: list[str] = Field(default_factory=list)
+    metadata_scopes: list[str] = Field(default_factory=list)
+
+
+class MemoryMutationPlan(MemoryContract):
+    op: Literal["write", "edit", "delete"]
+    memory_type: str = Field(..., min_length=1)
+    target_path: str = Field(..., min_length=1)
+    target_name: str = Field(..., min_length=1)
+    desired_content: str | None = None
+    previous_content: str | None = None
+    file_exists: bool
+    memory_mode: str = Field(..., min_length=1)
+    merge_strategy: str = Field(..., min_length=1)
+
+
+class NavigationTarget(MemoryContract):
+    branch_path: str = Field(..., min_length=1)
+    overview_path: str = Field(..., min_length=1)
+    summary_path: str = Field(..., min_length=1)
+
+
+class MetadataTarget(MemoryContract):
+    scope_path: str = Field(..., min_length=1)
+
+
+class RollbackPlan(MemoryContract):
+    snapshot: dict[str, Any] = Field(default_factory=dict)
+    target_paths: list[str] = Field(default_factory=list)
+
+
+class PatchPlanResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    phase: str = Field(default="build_staged_write_set", min_length=1)
+    memory_mutations: list[MemoryMutationPlan] = Field(default_factory=list)
+    navigation_targets: list[NavigationTarget] = Field(default_factory=list)
+    metadata_targets: list[MetadataTarget] = Field(default_factory=list)
+    rollback_plan: RollbackPlan = Field(default_factory=RollbackPlan)
+    journal_entries: list[dict[str, Any]] = Field(default_factory=list)
+    staging_manifest: dict[str, int] = Field(default_factory=dict)
+
+
+class PatchApplyResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    phase: str = Field(default="apply_memory_files", min_length=1)
+    applied_memory_files: list[str] = Field(default_factory=list)
+    journal_ref: str | None = None
+    rollback_metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class NavigationSummaryResult(GenerateNavigationSummaryPhaseResult):
+    pass
+
+
+class NavigationRefreshResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    phase: str = Field(default="refresh_navigation", min_length=1)
+    navigation_files: list[str] = Field(default_factory=list)
+
+
+class MetadataRefreshResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    phase: str = Field(default="refresh_metadata", min_length=1)
+    metadata_scopes: list[str] = Field(default_factory=list)
+    record_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class NavigationManagerResult(MemoryContract):
+    summary_result: NavigationSummaryResult
+    refresh_result: NavigationRefreshResult
+    metadata_result: MetadataRefreshResult
+
+
+class MemoryCommittedResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    status: str = Field(default="success", min_length=1)
+    final_phase: str = Field(default="committed", min_length=1)
+    final_stage: str = Field(default="committed", min_length=1)
+    extract_result: ExtractOperationsPhaseResult
+    resolve_result: ResolveOperationsResult
+    patch_plan_result: PatchPlanResult
+    patch_apply_result: PatchApplyResult
+    navigation_result: NavigationManagerResult
+    journal_ref: str | None = None
+    rollback_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class MemoryReadRecord(MemoryContract):

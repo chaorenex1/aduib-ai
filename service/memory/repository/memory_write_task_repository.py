@@ -41,7 +41,7 @@ class MemoryWriteTaskRepository(RepositoryBase):
             if task is None:
                 return None
             mutate(task)
-            task.updated_at = datetime.datetime.now(datetime.UTC)
+            task.updated_at = datetime.datetime.now()
             session.commit()
             session.refresh(task)
             return task

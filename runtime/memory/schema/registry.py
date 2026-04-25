@@ -49,10 +49,6 @@ class MemorySchemaDefinition(MemoryContract):
     path: str = Field(..., min_length=1)
 
     @property
-    def memory_mode(self) -> str:
-        return "template" if self.content_template else "simple"
-
-    @property
     def field_merge_ops(self) -> dict[str, str]:
         return {field.name: field.merge_op for field in self.fields}
 

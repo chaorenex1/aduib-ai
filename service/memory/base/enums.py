@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import List
 
 
 class MemoryTriggerType(StrEnum):
@@ -18,16 +17,11 @@ class MemoryTaskPhase(StrEnum):
     ACCEPTED = "accepted"
     PREPARE_EXTRACT_CONTEXT = "prepare_extract_context"
     EXTRACT_OPERATIONS = "extract_operations"
-    RESOLVE_OPERATIONS = "resolve_operations"
-    BUILD_STAGED_WRITE_SET = "build_staged_write_set"
-    APPLY_MEMORY_FILES = "apply_memory_files"
-    GENERATE_NAVIGATION_SUMMARY = "generate_navigation_summary"
-    REFRESH_NAVIGATION = "refresh_navigation"
-    REFRESH_METADATA = "refresh_metadata"
+    MEMORY_UPDATER = "memory_updater"
     COMMITTED = "committed"
 
     @classmethod
-    def list(cls) -> List[MemoryTaskPhase]:
+    def list(cls) -> list[MemoryTaskPhase]:
         return list(filter(lambda m: m.value, cls))
 
 

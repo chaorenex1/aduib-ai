@@ -109,6 +109,7 @@ class MemoryWriteTaskService:
             task_id=task.task_id,
             status=task.status,
             phase=task.phase,
+            stage=task.stage,
             result_ref=task.result_ref,
             archive_ref=task.archive_ref,
             journal_ref=task.journal_ref,
@@ -119,7 +120,7 @@ class MemoryWriteTaskService:
     @classmethod
     def mark_queued(cls, task_id: str, *, queue_payload: dict) -> MemoryWriteTaskView:
         def _mutate(task: MemoryWriteTask) -> None:
-            now = datetime.datetime.now(datetime.UTC)
+            now = datetime.datetime.now()
             task.queue_payload = queue_payload
             task.queued_at = now
 
@@ -281,6 +282,7 @@ class MemoryWriteTaskService:
 
     @staticmethod
     def _serialize_task(task: MemoryWriteTask) -> MemoryWriteTaskView:
+        stage = _display_stage(task.phase)
         return MemoryWriteTaskView(
             task_id=task.task_id,
             trace_id=task.trace_id,
@@ -290,6 +292,7 @@ class MemoryWriteTaskService:
             project_id=task.project_id,
             status=task.status,
             phase=task.phase,
+            stage=stage,
             source_ref=MemorySourceRef(**(task.source_ref or {})),
             archive_ref=ArchivedSourceRef(**task.archive_ref) if task.archive_ref else None,
             queue_payload=task.queue_payload,
@@ -319,6 +322,7 @@ class MemoryWriteTaskService:
             project_id=task.project_id,
             status=task.status,
             phase=task.phase,
+            stage=task.stage,
             source_ref=task.source_ref,
             archive_ref=task.archive_ref,
         )
@@ -355,3 +359,20 @@ def _validate_conversation_scope(*, agent_id: str | None, project_id: str | None
         raise MemoryValidationError("conversation source_ref agent_id does not match current scope")
     if project_id is not None and conversation_project_id is not None and project_id != conversation_project_id:
         raise MemoryValidationError("conversation source_ref project_id does not match current scope")
+
+
+def _display_stage(phase: MemoryTaskPhase | str | None) -> str | None:
+    if phase is None:
+        return None
+    raw = str(phase)
+    if raw == str(MemoryTaskPhase.ACCEPTED):
+        return "accepted"
+    if raw == str(MemoryTaskPhase.PREPARE_EXTRACT_CONTEXT):
+        return "extract_context"
+    if raw == str(MemoryTaskPhase.EXTRACT_OPERATIONS):
+        return "extract_operations"
+    if raw == str(MemoryTaskPhase.MEMORY_UPDATER):
+        return "memory_updater"
+    if raw == str(MemoryTaskPhase.COMMITTED):
+        return "committed"
+    return raw

@@ -4,7 +4,6 @@ import logging
 
 from runtime.memory.base.contracts import (
     ExtractOperationsPhaseResult,
-    MemoryWritePipelineContext,
     OrchestratorAction,
     OrchestratorWorkingState,
     PreparedExtractContext,
@@ -22,11 +21,8 @@ logger = logging.getLogger(__name__)
 class ReActOrchestrator:
     MAX_TURNS = 8
 
-    def __init__(self, context: MemoryWritePipelineContext) -> None:
-        self.context = context
-        self.prepared = PreparedExtractContext.model_validate(
-            context.phase_results.get("prepare_extract_context") or {}
-        )
+    def __init__(self, prepared: PreparedExtractContext) -> None:
+        self.prepared = prepared
         self.registry = MemorySchemaRegistry.load()
         self.planner = LLMPlanner(prepared=self.prepared, registry=self.registry)
         self.tool_executor = PlannerToolExecutor()
@@ -63,7 +59,7 @@ class ReActOrchestrator:
         except Exception as exc:
             logger.warning("memory_react_orchestrator failed: %s", exc)
             return ExtractOperationsPhaseResult(
-                task_id=self.context.task_id,
+                task_id=self.prepared.task_id,
                 planner_status="planner_failed",
                 tools_available=list(SUPPORTED_PLANNER_TOOLS),
                 tools_used=working_state.tool_results,
@@ -77,7 +73,7 @@ class ReActOrchestrator:
         working_state: OrchestratorWorkingState,
     ) -> ExtractOperationsPhaseResult:
         return ExtractOperationsPhaseResult(
-            task_id=self.context.task_id,
+            task_id=self.prepared.task_id,
             planner_status=planner_status,
             change_plan=working_state.finalized_change_plan(),
             structured_operations=working_state.finalized_operations(),
@@ -141,7 +137,3 @@ class ReActOrchestrator:
                 },
             ),
         ]
-
-
-def run_memory_react_orchestrator(context: MemoryWritePipelineContext) -> ExtractOperationsPhaseResult:
-    return ReActOrchestrator(context).run()
