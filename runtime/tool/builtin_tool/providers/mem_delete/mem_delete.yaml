@@ -1,0 +1,15 @@
+name: mem-delete
+description: Delete an existing committed memory file under memory_pipeline
+parameters:
+  type: object
+  properties:
+    path:
+      type: string
+      description: Memory-relative file path to delete
+  required: ["path"]
+configs: {}
+icon: "🗑️"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true

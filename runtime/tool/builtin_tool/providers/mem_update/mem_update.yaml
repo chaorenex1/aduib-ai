@@ -1,0 +1,18 @@
+name: mem-update
+description: Update an existing committed memory file under memory_pipeline
+parameters:
+  type: object
+  properties:
+    path:
+      type: string
+      description: Memory-relative file path to update
+    content:
+      type: string
+      description: Full file content to write
+  required: ["path", "content"]
+configs: {}
+icon: "✏️"
+provider: "builtin_provider"
+type: builtin
+credentials: none
+side_effect: true
