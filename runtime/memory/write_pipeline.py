@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from runtime.memory.prepare_context.prepare_context import prepare_extract_context
 from service.memory.base.contracts import MemoryWritePipelineContext
 from service.memory.base.enums import MemoryTaskPhase
 
@@ -10,7 +11,6 @@ from .apply.metadata_refresh import refresh_metadata
 from .apply.navigation_refresh import refresh_navigation
 from .apply.staged_write import build_staged_write_set
 from .extract.planner import extract_operations
-from .extract.prepare_context import prepare_extract_context
 from .resolve_operations import resolve_operations
 
 PHASE_HANDLERS = {

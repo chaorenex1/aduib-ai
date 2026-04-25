@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import List
 
 
 class MemoryTriggerType(StrEnum):
@@ -24,10 +23,6 @@ class MemoryTaskPhase(StrEnum):
     REFRESH_NAVIGATION = "refresh_navigation"
     REFRESH_METADATA = "refresh_metadata"
     COMMITTED = "committed"
-
-    @classmethod
-    def list(cls) -> List[MemoryTaskPhase]:
-        return list(filter(lambda m: m.value, cls))
 
 
 class OrchestratorStep(StrEnum):
