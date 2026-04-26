@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+import json
 import logging
 
+from runtime.memory.apply.memory_updater import MemoryUpdater
+from runtime.memory.apply.patch_handler import PatchHandler
 from runtime.memory.base.contracts import (
     ExtractOperationsPhaseResult,
+    MemoryCommittedResult,
+    MemoryUpdateContext,
+    NavigationPlanningPreview,
+    NavigationRefreshResult,
     OrchestratorAction,
     OrchestratorWorkingState,
+    PatchPlanResult,
     PreparedExtractContext,
     ReasoningTraceStep,
 )
-from runtime.memory.base.enums import OrchestratorStep
+from runtime.memory.base.enums import MemoryTaskPhase, OrchestratorStep
+from runtime.memory.navigation.navigation_manager import NavigationManager
 
 from ..schema.registry import MemorySchemaRegistry
 from .planner import LLMPlanner
@@ -26,8 +35,13 @@ class ReActOrchestrator:
         self.registry = MemorySchemaRegistry.load()
         self.planner = LLMPlanner(prepared=self.prepared, registry=self.registry)
         self.tool_executor = PlannerToolExecutor()
+        self.navigation_manager = NavigationManager()
+        self.patch_handler = PatchHandler()
 
     def run(self) -> ExtractOperationsPhaseResult:
+        return self.run_extract_phase()
+
+    def run_extract_phase(self) -> ExtractOperationsPhaseResult:
         working_state = OrchestratorWorkingState(
             prefetched_read_paths=sorted(self.prepared.prefetched_read_paths()),
         )
@@ -65,6 +79,86 @@ class ReActOrchestrator:
                 tools_used=working_state.tool_results,
                 planner_error=str(exc),
             )
+
+    def run_apply_coordination_phase(
+        self,
+        *,
+        update_ctx: MemoryUpdateContext,
+    ) -> MemoryCommittedResult:
+        updater = MemoryUpdater(update_ctx, patch_handler=self.patch_handler)
+        preview_resolve_result = updater.resolve_document_operations()
+        preview_patch_plan_result = self.patch_handler.build_staged_write_set(
+            update_ctx=update_ctx,
+            resolve_result=preview_resolve_result,
+        )
+        patch_apply_result = None
+        try:
+            navigation_summary_result = self.navigation_manager.generate_navigation_summary(
+                update_ctx=update_ctx,
+                planning_preview=self._build_navigation_planning_preview(
+                    task_id=update_ctx.task_id,
+                    patch_plan=preview_patch_plan_result,
+                ),
+            )
+            unified_resolve_result = updater.resolve_document_operations(
+                navigation_summary_result=navigation_summary_result,
+            )
+            unified_patch_plan_result = self.patch_handler.build_staged_write_set(
+                update_ctx=update_ctx,
+                resolve_result=unified_resolve_result,
+            )
+            patch_apply_result = self.patch_handler.apply_files(
+                update_ctx=update_ctx,
+                patch_plan=unified_patch_plan_result,
+            )
+            navigation_refresh_result = NavigationRefreshResult(
+                task_id=update_ctx.task_id,
+                navigation_files=[
+                    item.target_path
+                    for item in unified_patch_plan_result.document_mutations
+                    if item.document_family == "navigation"
+                ],
+            )
+            metadata_result = self.navigation_manager.refresh_metadata(
+                update_ctx=update_ctx,
+                patch_plan=unified_patch_plan_result,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                json.dumps(
+                    {
+                        "phase": str(MemoryTaskPhase.MEMORY_UPDATER),
+                        "journal_ref": None if patch_apply_result is None else patch_apply_result.journal_ref,
+                        "rollback_metadata": {} if patch_apply_result is None else patch_apply_result.rollback_metadata,
+                        "error": str(exc),
+                    },
+                    ensure_ascii=False,
+                )
+            ) from exc
+        return updater.commit(
+            resolve_result=unified_resolve_result,
+            patch_plan_result=unified_patch_plan_result,
+            patch_apply_result=patch_apply_result,
+            navigation_summary_result=navigation_summary_result,
+            navigation_refresh_result=navigation_refresh_result,
+            metadata_result=metadata_result,
+        )
+
+    @staticmethod
+    def _build_navigation_planning_preview(
+        *,
+        task_id: str,
+        patch_plan: PatchPlanResult,
+    ) -> NavigationPlanningPreview:
+        return NavigationPlanningPreview(
+            task_id=task_id,
+            navigation_targets=[item.model_copy(deep=True) for item in patch_plan.navigation_targets],
+            memory_document_previews=[
+                item.model_copy(deep=True)
+                for item in patch_plan.document_mutations
+                if item.document_family == "memory"
+            ],
+        )
 
     def _build_phase_result(
         self,

@@ -579,84 +579,57 @@ class GenerateNavigationSummaryPhaseResult(MemoryContract):
     planner_error: str | None = None
 
 
-class ResolvedNavigationOperation(MemoryContract):
-    document_kind: Literal["overview", "summary"]
-    op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT]
-    target_path: str = Field(..., min_length=1)
-    branch_path: str = Field(..., min_length=1)
-    file_exists: bool
-    based_on_existing: bool
-    previous_content: str | None = None
-    previous_metadata: dict[str, Any] = Field(default_factory=dict)
-    previous_body: str | None = None
-    markdown_body: str | None = None
-    line_operations: list[MemoryLineOperation] = Field(default_factory=list)
-    expected_body_sha256: str | None = None
-
-
-class ResolveNavigationOperationsResult(MemoryContract):
-    task_id: str = Field(..., min_length=1)
-    phase: str = Field(default="resolve_navigation_operations", min_length=1)
-    resolved_navigation_operations: list[ResolvedNavigationOperation] = Field(default_factory=list)
-
-
-class NavigationMutationPlan(MemoryContract):
-    document_kind: Literal["overview", "summary"]
-    op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT]
-    target_path: str = Field(..., min_length=1)
-    branch_path: str = Field(..., min_length=1)
-    file_exists: bool
-    based_on_existing: bool
-    previous_content: str | None = None
-    previous_metadata: dict[str, Any] = Field(default_factory=dict)
-    previous_body: str | None = None
-    markdown_body: str | None = None
-    line_operations: list[MemoryLineOperation] = Field(default_factory=list)
-    expected_body_sha256: str | None = None
-    desired_content: str | None = None
-
-
-class NavigationPatchPlanResult(MemoryContract):
-    task_id: str = Field(..., min_length=1)
-    phase: str = Field(default="build_navigation_staged_write_set", min_length=1)
-    navigation_mutations: list[NavigationMutationPlan] = Field(default_factory=list)
-
-
-class ResolvedMemoryOperation(MemoryContract):
+class ResolvedDocumentOperation(MemoryContract):
+    document_family: Literal["memory", "navigation"]
+    document_kind: str = Field(..., min_length=1)
     op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT, MemoryOpType.DELETE]
-    memory_type: str = Field(..., min_length=1)
     target_path: str = Field(..., min_length=1)
-    target_name: str = Field(..., min_length=1)
     file_exists: bool
-    merge_strategy: str = Field(..., min_length=1)
+    previous_content: str | None = None
+    previous_metadata: dict[str, Any] = Field(default_factory=dict)
+    previous_body: str | None = None
+    content_mode: Literal["memory_schema_merge", "full_body", "line_operations"]
+    full_body: str | None = None
+    line_operations: list[MemoryLineOperation] = Field(default_factory=list)
+    memory_type: str | None = None
+    target_name: str | None = None
+    merge_strategy: str | None = None
     field_plans: list[ResolvedMemoryFieldPlan] = Field(default_factory=list)
     schema_path: str | None = None
+    branch_path: str | None = None
+    based_on_existing: bool | None = None
+    expected_body_sha256: str | None = None
 
 
-class ResolveOperationsResult(MemoryContract):
+class ResolveDocumentOperationsResult(MemoryContract):
     task_id: str = Field(..., min_length=1)
-    phase: str = Field(default="resolve_operations", min_length=1)
-    resolved_operations: list[ResolvedMemoryOperation] = Field(default_factory=list)
+    phase: str = Field(default="resolve_document_operations", min_length=1)
+    document_operations: list[ResolvedDocumentOperation] = Field(default_factory=list)
     navigation_scopes: list[str] = Field(default_factory=list)
     metadata_scopes: list[str] = Field(default_factory=list)
 
 
-class MemoryMutationPlan(MemoryContract):
+class DocumentMutationPlan(MemoryContract):
+    document_family: Literal["memory", "navigation"]
+    document_kind: str = Field(..., min_length=1)
     op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT, MemoryOpType.DELETE]
-    memory_type: str = Field(..., min_length=1)
     target_path: str = Field(..., min_length=1)
-    target_name: str = Field(..., min_length=1)
-    desired_content: str | None = None
-    previous_content: str | None = None
     file_exists: bool
-    memory_mode: str = Field(..., min_length=1)
-    merge_strategy: str = Field(..., min_length=1)
+    previous_content: str | None = None
+    desired_content: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class NavigationTarget(MemoryContract):
     branch_path: str = Field(..., min_length=1)
     overview_path: str = Field(..., min_length=1)
     summary_path: str = Field(..., min_length=1)
+
+
+class NavigationPlanningPreview(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    navigation_targets: list[NavigationTarget] = Field(default_factory=list)
+    memory_document_previews: list[DocumentMutationPlan] = Field(default_factory=list)
 
 
 class MetadataTarget(MemoryContract):
@@ -671,7 +644,7 @@ class RollbackPlan(MemoryContract):
 class PatchPlanResult(MemoryContract):
     task_id: str = Field(..., min_length=1)
     phase: str = Field(default="build_staged_write_set", min_length=1)
-    memory_mutations: list[MemoryMutationPlan] = Field(default_factory=list)
+    document_mutations: list[DocumentMutationPlan] = Field(default_factory=list)
     navigation_targets: list[NavigationTarget] = Field(default_factory=list)
     metadata_targets: list[MetadataTarget] = Field(default_factory=list)
     rollback_plan: RollbackPlan = Field(default_factory=RollbackPlan)
@@ -681,8 +654,8 @@ class PatchPlanResult(MemoryContract):
 
 class PatchApplyResult(MemoryContract):
     task_id: str = Field(..., min_length=1)
-    phase: str = Field(default="apply_memory_files", min_length=1)
-    applied_memory_files: list[str] = Field(default_factory=list)
+    phase: str = Field(default="apply_files", min_length=1)
+    applied_files: list[str] = Field(default_factory=list)
     journal_ref: str | None = None
     rollback_metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -704,24 +677,18 @@ class MetadataRefreshResult(MemoryContract):
     record_counts: dict[str, int] = Field(default_factory=dict)
 
 
-class NavigationManagerResult(MemoryContract):
-    summary_result: NavigationSummaryResult
-    resolve_result: ResolveNavigationOperationsResult
-    patch_plan_result: NavigationPatchPlanResult
-    refresh_result: NavigationRefreshResult
-    metadata_result: MetadataRefreshResult
-
-
 class MemoryCommittedResult(MemoryContract):
     task_id: str = Field(..., min_length=1)
     status: str = Field(default="success", min_length=1)
     final_phase: str = Field(default="committed", min_length=1)
     final_stage: str = Field(default="committed", min_length=1)
     extract_result: ExtractOperationsPhaseResult
-    resolve_result: ResolveOperationsResult
+    resolve_result: ResolveDocumentOperationsResult
     patch_plan_result: PatchPlanResult
     patch_apply_result: PatchApplyResult
-    navigation_result: NavigationManagerResult
+    navigation_summary_result: NavigationSummaryResult
+    navigation_refresh_result: NavigationRefreshResult
+    metadata_result: MetadataRefreshResult
     journal_ref: str | None = None
     rollback_metadata: dict[str, Any] = Field(default_factory=dict)
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 
-from runtime.memory.apply.memory_updater import MemoryUpdater
 from runtime.memory.prepare_context.extract_context_runtime import ExtractContextRuntime
 
 from .base.contracts import (
@@ -48,7 +47,7 @@ class MemoryStateMachineRuntime:
 
             current_phase = cls.APPLY_COORDINATION_PHASE
             task = MemoryWriteTaskService.mark_running(task_id, phase=current_phase)
-            committed_result = cls._run_memory_updater(
+            committed_result = cls._run_apply_coordination(
                 task=task,
                 prepared_context=prepared_context,
                 extract_result=extract_result,
@@ -78,10 +77,10 @@ class MemoryStateMachineRuntime:
 
     @classmethod
     def _run_extract_operations(cls, prepared_context: PreparedExtractContext) -> ExtractOperationsPhaseResult:
-        return ReActOrchestrator(prepared_context).run()
+        return ReActOrchestrator(prepared_context).run_extract_phase()
 
     @classmethod
-    def _run_memory_updater(
+    def _run_apply_coordination(
         cls,
         *,
         task,
@@ -93,7 +92,7 @@ class MemoryStateMachineRuntime:
             prepared_context=prepared_context,
             extract_result=extract_result,
         )
-        return MemoryUpdater(update_ctx).run()
+        return ReActOrchestrator(prepared_context).run_apply_coordination_phase(update_ctx=update_ctx)
 
     @classmethod
     def _materialize_worker_archive(cls, *, task_id: str) -> object:

@@ -14,14 +14,9 @@ from runtime.memory.base.contracts import (
     MemoryUpdateContext,
     MetadataRefreshResult,
     NavigationDocumentPlan,
-    NavigationManagerResult,
-    NavigationPatchPlanResult,
-    NavigationRefreshResult,
+    NavigationPlanningPreview,
     NavigationSummaryBranchPlan,
     NavigationSummaryResult,
-    PatchApplyResult,
-    PatchPlanResult,
-    ResolveNavigationOperationsResult,
 )
 from runtime.memory.committed_tree import CommittedMemoryTree
 from runtime.memory.navigation.common import (
@@ -39,14 +34,12 @@ class NavigationManager:
         self,
         *,
         update_ctx: MemoryUpdateContext,
-        patch_plan: PatchPlanResult,
-        patch_apply: PatchApplyResult | None = None,
+        planning_preview: NavigationPlanningPreview,
     ) -> NavigationSummaryResult:
         return self.generate_navigation_summary_from_inputs(
             task_id=update_ctx.task_id,
             user_id=update_ctx.user_id,
-            patch_plan=patch_plan,
-            patch_apply=patch_apply,
+            planning_preview=planning_preview,
         )
 
     @classmethod
@@ -55,16 +48,15 @@ class NavigationManager:
         *,
         task_id: str,
         user_id: str | None,
-        patch_plan: PatchPlanResult,
-        patch_apply: PatchApplyResult | None = None,
+        planning_preview: NavigationPlanningPreview,
     ) -> NavigationSummaryResult:
         mutation_lookup = {
-            item.target_path: item.model_dump(mode="python", exclude_none=True)
-            for item in patch_plan.memory_mutations
+            item.target_path: {"desired_content": item.desired_content}
+            for item in planning_preview.memory_document_previews
             if item.target_path
         }
         plans: list[NavigationSummaryBranchPlan] = []
-        for target in patch_plan.navigation_targets:
+        for target in planning_preview.navigation_targets:
             branch_path = target.branch_path
             existing_docs = read_existing_navigation_docs(branch_path)
             branch_files = read_current_branch_files(branch_path, mutation_lookup=mutation_lookup)
@@ -91,65 +83,6 @@ class NavigationManager:
             task_id=task_id,
             navigation_mutations=plans,
             planner_error=None,
-        )
-
-    def build_navigation_patch_plan(
-        self,
-        *,
-        update_ctx: MemoryUpdateContext,
-        patch_plan: PatchPlanResult,
-        summary_result: NavigationSummaryResult,
-    ) -> tuple[ResolveNavigationOperationsResult, NavigationPatchPlanResult]:
-        from runtime.memory.apply.memory_updater import MemoryUpdater
-
-        resolve_result = MemoryUpdater.resolve_navigation_operations_from_inputs(
-            task_id=update_ctx.task_id,
-            patch_plan_result=patch_plan,
-            navigation_summary_result=summary_result,
-        )
-        patch_plan_result = self.build_navigation_patch_plan_from_inputs(
-            task_id=update_ctx.task_id,
-            resolve_navigation_result=resolve_result,
-        )
-        return resolve_result, patch_plan_result
-
-    @classmethod
-    def build_navigation_patch_plan_from_inputs(
-        cls,
-        *,
-        task_id: str,
-        resolve_navigation_result: ResolveNavigationOperationsResult,
-    ) -> NavigationPatchPlanResult:
-        from runtime.memory.apply.patch_handler import PatchHandler
-
-        return PatchHandler.build_navigation_staged_write_set_from_inputs(
-            task_id=task_id,
-            resolve_navigation_result=resolve_navigation_result,
-        )
-
-    def refresh_navigation(
-        self,
-        *,
-        update_ctx: MemoryUpdateContext,
-        patch_plan_result: NavigationPatchPlanResult,
-    ) -> NavigationRefreshResult:
-        return self.refresh_navigation_from_inputs(
-            task_id=update_ctx.task_id,
-            patch_plan_result=patch_plan_result,
-        )
-
-    @classmethod
-    def refresh_navigation_from_inputs(
-        cls,
-        *,
-        task_id: str,
-        patch_plan_result: NavigationPatchPlanResult,
-    ) -> NavigationRefreshResult:
-        from runtime.memory.apply.patch_handler import PatchHandler
-
-        return PatchHandler.apply_navigation_files_from_inputs(
-            task_id=task_id,
-            navigation_patch_plan=patch_plan_result,
         )
 
     def refresh_metadata(
@@ -183,36 +116,6 @@ class NavigationManager:
             task_id=task_id,
             metadata_scopes=metadata_scopes,
             record_counts={key: len(value) for key, value in projection.items()},
-        )
-
-    def run(
-        self,
-        *,
-        update_ctx: MemoryUpdateContext,
-        patch_plan: PatchPlanResult,
-        patch_apply: PatchApplyResult,
-    ) -> NavigationManagerResult:
-        summary_result = self.generate_navigation_summary(
-            update_ctx=update_ctx,
-            patch_plan=patch_plan,
-            patch_apply=patch_apply,
-        )
-        resolve_result, patch_plan_result = self.build_navigation_patch_plan(
-            update_ctx=update_ctx,
-            patch_plan=patch_plan,
-            summary_result=summary_result,
-        )
-        refresh_result = self.refresh_navigation_from_inputs(
-            task_id=update_ctx.task_id,
-            patch_plan_result=patch_plan_result,
-        )
-        metadata_result = self.refresh_metadata(update_ctx=update_ctx, patch_plan=patch_plan)
-        return NavigationManagerResult(
-            summary_result=summary_result,
-            resolve_result=resolve_result,
-            patch_plan_result=patch_plan_result,
-            refresh_result=refresh_result,
-            metadata_result=metadata_result,
         )
 
     @staticmethod

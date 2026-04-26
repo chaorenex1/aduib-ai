@@ -45,7 +45,7 @@ def read_current_branch_files(
                 path=path,
                 memory_type=_memory_type_for_path(path),
                 op=str(mutation.get("op") or "existing").strip() or "existing",
-                desired_content=_read_optional_text(path),
+                desired_content=mutation.get("desired_content") or _read_optional_text(path),
                 previous_content=mutation.get("previous_content"),
             )
         )

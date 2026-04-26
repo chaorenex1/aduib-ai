@@ -10,8 +10,8 @@ import yaml
 from runtime.memory.base.contracts import (
     MemoryLineOperation,
     PreparedExtractContext,
+    ResolvedDocumentOperation,
     ResolvedMemoryFieldPlan,
-    ResolvedMemoryOperation,
 )
 
 
@@ -19,7 +19,7 @@ def build_desired_document(
     *,
     task_id: str,
     prepared: PreparedExtractContext,
-    operation: ResolvedMemoryOperation,
+    operation: ResolvedDocumentOperation,
     current_content: str | None,
 ) -> str:
     current_metadata, current_body = _current_document_state(
@@ -40,7 +40,7 @@ def build_desired_document(
 
 def build_templated_content_field_plan(
     *,
-    operation: ResolvedMemoryOperation,
+    operation: ResolvedDocumentOperation,
     current_content: str | None,
     content_template: str,
 ) -> ResolvedMemoryFieldPlan:
@@ -121,7 +121,7 @@ def build_navigation_document(
 
 def _current_document_state(
     *,
-    operation: ResolvedMemoryOperation,
+    operation: ResolvedDocumentOperation,
     current_content: str | None,
 ) -> tuple[dict[str, Any], str]:
     current_text = str(current_content or "")
@@ -130,7 +130,7 @@ def _current_document_state(
     return parse_markdown_document(current_text)
 
 
-def _merge_fields(*, operation: ResolvedMemoryOperation, current_metadata: dict[str, Any]) -> dict[str, Any]:
+def _merge_fields(*, operation: ResolvedDocumentOperation, current_metadata: dict[str, Any]) -> dict[str, Any]:
     merged: dict[str, Any] = {}
     for plan in operation.field_plans:
         if plan.name == "content":
@@ -146,7 +146,7 @@ def _merge_fields(*, operation: ResolvedMemoryOperation, current_metadata: dict[
     return merged
 
 
-def _merge_body(*, operation: ResolvedMemoryOperation, current_body: str) -> str:
+def _merge_body(*, operation: ResolvedDocumentOperation, current_body: str) -> str:
     if operation.op == "delete":
         return ""
     content_plan = _content_field_plan(operation)
@@ -162,7 +162,7 @@ def _merge_body(*, operation: ResolvedMemoryOperation, current_body: str) -> str
     return str(merged or "").strip()
 
 
-def _content_field_plan(operation: ResolvedMemoryOperation) -> ResolvedMemoryFieldPlan | None:
+def _content_field_plan(operation: ResolvedDocumentOperation) -> ResolvedMemoryFieldPlan | None:
     for plan in operation.field_plans:
         if plan.name == "content":
             return plan
@@ -173,7 +173,7 @@ def _build_document_metadata(
     *,
     task_id: str,
     prepared: PreparedExtractContext,
-    operation: ResolvedMemoryOperation,
+    operation: ResolvedDocumentOperation,
     current_metadata: dict[str, Any],
     merged_fields: dict[str, Any],
 ) -> dict[str, Any]:
@@ -237,11 +237,11 @@ def _patch_text(current_text: str, patch_text: str) -> str:
     return f"{current}\n\n{patch}".strip()
 
 
-def _has_line_operations(operation: ResolvedMemoryOperation) -> bool:
+def _has_line_operations(operation: ResolvedDocumentOperation) -> bool:
     return any(plan.line_operations for plan in operation.field_plans)
 
 
-def _apply_field_line_operations(text: str, operation: ResolvedMemoryOperation) -> str:
+def _apply_field_line_operations(text: str, operation: ResolvedDocumentOperation) -> str:
     all_operations = [line_operation for plan in operation.field_plans for line_operation in plan.line_operations]
     return apply_line_operations_to_body(text, all_operations)
 

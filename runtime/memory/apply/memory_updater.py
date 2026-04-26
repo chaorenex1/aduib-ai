@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+from dataclasses import dataclass, field
 from pathlib import Path
 from string import Formatter
 from typing import Any
@@ -15,23 +15,34 @@ from runtime.memory.base.contracts import (
     MemoryChangePlanItem,
     MemoryCommittedResult,
     MemoryUpdateContext,
+    MetadataRefreshResult,
     NavigationDocumentPlan,
-    NavigationManagerResult,
+    NavigationRefreshResult,
     NavigationSummaryResult,
     PatchApplyResult,
     PatchPlanResult,
     PlannerToolUseResult,
     PreparedExtractContext,
+    ResolvedDocumentOperation,
     ResolvedMemoryFieldPlan,
-    ResolvedMemoryOperation,
-    ResolvedNavigationOperation,
-    ResolveNavigationOperationsResult,
-    ResolveOperationsResult,
+    ResolveDocumentOperationsResult,
 )
-from runtime.memory.base.enums import MemoryTaskPhase
-from runtime.memory.navigation.navigation_manager import NavigationManager
 from runtime.memory.schema.registry import MemorySchemaDefinition, MemorySchemaRegistry
 from service.memory.base.paths import normalize_path_segment
+
+
+@dataclass(slots=True)
+class _ResolvedMemoryPhaseResult:
+    task_id: str
+    document_operations: list[ResolvedDocumentOperation] = field(default_factory=list)
+    navigation_scopes: list[str] = field(default_factory=list)
+    metadata_scopes: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class _ResolvedNavigationPhaseResult:
+    task_id: str
+    document_operations: list[ResolvedDocumentOperation] = field(default_factory=list)
 
 
 class MemoryUpdater:
@@ -40,14 +51,16 @@ class MemoryUpdater:
         update_ctx: MemoryUpdateContext,
         *,
         patch_handler: PatchHandler | None = None,
-        navigation_manager: NavigationManager | None = None,
     ) -> None:
         self.update_ctx = update_ctx
         self.patch_handler = patch_handler or PatchHandler()
-        self.navigation_manager = navigation_manager or NavigationManager()
 
-    def resolve_operations(self) -> ResolveOperationsResult:
-        return self.resolve_operations_from_inputs(
+    def resolve_document_operations(
+        self,
+        *,
+        navigation_summary_result: NavigationSummaryResult | None = None,
+    ) -> ResolveDocumentOperationsResult:
+        return self.resolve_document_operations_from_inputs(
             task_id=self.update_ctx.task_id,
             prepared_context=self.update_ctx.prepared_context,
             change_plan=self.update_ctx.extract_result.change_plan,
@@ -55,22 +68,11 @@ class MemoryUpdater:
             tools_used=[
                 item.model_dump(mode="python", exclude_none=True) for item in self.update_ctx.extract_result.tools_used
             ],
-        )
-
-    def resolve_navigation_operations(
-        self,
-        *,
-        patch_plan_result: PatchPlanResult,
-        navigation_summary_result: NavigationSummaryResult,
-    ) -> ResolveNavigationOperationsResult:
-        return self.resolve_navigation_operations_from_inputs(
-            task_id=self.update_ctx.task_id,
-            patch_plan_result=patch_plan_result,
             navigation_summary_result=navigation_summary_result,
         )
 
     @classmethod
-    def resolve_operations_from_inputs(
+    def _resolve_memory_operations_from_inputs(
         cls,
         *,
         task_id: str,
@@ -78,7 +80,7 @@ class MemoryUpdater:
         change_plan: list[MemoryChangePlanItem],
         extracted_operations: list[ExtractedMemoryOperation],
         tools_used: list[dict[str, Any]],
-    ) -> ResolveOperationsResult:
+    ) -> _ResolvedMemoryPhaseResult:
         planned_operations = cls._validate_operations_match_change_plan(
             change_plan=change_plan,
             operations=extracted_operations,
@@ -108,29 +110,39 @@ class MemoryUpdater:
                 if "/" in item.target_path
             }
         )
-        return ResolveOperationsResult(
+        return _ResolvedMemoryPhaseResult(
             task_id=task_id,
-            resolved_operations=resolved_operations,
+            document_operations=resolved_operations,
             navigation_scopes=navigation_scopes,
             metadata_scopes=metadata_scopes,
         )
 
     @classmethod
-    def resolve_navigation_operations_from_inputs(
+    def _resolve_navigation_operations_from_inputs(
         cls,
         *,
         task_id: str,
-        patch_plan_result: PatchPlanResult,
+        patch_plan_result: PatchPlanResult | None = None,
+        navigation_scopes: list[str] | None = None,
         navigation_summary_result: NavigationSummaryResult,
-    ) -> ResolveNavigationOperationsResult:
-        resolved_navigation_operations: list[ResolvedNavigationOperation] = []
-        allowed_paths = {
-            target.overview_path
-            for target in patch_plan_result.navigation_targets
-        } | {
-            target.summary_path
-            for target in patch_plan_result.navigation_targets
-        }
+    ) -> _ResolvedNavigationPhaseResult:
+        resolved_navigation_operations: list[ResolvedDocumentOperation] = []
+        if patch_plan_result is not None:
+            allowed_paths = {
+                target.overview_path
+                for target in patch_plan_result.navigation_targets
+            } | {
+                target.summary_path
+                for target in patch_plan_result.navigation_targets
+            }
+        else:
+            allowed_paths = {
+                f"{scope_path}/overview.md"
+                for scope_path in (navigation_scopes or [])
+            } | {
+                f"{scope_path}/summary.md"
+                for scope_path in (navigation_scopes or [])
+            }
         for branch_plan in navigation_summary_result.navigation_mutations:
             resolved_navigation_operations.extend(
                 item
@@ -150,18 +162,60 @@ class MemoryUpdater:
                 )
                 if item is not None
             )
-        return ResolveNavigationOperationsResult(
+        return _ResolvedNavigationPhaseResult(
             task_id=task_id,
-            resolved_navigation_operations=resolved_navigation_operations,
+            document_operations=resolved_navigation_operations,
+        )
+
+    @classmethod
+    def resolve_document_operations_from_inputs(
+        cls,
+        *,
+        task_id: str,
+        prepared_context: PreparedExtractContext,
+        change_plan: list[MemoryChangePlanItem],
+        extracted_operations: list[ExtractedMemoryOperation],
+        tools_used: list[dict[str, Any]],
+        navigation_summary_result: NavigationSummaryResult | None = None,
+    ) -> ResolveDocumentOperationsResult:
+        memory_result = cls._resolve_memory_operations_from_inputs(
+            task_id=task_id,
+            prepared_context=prepared_context,
+            change_plan=change_plan,
+            extracted_operations=extracted_operations,
+            tools_used=tools_used,
+        )
+        navigation_result = (
+            cls._resolve_navigation_operations_from_inputs(
+                task_id=task_id,
+                navigation_scopes=memory_result.navigation_scopes,
+                navigation_summary_result=navigation_summary_result,
+            )
+            if navigation_summary_result is not None
+            else _ResolvedNavigationPhaseResult(task_id=task_id)
+        )
+        document_operations = [
+            item.model_copy(deep=True) for item in memory_result.document_operations
+        ]
+        document_operations.extend(
+            item.model_copy(deep=True) for item in navigation_result.document_operations
+        )
+        return ResolveDocumentOperationsResult(
+            task_id=task_id,
+            document_operations=document_operations,
+            navigation_scopes=memory_result.navigation_scopes,
+            metadata_scopes=memory_result.metadata_scopes,
         )
 
     def commit(
         self,
         *,
-        resolve_result: ResolveOperationsResult,
+        resolve_result: ResolveDocumentOperationsResult,
         patch_plan_result: PatchPlanResult,
         patch_apply_result: PatchApplyResult,
-        navigation_result: NavigationManagerResult,
+        navigation_summary_result: NavigationSummaryResult,
+        navigation_refresh_result: NavigationRefreshResult,
+        metadata_result: MetadataRefreshResult,
     ) -> MemoryCommittedResult:
         return MemoryCommittedResult(
             task_id=self.update_ctx.task_id,
@@ -169,7 +223,9 @@ class MemoryUpdater:
             resolve_result=resolve_result,
             patch_plan_result=patch_plan_result,
             patch_apply_result=patch_apply_result,
-            navigation_result=navigation_result,
+            navigation_summary_result=navigation_summary_result,
+            navigation_refresh_result=navigation_refresh_result,
+            metadata_result=metadata_result,
             journal_ref=patch_apply_result.journal_ref,
             rollback_metadata=patch_apply_result.rollback_metadata,
             final_stage="committed",
@@ -182,7 +238,7 @@ class MemoryUpdater:
         document_kind: str,
         document_plan: NavigationDocumentPlan,
         allowed_paths: set[str],
-    ) -> ResolvedNavigationOperation | None:
+    ) -> ResolvedDocumentOperation | None:
         if document_plan.op == "noop":
             return None
 
@@ -204,18 +260,20 @@ class MemoryUpdater:
             previous_body=previous_body,
         )
 
-        return ResolvedNavigationOperation(
+        return ResolvedDocumentOperation(
+            document_family="navigation",
             document_kind=document_kind,
             op=document_plan.op,
             target_path=document_plan.path,
-            branch_path=branch_path,
             file_exists=file_exists,
-            based_on_existing=document_plan.based_on_existing,
             previous_content=previous_content,
             previous_metadata=previous_metadata,
             previous_body=previous_body,
-            markdown_body=document_plan.markdown_body or None,
+            content_mode="full_body" if document_plan.op == "write" else "line_operations",
+            full_body=document_plan.markdown_body or None,
             line_operations=list(document_plan.line_operations),
+            branch_path=branch_path,
+            based_on_existing=document_plan.based_on_existing,
             expected_body_sha256=document_plan.expected_body_sha256,
         )
 
@@ -254,60 +312,6 @@ class MemoryUpdater:
                 f"{document_kind} body sha256 mismatch: {document_plan.expected_body_sha256} != {actual_body_sha256}"
             )
 
-    def run(self) -> MemoryCommittedResult:
-        resolve_result = self.resolve_operations()
-        patch_plan_result, patch_apply_result = self.patch_handler.run(
-            update_ctx=self.update_ctx,
-            resolve_result=resolve_result,
-        )
-        try:
-            navigation_summary_result = self.navigation_manager.generate_navigation_summary(
-                update_ctx=self.update_ctx,
-                patch_plan=patch_plan_result,
-                patch_apply=patch_apply_result,
-            )
-            resolve_navigation_result = self.resolve_navigation_operations(
-                patch_plan_result=patch_plan_result,
-                navigation_summary_result=navigation_summary_result,
-            )
-            navigation_patch_plan_result = self.patch_handler.build_navigation_staged_write_set(
-                update_ctx=self.update_ctx,
-                resolve_navigation_result=resolve_navigation_result,
-            )
-            navigation_refresh_result = self.patch_handler.apply_navigation_files(
-                update_ctx=self.update_ctx,
-                navigation_patch_plan=navigation_patch_plan_result,
-            )
-            metadata_result = self.navigation_manager.refresh_metadata(
-                update_ctx=self.update_ctx,
-                patch_plan=patch_plan_result,
-            )
-            navigation_result = NavigationManagerResult(
-                summary_result=navigation_summary_result,
-                resolve_result=resolve_navigation_result,
-                patch_plan_result=navigation_patch_plan_result,
-                refresh_result=navigation_refresh_result,
-                metadata_result=metadata_result,
-            )
-        except Exception as exc:
-            raise RuntimeError(
-                json.dumps(
-                    {
-                        "phase": str(MemoryTaskPhase.MEMORY_UPDATER),
-                        "journal_ref": patch_apply_result.journal_ref,
-                        "rollback_metadata": patch_apply_result.rollback_metadata,
-                        "error": str(exc),
-                    },
-                    ensure_ascii=False,
-                )
-            ) from exc
-        return self.commit(
-            resolve_result=resolve_result,
-            patch_plan_result=patch_plan_result,
-            patch_apply_result=patch_apply_result,
-            navigation_result=navigation_result,
-        )
-
     @classmethod
     def _resolve_all_operations(
         cls,
@@ -316,8 +320,8 @@ class MemoryUpdater:
         planned_operations: dict[tuple[str, str, str], MemoryChangePlanItem],
         registry: MemorySchemaRegistry,
         prepared: PreparedExtractContext,
-    ) -> list[ResolvedMemoryOperation]:
-        grouped: dict[str, list[ResolvedMemoryOperation]] = {}
+    ) -> list[ResolvedDocumentOperation]:
+        grouped: dict[str, list[ResolvedDocumentOperation]] = {}
         for operation in operations:
             resolved = cls._resolve_single_operation(
                 operation=operation,
@@ -328,7 +332,7 @@ class MemoryUpdater:
             )
             grouped.setdefault(resolved.target_path, []).append(resolved)
 
-        merged: list[ResolvedMemoryOperation] = []
+        merged: list[ResolvedDocumentOperation] = []
         for target_path, items in grouped.items():
             op_kinds = {item.op for item in items}
             if "delete" in op_kinds and len(op_kinds) > 1:
@@ -346,7 +350,7 @@ class MemoryUpdater:
         registry: MemorySchemaRegistry,
         prepared: PreparedExtractContext,
         validate_existence: bool = True,
-    ) -> ResolvedMemoryOperation:
+    ) -> ResolvedDocumentOperation:
         definition = registry.require(operation.memory_type)
         format_values = MemoryUpdater._schema_format_values(prepared=prepared, field_plans=operation.fields)
         target_dir = MemoryUpdater._render_template(definition.directory, format_values, sanitize=False)
@@ -368,12 +372,15 @@ class MemoryUpdater:
         merge_strategy = (
             "delete" if planned_item.op == "delete" else ("template_fields" if definition.content_template else "patch")
         )
-        resolved = ResolvedMemoryOperation(
+        resolved = ResolvedDocumentOperation(
+            document_family="memory",
+            document_kind=definition.memory_type,
             op=planned_item.op,
-            memory_type=definition.memory_type,
             target_path=target_path,
-            target_name=target_name,
             file_exists=file_exists,
+            content_mode="memory_schema_merge",
+            memory_type=definition.memory_type,
+            target_name=target_name,
             merge_strategy=merge_strategy,
             field_plans=MemoryUpdater._build_resolved_field_plans(
                 extracted_field_plans=operation.fields,
@@ -386,7 +393,7 @@ class MemoryUpdater:
         return resolved
 
     @staticmethod
-    def _merge_resolved_operations(items: list[ResolvedMemoryOperation]) -> ResolvedMemoryOperation:
+    def _merge_resolved_operations(items: list[ResolvedDocumentOperation]) -> ResolvedDocumentOperation:
         if len(items) == 1:
             return items[0]
 
@@ -396,26 +403,29 @@ class MemoryUpdater:
 
         file_exists = any(item.file_exists for item in items)
         merged_op = "edit" if file_exists or any(item.op == "edit" for item in items) else "write"
-        return ResolvedMemoryOperation(
+        return ResolvedDocumentOperation(
+            document_family="memory",
+            document_kind=first.document_kind,
             op=merged_op,
-            memory_type=first.memory_type,
             target_path=first.target_path,
-            target_name=first.target_name,
             file_exists=file_exists,
+            content_mode=first.content_mode,
+            memory_type=first.memory_type,
+            target_name=first.target_name,
             merge_strategy=first.merge_strategy,
             field_plans=MemoryUpdater._merge_field_plans(items),
             schema_path=first.schema_path,
         )
 
     @staticmethod
-    def _validate_resolved_existence(item: ResolvedMemoryOperation) -> None:
+    def _validate_resolved_existence(item: ResolvedDocumentOperation) -> None:
         if item.op in {"edit", "delete"} and not item.file_exists:
             raise ValueError(f"{item.op} requires existing target_path: {item.target_path}")
 
     @staticmethod
     def _validate_edit_operations_have_prior_reads(
         *,
-        resolved_operations: list[ResolvedMemoryOperation],
+        resolved_operations: list[ResolvedDocumentOperation],
         prepared: PreparedExtractContext,
         tools_used: list[dict[str, Any]],
     ) -> None:
@@ -430,7 +440,7 @@ class MemoryUpdater:
     @staticmethod
     def _validate_edit_patch_field_plans(
         *,
-        resolved_operations: list[ResolvedMemoryOperation],
+        resolved_operations: list[ResolvedDocumentOperation],
     ) -> None:
         for operation in resolved_operations:
             if operation.op != "edit":
@@ -548,7 +558,7 @@ class MemoryUpdater:
         return resolved
 
     @staticmethod
-    def _merge_field_plans(items: list[ResolvedMemoryOperation]) -> list[ResolvedMemoryFieldPlan]:
+    def _merge_field_plans(items: list[ResolvedDocumentOperation]) -> list[ResolvedMemoryFieldPlan]:
         merged: dict[str, ResolvedMemoryFieldPlan] = {}
         ordered_names: list[str] = []
         for item in items:
