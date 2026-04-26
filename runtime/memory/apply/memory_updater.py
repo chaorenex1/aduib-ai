@@ -27,6 +27,7 @@ from runtime.memory.base.contracts import (
     ResolvedMemoryFieldPlan,
     ResolveDocumentOperationsResult,
 )
+from runtime.memory.project.contracts import ProjectMemoryPlan
 from runtime.memory.schema.registry import MemorySchemaDefinition, MemorySchemaRegistry
 from service.memory.base.paths import normalize_path_segment
 
@@ -45,6 +46,14 @@ class _ResolvedNavigationPhaseResult:
     document_operations: list[ResolvedDocumentOperation] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class _ResolvedProjectPhaseResult:
+    task_id: str
+    document_operations: list[ResolvedDocumentOperation] = field(default_factory=list)
+    navigation_scopes: list[str] = field(default_factory=list)
+    metadata_scopes: list[str] = field(default_factory=list)
+
+
 class MemoryUpdater:
     def __init__(
         self,
@@ -59,6 +68,7 @@ class MemoryUpdater:
         self,
         *,
         navigation_summary_result: NavigationSummaryResult | None = None,
+        project_memory_plan: ProjectMemoryPlan | None = None,
     ) -> ResolveDocumentOperationsResult:
         return self.resolve_document_operations_from_inputs(
             task_id=self.update_ctx.task_id,
@@ -69,6 +79,7 @@ class MemoryUpdater:
                 item.model_dump(mode="python", exclude_none=True) for item in self.update_ctx.extract_result.tools_used
             ],
             navigation_summary_result=navigation_summary_result,
+            project_memory_plan=project_memory_plan,
         )
 
     @classmethod
@@ -177,34 +188,87 @@ class MemoryUpdater:
         extracted_operations: list[ExtractedMemoryOperation],
         tools_used: list[dict[str, Any]],
         navigation_summary_result: NavigationSummaryResult | None = None,
+        project_memory_plan: ProjectMemoryPlan | None = None,
     ) -> ResolveDocumentOperationsResult:
-        memory_result = cls._resolve_memory_operations_from_inputs(
-            task_id=task_id,
-            prepared_context=prepared_context,
-            change_plan=change_plan,
-            extracted_operations=extracted_operations,
-            tools_used=tools_used,
-        )
+        if project_memory_plan is None:
+            memory_result = cls._resolve_memory_operations_from_inputs(
+                task_id=task_id,
+                prepared_context=prepared_context,
+                change_plan=change_plan,
+                extracted_operations=extracted_operations,
+                tools_used=tools_used,
+            )
+            navigation_scopes = memory_result.navigation_scopes
+            metadata_scopes = memory_result.metadata_scopes
+        else:
+            memory_result = _ResolvedMemoryPhaseResult(task_id=task_id)
+            project_result = cls._resolve_project_operations_from_plan(
+                task_id=task_id,
+                project_memory_plan=project_memory_plan,
+            )
+            navigation_scopes = project_result.navigation_scopes
+            metadata_scopes = project_result.metadata_scopes
+
         navigation_result = (
             cls._resolve_navigation_operations_from_inputs(
                 task_id=task_id,
-                navigation_scopes=memory_result.navigation_scopes,
+                navigation_scopes=navigation_scopes,
                 navigation_summary_result=navigation_summary_result,
             )
             if navigation_summary_result is not None
             else _ResolvedNavigationPhaseResult(task_id=task_id)
         )
-        document_operations = [
-            item.model_copy(deep=True) for item in memory_result.document_operations
-        ]
-        document_operations.extend(
-            item.model_copy(deep=True) for item in navigation_result.document_operations
-        )
+        document_operations = [item.model_copy(deep=True) for item in memory_result.document_operations]
+        if project_memory_plan is not None:
+            document_operations.extend(item.model_copy(deep=True) for item in project_result.document_operations)
+        document_operations.extend(item.model_copy(deep=True) for item in navigation_result.document_operations)
         return ResolveDocumentOperationsResult(
             task_id=task_id,
             document_operations=document_operations,
-            navigation_scopes=memory_result.navigation_scopes,
-            metadata_scopes=memory_result.metadata_scopes,
+            navigation_scopes=navigation_scopes,
+            metadata_scopes=metadata_scopes,
+        )
+
+    @classmethod
+    def _resolve_project_operations_from_plan(
+        cls,
+        *,
+        task_id: str,
+        project_memory_plan: ProjectMemoryPlan,
+    ) -> _ResolvedProjectPhaseResult:
+        document_operations: list[ResolvedDocumentOperation] = []
+        for item in project_memory_plan.document_plans:
+            scoped_path = "/".join(part for part in [config.MEMORY_TREE_ROOT_DIR, item.target_path] if part)
+            file_exists = storage_manager.exists(scoped_path)
+            previous_content = storage_manager.read_text(scoped_path) if file_exists else None
+            _previous_metadata, previous_body = parse_markdown_document(previous_content or "")
+            cls._validate_project_document_plan(
+                item=item,
+                file_exists=file_exists,
+                previous_body=previous_body,
+            )
+            if item.op == "noop":
+                continue
+            document_operations.append(
+                ResolvedDocumentOperation(
+                    document_family="project",
+                    document_kind=item.target_family,
+                    op=item.op,
+                    target_path=item.target_path,
+                    file_exists=file_exists,
+                    previous_content=previous_content,
+                    previous_body=previous_body,
+                    content_mode="full_body" if item.op == "write" else "line_operations",
+                    full_body=item.markdown_body or None,
+                    line_operations=list(item.line_operations),
+                    branch_path=project_memory_plan.scope.root_path,
+                )
+            )
+        return _ResolvedProjectPhaseResult(
+            task_id=task_id,
+            document_operations=document_operations,
+            navigation_scopes=[project_memory_plan.scope.root_path],
+            metadata_scopes=[project_memory_plan.scope.root_path],
         )
 
     def commit(
@@ -310,6 +374,43 @@ class MemoryUpdater:
         if document_plan.expected_body_sha256 != actual_body_sha256:
             raise ValueError(
                 f"{document_kind} body sha256 mismatch: {document_plan.expected_body_sha256} != {actual_body_sha256}"
+            )
+
+    @staticmethod
+    def _validate_project_document_plan(
+        *,
+        item,
+        file_exists: bool,
+        previous_body: str,
+    ) -> None:
+        if item.op == "write":
+            if file_exists:
+                raise ValueError("project write cannot target an existing document")
+            if item.based_on_existing:
+                raise ValueError("project write cannot be based_on_existing")
+            if not item.markdown_body.strip():
+                raise ValueError("project write requires markdown_body")
+            if item.line_operations:
+                raise ValueError("project write must not include line_operations")
+            return
+
+        if item.op == "noop":
+            return
+
+        if not file_exists:
+            raise ValueError("project edit requires an existing document")
+        if not item.based_on_existing:
+            raise ValueError("project edit must declare based_on_existing")
+        if item.markdown_body.strip():
+            raise ValueError("project edit must not include markdown_body")
+        if not item.line_operations:
+            raise ValueError("project edit requires line_operations")
+        if not item.expected_body_sha256:
+            raise ValueError("project edit requires expected_body_sha256")
+        actual_body_sha256 = compute_content_sha256(previous_body)
+        if item.expected_body_sha256 != actual_body_sha256:
+            raise ValueError(
+                f"project body sha256 mismatch: {item.expected_body_sha256} != {actual_body_sha256}"
             )
 
     @classmethod

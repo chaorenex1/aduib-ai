@@ -25,9 +25,11 @@ class MemoryContract(BaseModel):
 
 class MemorySourceRef(MemoryContract):
     type: str = Field(..., min_length=1)
-    conversation_id: str = Field(..., min_length=1)
+    conversation_id: str | None = None
     external_source: str | None = None
     external_session_id: str | None = None
+    project_id: str | None = None
+    project_payload: dict[str, Any] | None = None
 
 
 class ConversationSourceMetadata(MemoryContract):
@@ -580,7 +582,7 @@ class GenerateNavigationSummaryPhaseResult(MemoryContract):
 
 
 class ResolvedDocumentOperation(MemoryContract):
-    document_family: Literal["memory", "navigation"]
+    document_family: Literal["memory", "navigation", "project"]
     document_kind: str = Field(..., min_length=1)
     op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT, MemoryOpType.DELETE]
     target_path: str = Field(..., min_length=1)
@@ -610,7 +612,7 @@ class ResolveDocumentOperationsResult(MemoryContract):
 
 
 class DocumentMutationPlan(MemoryContract):
-    document_family: Literal["memory", "navigation"]
+    document_family: Literal["memory", "navigation", "project"]
     document_kind: str = Field(..., min_length=1)
     op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT, MemoryOpType.DELETE]
     target_path: str = Field(..., min_length=1)

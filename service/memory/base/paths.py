@@ -45,6 +45,20 @@ def build_session_commit_archive_path(*, user_id: str, session_key: str, task_id
     )
 
 
+def build_project_memory_import_archive_path(*, user_id: str, project_id: str, task_id: str) -> str:
+    safe_project_id = normalize_path_segment(project_id)
+    return "/".join(
+        [
+            config.MEMORY_TREE_ROOT_DIR,
+            "users",
+            user_id,
+            "sources",
+            "project_import",
+            f"{safe_project_id}__{task_id}.json",
+        ]
+    )
+
+
 def build_conversation_id(*, external_source: str, external_session_id: str) -> str:
     source = str(external_source or "").strip()
     session_id = str(external_session_id or "").strip()

@@ -39,6 +39,12 @@ class SourceMaterialNormalizer:
         archived_snapshot: dict[str, Any],
         source_hash: str,
     ) -> NormalizedSourceMaterial:
+        source_ref = archived_snapshot.get("source_ref") or {}
+        if str(source_ref.get("type") or "").strip() == "project_memory_import":
+            return self._normalize_project_memory_import_source(
+                archived_snapshot=archived_snapshot,
+                source_hash=source_hash,
+            )
         payload = archived_snapshot.get("payload") or {}
         content = str(payload.get("content") or "").strip()
         messages = [{"role": "user", "content": content, "source_kind": "memory_api"}] if content else []
@@ -47,6 +53,49 @@ class SourceMaterialNormalizer:
             source_hash=source_hash,
             messages=messages,
             text_blocks=[content] if content else [],
+            archived_snapshot=archived_snapshot,
+            scope=archived_snapshot.get("scope"),
+        )
+
+    def _normalize_project_memory_import_source(
+        self,
+        *,
+        archived_snapshot: dict[str, Any],
+        source_hash: str,
+    ) -> NormalizedSourceMaterial:
+        payload = archived_snapshot.get("payload") or {}
+        raw_items = payload.get("items") or []
+        messages: list[dict[str, Any]] = []
+        text_blocks: list[str] = []
+        for item in raw_items:
+            if not isinstance(item, dict):
+                continue
+            parts = item.get("content_parts") or []
+            texts = [
+                str(part.get("text") or "").strip()
+                for part in parts
+                if isinstance(part, dict) and str(part.get("type") or "").strip() == "text"
+            ]
+            item_text = "\n".join(text for text in texts if text).strip()
+            title = str(item.get("title") or "").strip()
+            if title or item_text:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "\n\n".join(part for part in [title, item_text] if part).strip(),
+                        "source_kind": "project_memory_import",
+                    }
+                )
+            if title:
+                text_blocks.append(title)
+            if item_text:
+                text_blocks.append(item_text)
+
+        return self._build_material(
+            source_kind="project_memory_import",
+            source_hash=source_hash,
+            messages=messages,
+            text_blocks=text_blocks,
             archived_snapshot=archived_snapshot,
             scope=archived_snapshot.get("scope"),
         )

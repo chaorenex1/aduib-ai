@@ -16,7 +16,7 @@ from runtime.memory.base.contracts import (
     NavigationDocumentPlan,
     NavigationPlanningPreview,
     NavigationSummaryBranchPlan,
-    NavigationSummaryResult,
+    NavigationSummaryResult, PatchPlanResult,
 )
 from runtime.memory.committed_tree import CommittedMemoryTree
 from runtime.memory.navigation.common import (

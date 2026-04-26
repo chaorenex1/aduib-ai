@@ -8,6 +8,7 @@ from runtime.memory.apply.patch_handler import PatchHandler
 from runtime.memory.base.contracts import (
     ExtractOperationsPhaseResult,
     MemoryCommittedResult,
+    MemorySourceRef,
     MemoryUpdateContext,
     NavigationPlanningPreview,
     NavigationRefreshResult,
@@ -19,6 +20,7 @@ from runtime.memory.base.contracts import (
 )
 from runtime.memory.base.enums import MemoryTaskPhase, OrchestratorStep
 from runtime.memory.navigation.navigation_manager import NavigationManager
+from runtime.memory.project.manager import ProjectMemoryManager
 
 from ..schema.registry import MemorySchemaRegistry
 from .planner import LLMPlanner
@@ -37,11 +39,20 @@ class ReActOrchestrator:
         self.tool_executor = PlannerToolExecutor()
         self.navigation_manager = NavigationManager()
         self.patch_handler = PatchHandler()
+        self.project_memory_manager = ProjectMemoryManager()
 
     def run(self) -> ExtractOperationsPhaseResult:
         return self.run_extract_phase()
 
     def run_extract_phase(self) -> ExtractOperationsPhaseResult:
+        if str(self.prepared.source_ref.type or "").strip() == "project_memory_import":
+            return ExtractOperationsPhaseResult(
+                task_id=self.prepared.task_id,
+                planner_status="noop",
+                tools_available=list(SUPPORTED_PLANNER_TOOLS),
+                tools_used=[],
+            )
+
         working_state = OrchestratorWorkingState(
             prefetched_read_paths=sorted(self.prepared.prefetched_read_paths()),
         )
@@ -86,22 +97,25 @@ class ReActOrchestrator:
         update_ctx: MemoryUpdateContext,
     ) -> MemoryCommittedResult:
         updater = MemoryUpdater(update_ctx, patch_handler=self.patch_handler)
-        preview_resolve_result = updater.resolve_document_operations()
+        project_memory_plan = self._build_project_memory_plan(update_ctx=update_ctx)
+        preview_resolve_result = updater.resolve_document_operations(project_memory_plan=project_memory_plan)
         preview_patch_plan_result = self.patch_handler.build_staged_write_set(
             update_ctx=update_ctx,
             resolve_result=preview_resolve_result,
         )
         patch_apply_result = None
         try:
+            navigation_preview = self._build_navigation_preview(
+                update_ctx=update_ctx,
+                patch_plan=preview_patch_plan_result,
+            )
             navigation_summary_result = self.navigation_manager.generate_navigation_summary(
                 update_ctx=update_ctx,
-                planning_preview=self._build_navigation_planning_preview(
-                    task_id=update_ctx.task_id,
-                    patch_plan=preview_patch_plan_result,
-                ),
+                planning_preview=navigation_preview,
             )
             unified_resolve_result = updater.resolve_document_operations(
                 navigation_summary_result=navigation_summary_result,
+                project_memory_plan=project_memory_plan,
             )
             unified_patch_plan_result = self.patch_handler.build_staged_write_set(
                 update_ctx=update_ctx,
@@ -158,6 +172,38 @@ class ReActOrchestrator:
                 for item in patch_plan.document_mutations
                 if item.document_family == "memory"
             ],
+        )
+
+    def _build_navigation_preview(
+        self,
+        *,
+        update_ctx: MemoryUpdateContext,
+        patch_plan: PatchPlanResult,
+    ) -> NavigationPlanningPreview:
+        source_ref = update_ctx.source_ref
+        if str(source_ref.type or "").strip() != "project_memory_import":
+            return self._build_navigation_planning_preview(
+                task_id=update_ctx.task_id,
+                patch_plan=patch_plan,
+            )
+
+        plan = self._build_project_memory_plan(update_ctx=update_ctx)
+        return self.project_memory_manager. build_navigation_preview_from_plan(
+            task_id=update_ctx.task_id,
+            plan=plan,
+        )
+
+    def _build_project_memory_plan(self, *, update_ctx: MemoryUpdateContext):
+        source_ref = MemorySourceRef.model_validate(update_ctx.source_ref.model_dump(mode="python", exclude_none=True))
+        if str(source_ref.type or "").strip() != "project_memory_import":
+            return None
+        scope = self.project_memory_manager.build_scope(
+            user_id=str(update_ctx.user_id or "").strip(),
+            project_id=str(update_ctx.project_id or source_ref.project_id or "").strip(),
+        )
+        return self.project_memory_manager.plan_import(
+            scope=scope,
+            source_ref=source_ref,
         )
 
     def _build_phase_result(

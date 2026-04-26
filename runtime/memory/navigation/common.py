@@ -49,6 +49,24 @@ def read_current_branch_files(
                 previous_content=mutation.get("previous_content"),
             )
         )
+    existing_paths = {item.path for item in states}
+    for path, mutation in sorted((mutation_lookup or {}).items()):
+        normalized_path = str(path or "").strip()
+        if not normalized_path or normalized_path in existing_paths:
+            continue
+        if not normalized_path.startswith(branch_path.rstrip("/") + "/"):
+            continue
+        if any(normalized_path.endswith(f"/{name}") or normalized_path.endswith(name) for name in SUMMARY_FILENAMES):
+            continue
+        states.append(
+            NavigationBranchFileState(
+                path=normalized_path,
+                memory_type=_memory_type_for_path(normalized_path),
+                op=str(mutation.get("op") or "write").strip() or "write",
+                desired_content=mutation.get("desired_content") or "",
+                previous_content=mutation.get("previous_content"),
+            )
+        )
     return states
 
 

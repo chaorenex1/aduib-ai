@@ -15,6 +15,7 @@ from service.memory.base.enums import MemoryTriggerType
 from service.memory.base.errors import MemoryArchiveError, MemoryValidationError
 from service.memory.base.paths import (
     build_memory_api_conversation_archive_path,
+    build_project_memory_import_archive_path,
     build_session_commit_archive_path,
 )
 
@@ -25,6 +26,8 @@ class MemorySourceArchiveRuntime:
     def freeze_memory_api_conversation_source(
         task: MemoryWriteTaskView,
     ) -> ArchivedSourceRef:
+        if str(task.source_ref.type or "").strip() == "project_memory_import":
+            return MemorySourceArchiveRuntime.freeze_project_memory_import_source(task)
 
         from service.memory import ConversationRepository
 
@@ -63,6 +66,39 @@ class MemorySourceArchiveRuntime:
             archive_path=archive_path,
             archive_text=archive_text,
             archive_type="application/x-ndjson",
+        )
+
+    @staticmethod
+    def freeze_project_memory_import_source(
+        task: MemoryWriteTaskView,
+    ) -> ArchivedSourceRef:
+        project_id = str(task.project_id or task.source_ref.project_id or "").strip()
+        if not project_id:
+            raise MemoryValidationError("project_memory_import requires project_id")
+        payload = task.source_ref.project_payload or {}
+        if not isinstance(payload, dict):
+            raise MemoryValidationError("project_memory_import requires object project_payload")
+        snapshot = {
+            "trigger_type": MemoryTriggerType.MEMORY_API.value,
+            "task_id": task.task_id,
+            "trace_id": task.trace_id,
+            "scope": {
+                "user_id": task.user_id,
+                "agent_id": task.agent_id,
+                "project_id": project_id,
+            },
+            "source_ref": task.source_ref.model_dump(mode="python", exclude_none=True),
+            "payload": payload,
+        }
+        archive_text = json.dumps(snapshot, ensure_ascii=False, indent=2)
+        archive_path = build_project_memory_import_archive_path(
+            user_id=str(task.user_id or "").strip(),
+            project_id=project_id,
+            task_id=task.task_id,
+        )
+        return MemorySourceArchiveRuntime._write_archive(
+            archive_path=archive_path,
+            archive_text=archive_text,
         )
 
     @staticmethod

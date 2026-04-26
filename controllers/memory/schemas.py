@@ -111,20 +111,13 @@ class ProjectItemPayload(MemorySchema):
     doc_type: str | None = None
     snippet_type: str | None = None
     title: str = Field(..., min_length=1)
-    target_subdir: str = Field(..., min_length=1)
     content_parts: list[ContentPart] = Field(default_factory=list, min_length=1)
-
-
-class ProjectPayload(MemorySchema):
-    project_key: str | None = None
-    title: str | None = None
-    items: list[ProjectItemPayload] = Field(default_factory=list, min_length=1)
 
 
 class ProjectImportRequest(MemorySchema):
     user_id: str = Field(..., min_length=1)
-    project_path: str | None = None
-    project: ProjectPayload
+    project_id: str = Field(..., min_length=1)
+    items: list[ProjectItemPayload] = Field(default_factory=list, min_length=1)
     metadata: MemoryMetadata | None = None
 
 

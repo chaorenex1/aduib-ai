@@ -8,6 +8,7 @@ from controllers.memory.schemas import (
     MemoryCreateRequest,
     MemoryRetrieveRequest,
     MemoryRetrieveResponse,
+    ProjectImportRequest,
     TaskCreateRequest,
 )
 
@@ -120,6 +121,30 @@ def task_create_request_to_command(payload: TaskCreateRequest) -> MemoryTaskCrea
         agent_id=payload.agent_id,
         project_id=payload.project_id,
         source_ref=MemorySourceRef(**payload.source_ref.model_dump(mode="python", exclude_none=True)),
+    )
+
+
+def project_import_request_to_task_command(
+    *,
+    project_id: str,
+    payload: ProjectImportRequest,
+) -> MemoryTaskCreateCommand:
+    if payload.project_id != project_id:
+        raise ValueError("payload project_id does not match route project_id")
+
+    return MemoryTaskCreateCommand(
+        trigger_type=MemoryTriggerType.MEMORY_API,
+        user_id=payload.user_id,
+        agent_id=None,
+        project_id=project_id,
+        source_ref=MemorySourceRef(
+            type="project_memory_import",
+            project_id=project_id,
+            project_payload={
+                "items": [item.model_dump(mode="python", exclude_none=True) for item in payload.items],
+                "metadata": payload.metadata.model_dump(mode="python", exclude_none=True) if payload.metadata else None,
+            },
+        ),
     )
 
 

@@ -236,6 +236,30 @@ class PatchHandler:
                 )
                 continue
 
+            if operation.document_family == "project":
+                if operation.content_mode == "line_operations":
+                    desired_content = apply_line_operations_to_body(
+                        str(operation.previous_body or ""),
+                        operation.line_operations,
+                    ).strip()
+                else:
+                    desired_content = str(operation.full_body or "")
+                document_mutations.append(
+                    DocumentMutationPlan(
+                        document_family="project",
+                        document_kind=operation.document_kind,
+                        op=operation.op,
+                        target_path=operation.target_path,
+                        file_exists=operation.file_exists,
+                        previous_content=operation.previous_content,
+                        desired_content=desired_content,
+                        metadata={
+                            "branch_path": operation.branch_path,
+                        },
+                    )
+                )
+                continue
+
             navigable_entries = cls._list_navigable_entries_for_branch(str(operation.branch_path))
             desired_content = cls._build_navigation_desired_content(
                 operation=operation,
