@@ -4,6 +4,7 @@ import logging
 
 from runtime.entities.llm_entities import ChatCompletionRequest
 from runtime.memory.project.contracts import ProjectPlannerAction
+from runtime.memory.project.errors import ProjectPlannerError
 from runtime.memory.project.prompts import build_project_planner_messages
 from runtime.memory.project.structured_output import load_json_payload, normalize_project_planner_action
 from runtime.memory.project.working_state import ProjectPlanningState
@@ -19,18 +20,6 @@ class ProjectPlanner:
         working_state: ProjectPlanningState,
     ) -> ProjectPlannerAction:
         raw = self._invoke_project_model(messages=build_project_planner_messages(context=working_state.snapshot()))
-        if not raw:
-            if working_state.document_plans:
-                return ProjectPlannerAction(
-                    action="finalize",
-                    reasoning="project planner model unavailable; finalize current document plans",
-                    document_plans=[item.model_copy(deep=True) for item in working_state.document_plans],
-                    navigation_targets=[item.model_copy(deep=True) for item in working_state.navigation_targets],
-                )
-            return ProjectPlannerAction(
-                action="stop_noop",
-                reasoning="project planner model unavailable and no document plans exist",
-            )
         return normalize_project_planner_action(load_json_payload(raw))
 
     @staticmethod
@@ -42,9 +31,9 @@ class ProjectPlanner:
             )
         except Exception as exc:
             logger.warning("project planner model unavailable: %s", exc)
-            return ""
+            raise ProjectPlannerError("project planner model unavailable") from exc
         if model_instance is None:
-            return ""
+            raise ProjectPlannerError("project planner model unavailable")
 
         request = ChatCompletionRequest(
             model=model_instance.model,
@@ -56,5 +45,5 @@ class ProjectPlanner:
             response = model_instance.invoke_llm_sync(prompt_messages=request, user=None)
         except Exception as exc:
             logger.warning("project planner invocation failed: %s", exc)
-            return ""
+            raise ProjectPlannerError("project planner invocation failed") from exc
         return str(response.message.content or "").strip()

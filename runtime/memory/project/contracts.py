@@ -7,8 +7,6 @@ from pydantic import Field, model_validator
 from runtime.memory.base.contracts import (
     MemoryContract,
     MemoryLineOperation,
-    NavigationPlanningPreview,
-    NavigationTarget,
     PlannerToolRequest,
     PlannerToolUseResult,
 )
@@ -77,7 +75,6 @@ class ProjectDocumentPlan(MemoryContract):
 class ProjectMemoryPlan(MemoryContract):
     scope: ProjectMemoryScope
     document_plans: list[ProjectDocumentPlan] = Field(default_factory=list)
-    navigation_targets: list[NavigationTarget] = Field(default_factory=list)
 
 
 class ProjectPlannerAction(MemoryContract):
@@ -85,18 +82,11 @@ class ProjectPlannerAction(MemoryContract):
     reasoning: str = Field(..., min_length=1)
     tool_requests: list[PlannerToolRequest] = Field(default_factory=list)
     document_plans: list[ProjectDocumentPlan] = Field(default_factory=list)
-    navigation_targets: list[NavigationTarget] = Field(default_factory=list)
 
 
 class ProjectOperationPlanResult(MemoryContract):
     task_id: str = Field(..., min_length=1)
     planner_status: str = Field(..., min_length=1)
     document_plans: list[ProjectDocumentPlan] = Field(default_factory=list)
-    navigation_targets: list[NavigationTarget] = Field(default_factory=list)
     tools_used: list[PlannerToolUseResult] = Field(default_factory=list)
     planner_error: str | None = None
-
-
-class ProjectNavigationPreview(MemoryContract):
-    planning_preview: NavigationPlanningPreview
-    scope: ProjectMemoryScope

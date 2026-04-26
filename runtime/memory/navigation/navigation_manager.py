@@ -11,12 +11,14 @@ from configs import config
 from runtime.entities.llm_entities import ChatCompletionRequest
 from runtime.memory.apply.patch import compute_content_sha256, parse_markdown_document
 from runtime.memory.base.contracts import (
+    DocumentMutationPlan,
     MemoryUpdateContext,
     MetadataRefreshResult,
     NavigationDocumentPlan,
     NavigationPlanningPreview,
     NavigationSummaryBranchPlan,
-    NavigationSummaryResult, PatchPlanResult,
+    NavigationSummaryResult,
+    PatchPlanResult,
 )
 from runtime.memory.committed_tree import CommittedMemoryTree
 from runtime.memory.navigation.common import (
@@ -30,6 +32,23 @@ logger = logging.getLogger(__name__)
 
 
 class NavigationManager:
+    @classmethod
+    def build_planning_preview_from_patch_plan(
+        cls,
+        *,
+        task_id: str,
+        patch_plan: PatchPlanResult,
+    ) -> NavigationPlanningPreview:
+        return NavigationPlanningPreview(
+            task_id=task_id,
+            navigation_targets=[item.model_copy(deep=True) for item in patch_plan.navigation_targets],
+            document_previews=[
+                item.model_copy(deep=True)
+                for item in patch_plan.document_mutations
+                if cls._is_navigation_source_document(item)
+            ],
+        )
+
     def generate_navigation_summary(
         self,
         *,
@@ -52,7 +71,7 @@ class NavigationManager:
     ) -> NavigationSummaryResult:
         mutation_lookup = {
             item.target_path: {"desired_content": item.desired_content}
-            for item in planning_preview.memory_document_previews
+            for item in planning_preview.document_previews
             if item.target_path
         }
         plans: list[NavigationSummaryBranchPlan] = []
@@ -84,6 +103,10 @@ class NavigationManager:
             navigation_mutations=plans,
             planner_error=None,
         )
+
+    @staticmethod
+    def _is_navigation_source_document(document_mutation: DocumentMutationPlan) -> bool:
+        return document_mutation.document_family in {"memory", "project"}
 
     def refresh_metadata(
         self,

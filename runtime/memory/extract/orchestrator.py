@@ -10,11 +10,9 @@ from runtime.memory.base.contracts import (
     MemoryCommittedResult,
     MemorySourceRef,
     MemoryUpdateContext,
-    NavigationPlanningPreview,
     NavigationRefreshResult,
     OrchestratorAction,
     OrchestratorWorkingState,
-    PatchPlanResult,
     PreparedExtractContext,
     ReasoningTraceStep,
 )
@@ -105,8 +103,8 @@ class ReActOrchestrator:
         )
         patch_apply_result = None
         try:
-            navigation_preview = self._build_navigation_preview(
-                update_ctx=update_ctx,
+            navigation_preview = self.navigation_manager.build_planning_preview_from_patch_plan(
+                task_id=update_ctx.task_id,
                 patch_plan=preview_patch_plan_result,
             )
             navigation_summary_result = self.navigation_manager.generate_navigation_summary(
@@ -156,41 +154,6 @@ class ReActOrchestrator:
             navigation_summary_result=navigation_summary_result,
             navigation_refresh_result=navigation_refresh_result,
             metadata_result=metadata_result,
-        )
-
-    @staticmethod
-    def _build_navigation_planning_preview(
-        *,
-        task_id: str,
-        patch_plan: PatchPlanResult,
-    ) -> NavigationPlanningPreview:
-        return NavigationPlanningPreview(
-            task_id=task_id,
-            navigation_targets=[item.model_copy(deep=True) for item in patch_plan.navigation_targets],
-            memory_document_previews=[
-                item.model_copy(deep=True)
-                for item in patch_plan.document_mutations
-                if item.document_family == "memory"
-            ],
-        )
-
-    def _build_navigation_preview(
-        self,
-        *,
-        update_ctx: MemoryUpdateContext,
-        patch_plan: PatchPlanResult,
-    ) -> NavigationPlanningPreview:
-        source_ref = update_ctx.source_ref
-        if str(source_ref.type or "").strip() != "project_memory_import":
-            return self._build_navigation_planning_preview(
-                task_id=update_ctx.task_id,
-                patch_plan=patch_plan,
-            )
-
-        plan = self._build_project_memory_plan(update_ctx=update_ctx)
-        return self.project_memory_manager. build_navigation_preview_from_plan(
-            task_id=update_ctx.task_id,
-            plan=plan,
         )
 
     def _build_project_memory_plan(self, *, update_ctx: MemoryUpdateContext):

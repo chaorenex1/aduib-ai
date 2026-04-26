@@ -631,7 +631,7 @@ class NavigationTarget(MemoryContract):
 class NavigationPlanningPreview(MemoryContract):
     task_id: str = Field(..., min_length=1)
     navigation_targets: list[NavigationTarget] = Field(default_factory=list)
-    memory_document_previews: list[DocumentMutationPlan] = Field(default_factory=list)
+    document_previews: list[DocumentMutationPlan] = Field(default_factory=list)
 
 
 class MetadataTarget(MemoryContract):
