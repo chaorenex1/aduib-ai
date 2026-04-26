@@ -5,7 +5,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .enums import MemoryTaskFinalStatus, MemoryTaskPhase, MemoryTriggerType, OrchestratorStep
+from .enums import (
+    MemoryMergeOpType,
+    MemoryOpType,
+    MemoryTaskFinalStatus,
+    MemoryTaskPhase,
+    MemoryTriggerType,
+    OrchestratorStep,
+)
 
 
 class MemoryContract(BaseModel):
@@ -217,7 +224,7 @@ class MemoryChangePlanItem(MemoryContract):
     memory_type: str = Field(..., min_length=1)
     target_branch: str = Field(..., min_length=1)
     filename: str = Field(..., min_length=1)
-    op: Literal["write", "edit", "delete", "ignore"]
+    op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT, MemoryOpType.DELETE, MemoryOpType.IGNORE]
     reasoning: str = Field(..., min_length=1)
 
 
@@ -245,7 +252,7 @@ class MemoryLineOperation(MemoryContract):
 class ExtractedMemoryFieldPlan(MemoryContract):
     name: str = Field(..., min_length=1)
     value: Any = None
-    merge_op: Literal["patch", "sum", "replace", "immutable"]
+    merge_op: MemoryMergeOpType
     line_operations: list[MemoryLineOperation] = Field(default_factory=list)
     reasoning: str = Field(..., min_length=1)
 
@@ -261,7 +268,7 @@ class ExtractedMemoryOperation(MemoryContract):
 class ResolvedMemoryFieldPlan(MemoryContract):
     name: str = Field(..., min_length=1)
     value: Any = None
-    merge_op: Literal["patch", "sum", "replace", "immutable"]
+    merge_op: MemoryMergeOpType
     line_operations: list[MemoryLineOperation] = Field(default_factory=list)
 
 
@@ -544,16 +551,19 @@ class MemoryUpdateContext(MemoryContract):
 class NavigationBranchFileState(MemoryContract):
     path: str = Field(..., min_length=1)
     memory_type: str = Field(..., min_length=1)
-    op: Literal["write", "edit", "delete", "existing"]
+    op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT, MemoryOpType.DELETE, MemoryOpType.EXISTING]
     desired_content: str | None = None
     previous_content: str | None = None
 
 
 class NavigationDocumentPlan(MemoryContract):
-    op: Literal["write", "edit", "noop"]
+    op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT, MemoryOpType.NOOP]
     path: str = Field(..., min_length=1)
-    markdown_body: str = ""
     based_on_existing: bool
+    markdown_body: str = ""
+    line_operations: list[MemoryLineOperation] = Field(default_factory=list)
+    expected_body_sha256: str | None = None
+    reasoning: str = Field(..., min_length=1)
 
 
 class NavigationSummaryBranchPlan(MemoryContract):
@@ -569,8 +579,51 @@ class GenerateNavigationSummaryPhaseResult(MemoryContract):
     planner_error: str | None = None
 
 
+class ResolvedNavigationOperation(MemoryContract):
+    document_kind: Literal["overview", "summary"]
+    op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT]
+    target_path: str = Field(..., min_length=1)
+    branch_path: str = Field(..., min_length=1)
+    file_exists: bool
+    based_on_existing: bool
+    previous_content: str | None = None
+    previous_metadata: dict[str, Any] = Field(default_factory=dict)
+    previous_body: str | None = None
+    markdown_body: str | None = None
+    line_operations: list[MemoryLineOperation] = Field(default_factory=list)
+    expected_body_sha256: str | None = None
+
+
+class ResolveNavigationOperationsResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    phase: str = Field(default="resolve_navigation_operations", min_length=1)
+    resolved_navigation_operations: list[ResolvedNavigationOperation] = Field(default_factory=list)
+
+
+class NavigationMutationPlan(MemoryContract):
+    document_kind: Literal["overview", "summary"]
+    op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT]
+    target_path: str = Field(..., min_length=1)
+    branch_path: str = Field(..., min_length=1)
+    file_exists: bool
+    based_on_existing: bool
+    previous_content: str | None = None
+    previous_metadata: dict[str, Any] = Field(default_factory=dict)
+    previous_body: str | None = None
+    markdown_body: str | None = None
+    line_operations: list[MemoryLineOperation] = Field(default_factory=list)
+    expected_body_sha256: str | None = None
+    desired_content: str | None = None
+
+
+class NavigationPatchPlanResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    phase: str = Field(default="build_navigation_staged_write_set", min_length=1)
+    navigation_mutations: list[NavigationMutationPlan] = Field(default_factory=list)
+
+
 class ResolvedMemoryOperation(MemoryContract):
-    op: Literal["write", "edit", "delete"]
+    op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT, MemoryOpType.DELETE]
     memory_type: str = Field(..., min_length=1)
     target_path: str = Field(..., min_length=1)
     target_name: str = Field(..., min_length=1)
@@ -589,7 +642,7 @@ class ResolveOperationsResult(MemoryContract):
 
 
 class MemoryMutationPlan(MemoryContract):
-    op: Literal["write", "edit", "delete"]
+    op: Literal[MemoryOpType.WRITE, MemoryOpType.EDIT, MemoryOpType.DELETE]
     memory_type: str = Field(..., min_length=1)
     target_path: str = Field(..., min_length=1)
     target_name: str = Field(..., min_length=1)
@@ -653,6 +706,8 @@ class MetadataRefreshResult(MemoryContract):
 
 class NavigationManagerResult(MemoryContract):
     summary_result: NavigationSummaryResult
+    resolve_result: ResolveNavigationOperationsResult
+    patch_plan_result: NavigationPatchPlanResult
     refresh_result: NavigationRefreshResult
     metadata_result: MetadataRefreshResult
 

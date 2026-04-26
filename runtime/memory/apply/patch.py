@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 
 from runtime.memory.base.contracts import (
+    MemoryLineOperation,
     PreparedExtractContext,
     ResolvedMemoryFieldPlan,
     ResolvedMemoryOperation,
@@ -78,6 +79,44 @@ def serialize_markdown_document(*, metadata: dict[str, Any], body: str) -> str:
 
 def compute_content_sha256(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def apply_line_operations_to_body(text: str, line_operations: list[MemoryLineOperation]) -> str:
+    updated_text = str(text or "")
+    for line_operation in _sort_line_operations(line_operations):
+        updated_text = _apply_single_line_operation(updated_text, line_operation)
+    return updated_text
+
+
+def build_navigation_document(
+    *,
+    kind: str,
+    scope_path: str,
+    navigable_entries: list[dict[str, Any]],
+    body: str,
+    previous_metadata: dict[str, Any] | None = None,
+) -> str:
+    previous = previous_metadata or {}
+    now = datetime.now(UTC).isoformat()
+    title = str(
+        previous.get("title") or f"{scope_path.rsplit('/', 1)[-1].replace('-', ' ').title()} {kind.title()}"
+    ).strip()
+    metadata = {
+        "schema_version": previous.get("schema_version", 1),
+        "kind": kind,
+        "scope_path": scope_path,
+        "title": title,
+        "created_at": previous.get("created_at") or now,
+        "updated_at": now,
+        "source": previous.get("source") or {"type": "planner_summary", "trace": f"generated_directory_{kind}"},
+        "visibility": previous.get("visibility") or "internal",
+        "status": previous.get("status") or "active",
+        "target_token_range": previous.get("target_token_range") or ("1000-2000" if kind == "overview" else "100-200"),
+        "entry_count": len(navigable_entries),
+        "top_entries": [entry["title"] for entry in navigable_entries[:3]],
+        "keywords": [entry["title"] for entry in navigable_entries[:3]],
+    }
+    return serialize_markdown_document(metadata=metadata, body=body)
 
 
 def _current_document_state(
@@ -203,11 +242,8 @@ def _has_line_operations(operation: ResolvedMemoryOperation) -> bool:
 
 
 def _apply_field_line_operations(text: str, operation: ResolvedMemoryOperation) -> str:
-    updated_text = str(text or "")
     all_operations = [line_operation for plan in operation.field_plans for line_operation in plan.line_operations]
-    for line_operation in _sort_line_operations(all_operations):
-        updated_text = _apply_single_line_operation(updated_text, line_operation)
-    return updated_text
+    return apply_line_operations_to_body(text, all_operations)
 
 
 def _sort_line_operations(line_operations: list) -> list:

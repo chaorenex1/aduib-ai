@@ -7,6 +7,7 @@ from typing import Any
 
 from component.storage.base_storage import storage_manager
 from configs import config
+from runtime.memory.apply.patch import compute_content_sha256, parse_markdown_document
 from runtime.memory.apply.patch_handler import PatchHandler
 from runtime.memory.base.contracts import (
     ExtractedMemoryFieldPlan,
@@ -14,13 +15,17 @@ from runtime.memory.base.contracts import (
     MemoryChangePlanItem,
     MemoryCommittedResult,
     MemoryUpdateContext,
+    NavigationDocumentPlan,
     NavigationManagerResult,
+    NavigationSummaryResult,
     PatchApplyResult,
     PatchPlanResult,
     PlannerToolUseResult,
     PreparedExtractContext,
     ResolvedMemoryFieldPlan,
     ResolvedMemoryOperation,
+    ResolvedNavigationOperation,
+    ResolveNavigationOperationsResult,
     ResolveOperationsResult,
 )
 from runtime.memory.base.enums import MemoryTaskPhase
@@ -50,6 +55,18 @@ class MemoryUpdater:
             tools_used=[
                 item.model_dump(mode="python", exclude_none=True) for item in self.update_ctx.extract_result.tools_used
             ],
+        )
+
+    def resolve_navigation_operations(
+        self,
+        *,
+        patch_plan_result: PatchPlanResult,
+        navigation_summary_result: NavigationSummaryResult,
+    ) -> ResolveNavigationOperationsResult:
+        return self.resolve_navigation_operations_from_inputs(
+            task_id=self.update_ctx.task_id,
+            patch_plan_result=patch_plan_result,
+            navigation_summary_result=navigation_summary_result,
         )
 
     @classmethod
@@ -98,6 +115,46 @@ class MemoryUpdater:
             metadata_scopes=metadata_scopes,
         )
 
+    @classmethod
+    def resolve_navigation_operations_from_inputs(
+        cls,
+        *,
+        task_id: str,
+        patch_plan_result: PatchPlanResult,
+        navigation_summary_result: NavigationSummaryResult,
+    ) -> ResolveNavigationOperationsResult:
+        resolved_navigation_operations: list[ResolvedNavigationOperation] = []
+        allowed_paths = {
+            target.overview_path
+            for target in patch_plan_result.navigation_targets
+        } | {
+            target.summary_path
+            for target in patch_plan_result.navigation_targets
+        }
+        for branch_plan in navigation_summary_result.navigation_mutations:
+            resolved_navigation_operations.extend(
+                item
+                for item in (
+                    cls._resolve_single_navigation_document(
+                        branch_path=branch_plan.branch_path,
+                        document_kind="overview",
+                        document_plan=branch_plan.overview,
+                        allowed_paths=allowed_paths,
+                    ),
+                    cls._resolve_single_navigation_document(
+                        branch_path=branch_plan.branch_path,
+                        document_kind="summary",
+                        document_plan=branch_plan.summary,
+                        allowed_paths=allowed_paths,
+                    ),
+                )
+                if item is not None
+            )
+        return ResolveNavigationOperationsResult(
+            task_id=task_id,
+            resolved_navigation_operations=resolved_navigation_operations,
+        )
+
     def commit(
         self,
         *,
@@ -118,6 +175,85 @@ class MemoryUpdater:
             final_stage="committed",
         )
 
+    @staticmethod
+    def _resolve_single_navigation_document(
+        *,
+        branch_path: str,
+        document_kind: str,
+        document_plan: NavigationDocumentPlan,
+        allowed_paths: set[str],
+    ) -> ResolvedNavigationOperation | None:
+        if document_plan.op == "noop":
+            return None
+
+        expected_path = f"{branch_path}/{document_kind}.md"
+        if document_plan.path != expected_path:
+            raise ValueError(f"navigation document path mismatch: {document_plan.path} != {expected_path}")
+        if allowed_paths and document_plan.path not in allowed_paths:
+            raise ValueError(f"navigation document path not present in patch plan targets: {document_plan.path}")
+
+        scoped_path = "/".join(part for part in [config.MEMORY_TREE_ROOT_DIR, document_plan.path] if part)
+        file_exists = storage_manager.exists(scoped_path)
+        previous_content = storage_manager.read_text(scoped_path) if file_exists else None
+        previous_metadata, previous_body = parse_markdown_document(previous_content or "")
+
+        MemoryUpdater._validate_navigation_document_plan(
+            document_kind=document_kind,
+            document_plan=document_plan,
+            file_exists=file_exists,
+            previous_body=previous_body,
+        )
+
+        return ResolvedNavigationOperation(
+            document_kind=document_kind,
+            op=document_plan.op,
+            target_path=document_plan.path,
+            branch_path=branch_path,
+            file_exists=file_exists,
+            based_on_existing=document_plan.based_on_existing,
+            previous_content=previous_content,
+            previous_metadata=previous_metadata,
+            previous_body=previous_body,
+            markdown_body=document_plan.markdown_body or None,
+            line_operations=list(document_plan.line_operations),
+            expected_body_sha256=document_plan.expected_body_sha256,
+        )
+
+    @staticmethod
+    def _validate_navigation_document_plan(
+        *,
+        document_kind: str,
+        document_plan: NavigationDocumentPlan,
+        file_exists: bool,
+        previous_body: str,
+    ) -> None:
+        if document_plan.op == "write":
+            if file_exists:
+                raise ValueError(f"{document_kind} write cannot target an existing document")
+            if document_plan.based_on_existing:
+                raise ValueError(f"{document_kind} write cannot be based_on_existing")
+            if not document_plan.markdown_body.strip():
+                raise ValueError(f"{document_kind} write requires markdown_body")
+            if document_plan.line_operations:
+                raise ValueError(f"{document_kind} write must not include line_operations")
+            return
+
+        if not file_exists:
+            raise ValueError(f"{document_kind} edit requires an existing document")
+        if not document_plan.based_on_existing:
+            raise ValueError(f"{document_kind} edit must declare based_on_existing")
+        if document_plan.markdown_body.strip():
+            raise ValueError(f"{document_kind} edit must not include markdown_body")
+        if not document_plan.line_operations:
+            raise ValueError(f"{document_kind} edit requires line_operations")
+        if not document_plan.expected_body_sha256:
+            raise ValueError(f"{document_kind} edit requires expected_body_sha256")
+        actual_body_sha256 = compute_content_sha256(previous_body)
+        if document_plan.expected_body_sha256 != actual_body_sha256:
+            raise ValueError(
+                f"{document_kind} body sha256 mismatch: {document_plan.expected_body_sha256} != {actual_body_sha256}"
+            )
+
     def run(self) -> MemoryCommittedResult:
         resolve_result = self.resolve_operations()
         patch_plan_result, patch_apply_result = self.patch_handler.run(
@@ -125,10 +261,33 @@ class MemoryUpdater:
             resolve_result=resolve_result,
         )
         try:
-            navigation_result = self.navigation_manager.run(
+            navigation_summary_result = self.navigation_manager.generate_navigation_summary(
                 update_ctx=self.update_ctx,
                 patch_plan=patch_plan_result,
                 patch_apply=patch_apply_result,
+            )
+            resolve_navigation_result = self.resolve_navigation_operations(
+                patch_plan_result=patch_plan_result,
+                navigation_summary_result=navigation_summary_result,
+            )
+            navigation_patch_plan_result = self.patch_handler.build_navigation_staged_write_set(
+                update_ctx=self.update_ctx,
+                resolve_navigation_result=resolve_navigation_result,
+            )
+            navigation_refresh_result = self.patch_handler.apply_navigation_files(
+                update_ctx=self.update_ctx,
+                navigation_patch_plan=navigation_patch_plan_result,
+            )
+            metadata_result = self.navigation_manager.refresh_metadata(
+                update_ctx=self.update_ctx,
+                patch_plan=patch_plan_result,
+            )
+            navigation_result = NavigationManagerResult(
+                summary_result=navigation_summary_result,
+                resolve_result=resolve_navigation_result,
+                patch_plan_result=navigation_patch_plan_result,
+                refresh_result=navigation_refresh_result,
+                metadata_result=metadata_result,
             )
         except Exception as exc:
             raise RuntimeError(

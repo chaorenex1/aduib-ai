@@ -24,15 +24,6 @@ def _ensure_aware(dt: datetime) -> datetime:
     return dt
 
 
-class MemoryType(StrEnum):
-    """记忆类型枚举。"""
-
-    PERCEPTUAL = "perceptual"
-    EPISODIC = "episodic"
-    SEMANTIC = "semantic"
-    PROCEDURAL = "procedural"
-
-
 class MemorySource(StrEnum):
     """记忆的来源渠道。"""
 
@@ -57,13 +48,22 @@ class MemoryDomain(StrEnum):
     KNOWLEDGE = "knowledge"  # 知识
 
 
+class MemoryClassType(StrEnum):
+    """高层记忆分类枚举。"""
+
+    PERCEPTUAL = "perceptual"
+    EPISODIC = "episodic"
+    SEMANTIC = "semantic"
+    PROCEDURAL = "procedural"
+
+
 class Memory(BaseModel):
     """统一的记忆实体模型。"""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: str = Field(default_factory=lambda: str(uuid4()))
-    type: MemoryType
+    type: MemoryClassType
     content: str
     summary_enabled: bool = Field(False, description="Whether to generate summary for the memory")
     knowledge_base: Optional[Any] = Field(default=None, description="关联的知识库信息")

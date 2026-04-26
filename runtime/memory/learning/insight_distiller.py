@@ -10,7 +10,7 @@ from models.engine import get_db
 from models.memory import MemoryBase, MemoryRecord
 from runtime.generator.generator import LLMGenerator
 from runtime.memory.manager import MemoryManager
-from runtime.memory.types import Memory, MemoryType
+from runtime.memory.types import Memory, MemoryClassType
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class InsightDistiller:
                 .join(MemoryRecord.memory_base)
                 .filter(
                     MemoryBase.user_id == user_id,
-                    MemoryRecord.type == MemoryType.EPISODIC.value,
+                    MemoryRecord.type == MemoryClassType.EPISODIC.value,
                     MemoryRecord.deleted == 0,
                     MemoryRecord.topic.isnot(None),
                     MemoryRecord.topic != "",
@@ -60,7 +60,7 @@ class InsightDistiller:
                 .join(MemoryRecord.memory_base)
                 .filter(
                     MemoryBase.user_id == user_id,
-                    MemoryRecord.type == MemoryType.SEMANTIC.value,
+                    MemoryRecord.type == MemoryClassType.SEMANTIC.value,
                     MemoryRecord.deleted == 0,
                     MemoryRecord.topic.isnot(None),
                     MemoryRecord.topic != "",
@@ -84,7 +84,7 @@ class InsightDistiller:
                 continue
 
             semantic_memory = Memory(
-                type=MemoryType.SEMANTIC,
+                type=MemoryClassType.SEMANTIC,
                 content=insight,
                 user_id=user_id,
                 domain=topic_domain or "",
@@ -106,7 +106,7 @@ class InsightDistiller:
                 .filter(
                     MemoryRecord.domain == topic_domain,
                     MemoryRecord.topic == topic_name,
-                    MemoryRecord.type == MemoryType.EPISODIC.value,
+                    MemoryRecord.type == MemoryClassType.EPISODIC.value,
                     MemoryRecord.deleted == 0,
                     MemoryRecord.kb_doc_id.isnot(None),
                 )

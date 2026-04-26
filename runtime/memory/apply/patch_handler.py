@@ -8,17 +8,27 @@ from runtime.memory.base.contracts import (
     MemoryMutationPlan,
     MemoryUpdateContext,
     MetadataTarget,
+    NavigationMutationPlan,
+    NavigationPatchPlanResult,
+    NavigationRefreshResult,
     NavigationTarget,
     PatchApplyResult,
     PatchPlanResult,
     PreparedExtractContext,
     ResolvedMemoryOperation,
+    ResolvedNavigationOperation,
+    ResolveNavigationOperationsResult,
     ResolveOperationsResult,
     RollbackPlan,
 )
 from runtime.memory.schema.registry import MemorySchemaRegistry
 
-from .patch import build_desired_document, build_templated_content_field_plan
+from .patch import (
+    apply_line_operations_to_body,
+    build_desired_document,
+    build_navigation_document,
+    build_templated_content_field_plan,
+)
 from .rollback import deserialize_snapshot, serialize_snapshot
 
 
@@ -115,6 +125,50 @@ class PatchHandler:
             },
         )
 
+    def build_navigation_staged_write_set(
+        self,
+        *,
+        update_ctx: MemoryUpdateContext,
+        resolve_navigation_result: ResolveNavigationOperationsResult,
+    ) -> NavigationPatchPlanResult:
+        return self.build_navigation_staged_write_set_from_inputs(
+            task_id=update_ctx.task_id,
+            resolve_navigation_result=resolve_navigation_result,
+        )
+
+    @classmethod
+    def build_navigation_staged_write_set_from_inputs(
+        cls,
+        *,
+        task_id: str,
+        resolve_navigation_result: ResolveNavigationOperationsResult,
+    ) -> NavigationPatchPlanResult:
+        navigation_mutations: list[NavigationMutationPlan] = []
+        for operation in resolve_navigation_result.resolved_navigation_operations:
+            navigable_entries = cls._list_navigable_entries_for_branch(operation.branch_path)
+            desired_content = cls._build_navigation_desired_content(
+                operation=operation,
+                navigable_entries=navigable_entries,
+            )
+            navigation_mutations.append(
+                NavigationMutationPlan(
+                    document_kind=operation.document_kind,
+                    op=operation.op,
+                    target_path=operation.target_path,
+                    branch_path=operation.branch_path,
+                    file_exists=operation.file_exists,
+                    based_on_existing=operation.based_on_existing,
+                    previous_content=operation.previous_content,
+                    previous_metadata=operation.previous_metadata,
+                    previous_body=operation.previous_body,
+                    markdown_body=operation.markdown_body,
+                    line_operations=list(operation.line_operations),
+                    expected_body_sha256=operation.expected_body_sha256,
+                    desired_content=desired_content,
+                )
+            )
+        return NavigationPatchPlanResult(task_id=task_id, navigation_mutations=navigation_mutations)
+
     def apply_memory_files(
         self,
         *,
@@ -168,6 +222,32 @@ class PatchHandler:
                 rollback_metadata["rollback_failed_paths"] = patch_plan.rollback_plan.target_paths
             raise RuntimeError(json.dumps({"phase": "apply_memory_files", "rollback_metadata": rollback_metadata}))
 
+    def apply_navigation_files(
+        self,
+        *,
+        update_ctx: MemoryUpdateContext,
+        navigation_patch_plan: NavigationPatchPlanResult,
+    ) -> NavigationRefreshResult:
+        return self.apply_navigation_files_from_inputs(
+            task_id=update_ctx.task_id,
+            navigation_patch_plan=navigation_patch_plan,
+        )
+
+    @classmethod
+    def apply_navigation_files_from_inputs(
+        cls,
+        *,
+        task_id: str,
+        navigation_patch_plan: NavigationPatchPlanResult,
+    ) -> NavigationRefreshResult:
+        navigation_files: list[str] = []
+        for mutation in navigation_patch_plan.navigation_mutations:
+            scoped_path = cls._to_scoped_path(mutation.target_path)
+            storage_manager.write_text_atomic(scoped_path, mutation.desired_content)
+            storage_manager.read_text(scoped_path)
+            navigation_files.append(mutation.target_path)
+        return NavigationRefreshResult(task_id=task_id, navigation_files=navigation_files)
+
     def run(
         self,
         *,
@@ -206,3 +286,30 @@ class PatchHandler:
         ]
         materialized_operation.field_plans.append(rendered_content_plan)
         return materialized_operation
+
+    @staticmethod
+    def _list_navigable_entries_for_branch(branch_path: str) -> list[dict]:
+        from runtime.memory.navigation.common import list_branch_navigable_entries
+
+        return list_branch_navigable_entries(branch_path)
+
+    @staticmethod
+    def _build_navigation_desired_content(
+        *,
+        operation: ResolvedNavigationOperation,
+        navigable_entries: list[dict],
+    ) -> str:
+        if operation.op == "write":
+            next_body = str(operation.markdown_body or "").strip()
+        else:
+            next_body = apply_line_operations_to_body(
+                str(operation.previous_body or ""),
+                operation.line_operations,
+            ).strip()
+        return build_navigation_document(
+            kind=operation.document_kind,
+            scope_path=operation.branch_path,
+            navigable_entries=navigable_entries,
+            body=next_body,
+            previous_metadata=operation.previous_metadata,
+        )

@@ -2,32 +2,31 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from hashlib import sha256
 from typing import Any
 
 from component.storage.base_storage import storage_manager
 from configs import config
 from runtime.entities.llm_entities import ChatCompletionRequest
-from runtime.memory.apply.patch import compute_content_sha256, parse_markdown_document, serialize_markdown_document
-from runtime.memory.apply.patch_handler import PatchHandler
+from runtime.memory.apply.patch import compute_content_sha256, parse_markdown_document
 from runtime.memory.base.contracts import (
     MemoryUpdateContext,
     MetadataRefreshResult,
     NavigationDocumentPlan,
     NavigationManagerResult,
+    NavigationPatchPlanResult,
     NavigationRefreshResult,
     NavigationSummaryBranchPlan,
     NavigationSummaryResult,
     PatchApplyResult,
     PatchPlanResult,
+    ResolveNavigationOperationsResult,
 )
 from runtime.memory.committed_tree import CommittedMemoryTree
 from runtime.memory.navigation.common import (
-    list_branch_navigable_entries,
     read_current_branch_files,
     read_existing_navigation_docs,
-    to_scoped_navigation_path,
 )
 from runtime.memory.navigation.prompts import build_navigation_summary_messages
 from runtime.model_manager import ModelManager
@@ -41,7 +40,7 @@ class NavigationManager:
         *,
         update_ctx: MemoryUpdateContext,
         patch_plan: PatchPlanResult,
-        patch_apply: PatchApplyResult,
+        patch_apply: PatchApplyResult | None = None,
     ) -> NavigationSummaryResult:
         return self.generate_navigation_summary_from_inputs(
             task_id=update_ctx.task_id,
@@ -57,7 +56,7 @@ class NavigationManager:
         task_id: str,
         user_id: str | None,
         patch_plan: PatchPlanResult,
-        patch_apply: PatchApplyResult,
+        patch_apply: PatchApplyResult | None = None,
     ) -> NavigationSummaryResult:
         mutation_lookup = {
             item.target_path: item.model_dump(mode="python", exclude_none=True)
@@ -94,50 +93,64 @@ class NavigationManager:
             planner_error=None,
         )
 
+    def build_navigation_patch_plan(
+        self,
+        *,
+        update_ctx: MemoryUpdateContext,
+        patch_plan: PatchPlanResult,
+        summary_result: NavigationSummaryResult,
+    ) -> tuple[ResolveNavigationOperationsResult, NavigationPatchPlanResult]:
+        from runtime.memory.apply.memory_updater import MemoryUpdater
+
+        resolve_result = MemoryUpdater.resolve_navigation_operations_from_inputs(
+            task_id=update_ctx.task_id,
+            patch_plan_result=patch_plan,
+            navigation_summary_result=summary_result,
+        )
+        patch_plan_result = self.build_navigation_patch_plan_from_inputs(
+            task_id=update_ctx.task_id,
+            resolve_navigation_result=resolve_result,
+        )
+        return resolve_result, patch_plan_result
+
+    @classmethod
+    def build_navigation_patch_plan_from_inputs(
+        cls,
+        *,
+        task_id: str,
+        resolve_navigation_result: ResolveNavigationOperationsResult,
+    ) -> NavigationPatchPlanResult:
+        from runtime.memory.apply.patch_handler import PatchHandler
+
+        return PatchHandler.build_navigation_staged_write_set_from_inputs(
+            task_id=task_id,
+            resolve_navigation_result=resolve_navigation_result,
+        )
+
     def refresh_navigation(
         self,
         *,
         update_ctx: MemoryUpdateContext,
-        summary_result: NavigationSummaryResult,
+        patch_plan_result: NavigationPatchPlanResult,
     ) -> NavigationRefreshResult:
-        return self.refresh_navigation_from_inputs(task_id=update_ctx.task_id, summary_result=summary_result)
+        return self.refresh_navigation_from_inputs(
+            task_id=update_ctx.task_id,
+            patch_plan_result=patch_plan_result,
+        )
 
     @classmethod
     def refresh_navigation_from_inputs(
         cls,
         *,
         task_id: str,
-        summary_result: NavigationSummaryResult,
+        patch_plan_result: NavigationPatchPlanResult,
     ) -> NavigationRefreshResult:
-        navigation_files: list[str] = []
-        for branch_plan in summary_result.navigation_mutations:
-            directory_path = branch_plan.branch_path
-            navigable_entries = list_branch_navigable_entries(directory_path)
-            if branch_plan.overview.op != "noop":
-                overview_content = cls._render_planned_navigation_document(
-                    kind="overview",
-                    scope_path=directory_path,
-                    navigable_entries=navigable_entries,
-                    markdown_body=branch_plan.overview.markdown_body,
-                )
-                storage_manager.write_text_atomic(
-                    to_scoped_navigation_path(branch_plan.overview.path),
-                    overview_content,
-                )
-                navigation_files.append(branch_plan.overview.path)
-            if branch_plan.summary.op != "noop":
-                summary_content = cls._render_planned_navigation_document(
-                    kind="summary",
-                    scope_path=directory_path,
-                    navigable_entries=navigable_entries,
-                    markdown_body=branch_plan.summary.markdown_body,
-                )
-                storage_manager.write_text_atomic(
-                    to_scoped_navigation_path(branch_plan.summary.path),
-                    summary_content,
-                )
-                navigation_files.append(branch_plan.summary.path)
-        return NavigationRefreshResult(task_id=task_id, navigation_files=navigation_files)
+        from runtime.memory.apply.patch_handler import PatchHandler
+
+        return PatchHandler.apply_navigation_files_from_inputs(
+            task_id=task_id,
+            navigation_patch_plan=patch_plan_result,
+        )
 
     def refresh_metadata(
         self,
@@ -184,10 +197,20 @@ class NavigationManager:
             patch_plan=patch_plan,
             patch_apply=patch_apply,
         )
-        refresh_result = self.refresh_navigation(update_ctx=update_ctx, summary_result=summary_result)
+        resolve_result, patch_plan_result = self.build_navigation_patch_plan(
+            update_ctx=update_ctx,
+            patch_plan=patch_plan,
+            summary_result=summary_result,
+        )
+        refresh_result = self.refresh_navigation_from_inputs(
+            task_id=update_ctx.task_id,
+            patch_plan_result=patch_plan_result,
+        )
         metadata_result = self.refresh_metadata(update_ctx=update_ctx, patch_plan=patch_plan)
         return NavigationManagerResult(
             summary_result=summary_result,
+            resolve_result=resolve_result,
+            patch_plan_result=patch_plan_result,
             refresh_result=refresh_result,
             metadata_result=metadata_result,
         )
@@ -272,43 +295,43 @@ class NavigationManager:
     ) -> None:
         if plan.path != expected_path:
             raise ValueError(f"{document_name} path mismatch: {plan.path} != {expected_path}")
-        if plan.op == "noop" and plan.markdown_body:
-            raise ValueError(f"{document_name} noop must not include markdown_body")
-        if existing_markdown is None and plan.op == "edit":
-            raise ValueError(f"{document_name} cannot edit without existing markdown")
-        if existing_markdown is not None and plan.op == "write":
-            raise ValueError(f"{document_name} cannot write when existing markdown is present")
-        if existing_markdown is None and plan.based_on_existing:
-            raise ValueError(f"{document_name} cannot be based_on_existing without existing markdown")
-        if existing_markdown is not None and plan.op in {"edit", "noop"} and not plan.based_on_existing:
-            raise ValueError(f"{document_name} must declare based_on_existing when editing existing markdown")
+        existing_body = None
+        if existing_markdown is not None:
+            _existing_metadata, existing_body = parse_markdown_document(existing_markdown)
 
-    @staticmethod
-    def _render_planned_navigation_document(
-        *,
-        kind: str,
-        scope_path: str,
-        navigable_entries: list[dict],
-        markdown_body: str,
-    ) -> str:
-        now = datetime.now(UTC).isoformat()
-        title = f"{scope_path.rsplit('/', 1)[-1].replace('-', ' ').title()} {kind.title()}"
-        metadata = {
-            "schema_version": 1,
-            "kind": kind,
-            "scope_path": scope_path,
-            "title": title,
-            "created_at": now,
-            "updated_at": now,
-            "source": {"type": "planner_summary", "trace": f"generated_directory_{kind}"},
-            "visibility": "internal",
-            "status": "active",
-            "target_token_range": "1000-2000" if kind == "overview" else "100-200",
-            "entry_count": len(navigable_entries),
-            "top_entries": [entry["title"] for entry in navigable_entries[:3]],
-            "keywords": [entry["title"] for entry in navigable_entries[:3]],
-        }
-        return serialize_markdown_document(metadata=metadata, body=markdown_body.strip())
+        if plan.op == "noop":
+            if plan.markdown_body.strip():
+                raise ValueError(f"{document_name} noop must not include markdown_body")
+            if plan.line_operations:
+                raise ValueError(f"{document_name} noop must not include line_operations")
+            return
+
+        if plan.op == "write":
+            if existing_markdown is not None:
+                raise ValueError(f"{document_name} cannot write when existing markdown is present")
+            if plan.based_on_existing:
+                raise ValueError(f"{document_name} write cannot be based_on_existing")
+            if not plan.markdown_body.strip():
+                raise ValueError(f"{document_name} write requires markdown_body")
+            if plan.line_operations:
+                raise ValueError(f"{document_name} write must not include line_operations")
+            return
+
+        if existing_markdown is None:
+            raise ValueError(f"{document_name} cannot edit without existing markdown")
+        if not plan.based_on_existing:
+            raise ValueError(f"{document_name} edit must declare based_on_existing")
+        if plan.markdown_body.strip():
+            raise ValueError(f"{document_name} edit must not include markdown_body")
+        if not plan.line_operations:
+            raise ValueError(f"{document_name} edit requires line_operations")
+        if not plan.expected_body_sha256:
+            raise ValueError(f"{document_name} edit requires expected_body_sha256")
+        actual_body_sha256 = compute_content_sha256(str(existing_body or ""))
+        if plan.expected_body_sha256 != actual_body_sha256:
+            raise ValueError(
+                f"{document_name} expected_body_sha256 mismatch: {plan.expected_body_sha256} != {actual_body_sha256}"
+            )
 
     @classmethod
     def _extend_scope_projection(

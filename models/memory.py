@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from models.base import Base
-from runtime.memory.types import Memory, MemoryType
+from runtime.memory.types import Memory, MemoryClassType
 
 
 class MemoryBase(Base):
@@ -85,7 +85,7 @@ class MemoryRecord(Base):
     def to_memory(self) -> "Memory":
         return Memory(
             id=str(self.id),
-            type=MemoryType(self.type),
+            type=MemoryClassType(self.type),
             domain=self.domain or "",
             source=self.source or "",
             topic=self.topic or "",
@@ -99,7 +99,7 @@ class MemoryRecord(Base):
     def from_memory(cls, memory: "Memory") -> "MemoryRecord":
         return cls(
             id=memory.id,
-            type=memory.type.value if isinstance(memory.type, MemoryType) else str(memory.type),
+            type=memory.type.value if isinstance(memory.type, MemoryClassType) else str(memory.type),
             domain=memory.domain or "event",
             source=memory.source or None,
             topic=memory.topic,
