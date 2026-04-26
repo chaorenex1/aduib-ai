@@ -5,12 +5,12 @@ import json
 
 import anyio
 
+from runtime.memory.base.contracts import PlannerToolRequest, PlannerToolUseResult
 from runtime.tool.builtin_tool.providers.mem_glob.mem_glob import MemGlobTool
 from runtime.tool.builtin_tool.providers.mem_ls.mem_ls import MemLsTool
 from runtime.tool.builtin_tool.providers.mem_read.mem_read import MemReadTool
 from runtime.tool.entities import ToolEntity, ToolProviderType
 from runtime.tool.tool_manager import ToolManager
-from runtime.memory.base.contracts import PlannerToolRequest, PlannerToolUseResult
 
 SUPPORTED_PLANNER_TOOLS = ("ls", "read", "find")
 PLANNER_TOOL_TO_BUILTIN = {
@@ -66,7 +66,7 @@ class PlannerToolExecutor:
         return PlannerToolUseResult(tool=request.tool, args=request.args, result=normalized)
 
     def execute_sync(self, request: PlannerToolRequest, *, message_id: str | None = None) -> PlannerToolUseResult:
-        return anyio.run(self.execute, request, message_id)
+        return anyio.run(lambda: self.execute(request, message_id=message_id))
 
     @staticmethod
     def _tool_call_id(request: PlannerToolRequest) -> str:

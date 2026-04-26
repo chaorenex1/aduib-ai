@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from runtime.memory.base.contracts import PlannerToolRequest
+from runtime.memory.project.contracts import ProjectDocumentPlan, ProjectPlannerAction
 from runtime.memory.project.enums import ProjectSnippetDomain
 
 
@@ -55,3 +57,16 @@ def normalize_snippets_inference(value: dict[str, Any]) -> dict[str, str]:
         "implementation": implementation,
         "strategy": str(value.get("strategy") or "llm").strip() or "llm",
     }
+
+
+def normalize_project_planner_action(value: dict[str, Any]) -> ProjectPlannerAction:
+    payload = dict(value)
+    tool_requests = payload.get("tool_requests") or []
+    payload["tool_requests"] = [
+        PlannerToolRequest.model_validate(item) for item in tool_requests if isinstance(item, dict)
+    ]
+    document_plans = payload.get("document_plans") or []
+    payload["document_plans"] = [
+        ProjectDocumentPlan.model_validate(item) for item in document_plans if isinstance(item, dict)
+    ]
+    return ProjectPlannerAction.model_validate(payload)

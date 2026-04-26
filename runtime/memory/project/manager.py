@@ -15,16 +15,24 @@ from runtime.memory.base.contracts import (
     NavigationTarget,
     PatchPlanResult,
 )
+from runtime.memory.extract.tools import PlannerToolExecutor
 from runtime.memory.project.context import ProjectMemoryContextBuilder
-from runtime.memory.project.contracts import ProjectDocumentPlan, ProjectMemoryPlan, ProjectMemoryScope
+from runtime.memory.project.contracts import (
+    ProjectDocumentPlan,
+    ProjectMemoryPlan,
+    ProjectMemoryScope,
+    ProjectOperationPlanResult,
+)
 from runtime.memory.project.errors import ProjectPayloadError
 from runtime.memory.project.path_rules import build_docs_target_path, build_snippets_target_path
+from runtime.memory.project.planner import ProjectPlanner
 from runtime.memory.project.prompts import build_docs_classification_messages, build_snippets_classification_messages
 from runtime.memory.project.structured_output import (
     load_json_payload,
     normalize_docs_inference,
     normalize_snippets_inference,
 )
+from runtime.memory.project.working_state import ProjectPlanningState
 from runtime.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
@@ -47,6 +55,8 @@ class ProjectMemoryManager:
 
     def __init__(self, *, context_builder: ProjectMemoryContextBuilder | None = None) -> None:
         self.context_builder = context_builder or ProjectMemoryContextBuilder()
+        self.planner = ProjectPlanner()
+        self.tool_executor = PlannerToolExecutor()
 
     def build_scope(
         self,
@@ -75,22 +85,77 @@ class ProjectMemoryManager:
         scope: ProjectMemoryScope,
         source_ref: MemorySourceRef,
     ) -> ProjectMemoryPlan:
-        payload = self._require_project_payload(source_ref)
-        raw_items = payload.get("items") or []
-
-        document_plans = [self._plan_single_item(scope=scope, item=item) for item in raw_items]
-        navigation_targets = [
-            NavigationTarget(
-                branch_path=scope.root_path,
-                overview_path=scope.overview_path,
-                summary_path=scope.summary_path,
-            )
-        ]
+        plan_result = self.run_planning(scope=scope, source_ref=source_ref)
         return ProjectMemoryPlan(
             scope=scope,
-            document_plans=document_plans,
-            navigation_targets=navigation_targets,
+            document_plans=[item.model_copy(deep=True) for item in plan_result.document_plans],
+            navigation_targets=[item.model_copy(deep=True) for item in plan_result.navigation_targets],
         )
+
+    def run_planning(
+        self,
+        *,
+        scope: ProjectMemoryScope,
+        source_ref: MemorySourceRef,
+    ) -> ProjectOperationPlanResult:
+        payload = self._require_project_payload(source_ref)
+        working_state = ProjectPlanningState(
+            scope=scope,
+            source_payload=payload,
+            document_plans=[],
+            navigation_targets=[],
+        )
+        task_id = str(scope.project_id)
+        max_turns = 6
+        for _ in range(max_turns):
+            action = self.planner.next_action(working_state=working_state)
+            if action.action == "request_tools":
+                for request in action.tool_requests:
+                    working_state.apply_tool_result(self.tool_executor.execute_sync(request))
+                continue
+            if action.action == "update_plan":
+                next_document_plans = [item.model_copy(deep=True) for item in action.document_plans]
+                next_navigation_targets = (
+                    [item.model_copy(deep=True) for item in action.navigation_targets]
+                    if action.navigation_targets
+                    else self._default_navigation_targets(scope)
+                )
+                working_state.apply_document_plans(next_document_plans, next_navigation_targets)
+                continue
+            if action.action == "finalize":
+                next_document_plans = (
+                    [item.model_copy(deep=True) for item in action.document_plans]
+                    if action.document_plans
+                    else [item.model_copy(deep=True) for item in working_state.document_plans]
+                )
+                next_navigation_targets = (
+                    [item.model_copy(deep=True) for item in action.navigation_targets]
+                    if action.navigation_targets
+                    else [
+                        item.model_copy(deep=True)
+                        for item in (
+                            working_state.navigation_targets or self._default_navigation_targets(scope)
+                        )
+                    ]
+                )
+                working_state.apply_document_plans(next_document_plans, next_navigation_targets)
+                return ProjectOperationPlanResult(
+                    task_id=task_id,
+                    planner_status="planned",
+                    document_plans=[item.model_copy(deep=True) for item in working_state.document_plans],
+                    navigation_targets=[item.model_copy(deep=True) for item in working_state.navigation_targets],
+                    tools_used=[item.model_copy(deep=True) for item in working_state.tool_results],
+                )
+            if action.action == "stop_noop":
+                return ProjectOperationPlanResult(
+                    task_id=task_id,
+                    planner_status="noop",
+                    document_plans=[],
+                    navigation_targets=[],
+                    tools_used=[item.model_copy(deep=True) for item in working_state.tool_results],
+                )
+            raise ProjectPayloadError(f"unsupported project planner action: {action.action}")
+        raise ProjectPayloadError("project planner exceeded maximum turns")
 
     def build_navigation_preview(
         self,
@@ -190,6 +255,16 @@ class ProjectMemoryManager:
             inference_notes=inference,
             reasoning="project doc planned from llm inference",
         )
+
+    @staticmethod
+    def _default_navigation_targets(scope: ProjectMemoryScope) -> list[NavigationTarget]:
+        return [
+            NavigationTarget(
+                branch_path=scope.root_path,
+                overview_path=scope.overview_path,
+                summary_path=scope.summary_path,
+            )
+        ]
 
     def _require_project_payload(self, source_ref: MemorySourceRef) -> dict[str, Any]:
         if source_ref.type != "project_memory_import":

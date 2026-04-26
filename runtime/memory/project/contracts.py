@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from runtime.memory.base.contracts import (
     MemoryContract,
     MemoryLineOperation,
     NavigationPlanningPreview,
     NavigationTarget,
+    PlannerToolRequest,
+    PlannerToolUseResult,
 )
 
 
@@ -40,11 +42,59 @@ class ProjectDocumentPlan(MemoryContract):
     reasoning: str = Field(..., min_length=1)
     inference_notes: dict[str, Any] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def validate_operation_shape(self) -> ProjectDocumentPlan:
+        if self.target_family == "snippets" and not str(self.implementation or "").strip():
+            raise ValueError("snippets project document plan requires implementation")
+
+        if self.op == "write":
+            if self.based_on_existing:
+                raise ValueError("write project document plan cannot be based_on_existing")
+            if not self.markdown_body.strip():
+                raise ValueError("write project document plan requires markdown_body")
+            if self.line_operations:
+                raise ValueError("write project document plan must not include line_operations")
+            return self
+
+        if self.op == "edit":
+            if not self.based_on_existing:
+                raise ValueError("edit project document plan must be based_on_existing")
+            if self.markdown_body.strip():
+                raise ValueError("edit project document plan must not include markdown_body")
+            if not self.line_operations:
+                raise ValueError("edit project document plan requires line_operations")
+            if not str(self.expected_body_sha256 or "").strip():
+                raise ValueError("edit project document plan requires expected_body_sha256")
+            return self
+
+        if self.markdown_body.strip():
+            raise ValueError("noop project document plan must not include markdown_body")
+        if self.line_operations:
+            raise ValueError("noop project document plan must not include line_operations")
+        return self
+
 
 class ProjectMemoryPlan(MemoryContract):
     scope: ProjectMemoryScope
     document_plans: list[ProjectDocumentPlan] = Field(default_factory=list)
     navigation_targets: list[NavigationTarget] = Field(default_factory=list)
+
+
+class ProjectPlannerAction(MemoryContract):
+    action: Literal["request_tools", "update_plan", "finalize", "stop_noop"]
+    reasoning: str = Field(..., min_length=1)
+    tool_requests: list[PlannerToolRequest] = Field(default_factory=list)
+    document_plans: list[ProjectDocumentPlan] = Field(default_factory=list)
+    navigation_targets: list[NavigationTarget] = Field(default_factory=list)
+
+
+class ProjectOperationPlanResult(MemoryContract):
+    task_id: str = Field(..., min_length=1)
+    planner_status: str = Field(..., min_length=1)
+    document_plans: list[ProjectDocumentPlan] = Field(default_factory=list)
+    navigation_targets: list[NavigationTarget] = Field(default_factory=list)
+    tools_used: list[PlannerToolUseResult] = Field(default_factory=list)
+    planner_error: str | None = None
 
 
 class ProjectNavigationPreview(MemoryContract):
