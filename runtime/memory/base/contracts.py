@@ -697,19 +697,15 @@ class MemoryCommittedResult(MemoryContract):
 
 class MemoryReadRecord(MemoryContract):
     memory_id: str = Field(..., min_length=1)
-    memory_class: str = Field(..., min_length=1)
-    kind: str = Field(..., min_length=1)
+    memory_type: str = Field(..., min_length=1)
+    memory_level: str = Field(..., min_length=1)
     user_id: str | None = None
     agent_id: str | None = None
     project_id: str | None = None
     scope_type: str = Field(..., min_length=1)
-    scope_path: str = Field(..., min_length=1)
     directory_path: str = Field(..., min_length=1)
     file_path: str = Field(..., min_length=1)
-    title: str = Field(..., min_length=1)
-    topic: str | None = None
-    source_type: str | None = None
-    visibility: str | None = None
+    filename: str = Field(..., min_length=1)
     status: str | None = None
     tags: list[str] = Field(default_factory=list)
     file_sha256: str | None = None

@@ -19,7 +19,7 @@ async def list_memories(_query: Annotated[MemoryListQuery, Depends()]):
         user_id=_query.user_id,
         agent_id=_query.agent_id,
         project_id=_query.project_id,
-        kind=_query.kind,
+        memory_type=_query.memory_type,
         path_prefix=_query.path_prefix,
         updated_after=_query.updated_after,
         cursor=_query.cursor,

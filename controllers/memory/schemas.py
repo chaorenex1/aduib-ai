@@ -166,7 +166,7 @@ class MemoryWriteTaskResultResponse(MemorySchema):
 
 
 class MemoryListQuery(MemoryScope):
-    kind: str | None = None
+    memory_type: str | None = None
     path_prefix: str | None = None
     updated_after: str | None = None
     cursor: str | None = None

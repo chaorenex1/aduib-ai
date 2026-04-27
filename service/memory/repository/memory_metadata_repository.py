@@ -4,14 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import and_, func, or_
 
-from models import (
-    MemoryDedupeIndex,
-    MemoryDirectoryIndex,
-    MemoryIndex,
-    MemoryRetrievalHint,
-    MemoryTimelineIndex,
-    get_db,
-)
+from models import MemoryIndex, get_db
 from service.error.base import RepositoryBase
 
 
@@ -21,42 +14,12 @@ class MemoryMetadataRepository(RepositoryBase):
         with get_db() as session:
             scope_paths = sorted(set(projection.get("scope_paths") or []))
             memory_index_records = projection.get("memory_index") or []
-            directory_index_records = projection.get("memory_directory_index") or []
-            timeline_records = projection.get("memory_timeline_index") or []
-            dedupe_records = projection.get("memory_dedupe_index") or []
-            retrieval_records = projection.get("memory_retrieval_hint") or []
 
             for scope_path in scope_paths:
-                session.query(MemoryIndex).filter(MemoryIndex.scope_path == scope_path).delete(
-                    synchronize_session=False
-                )
-                session.query(MemoryDirectoryIndex).filter(MemoryDirectoryIndex.scope_path == scope_path).delete(
-                    synchronize_session=False
-                )
-                session.query(MemoryTimelineIndex).filter(MemoryTimelineIndex.file_path.like(f"{scope_path}/%")).delete(
-                    synchronize_session=False
-                )
-                session.query(MemoryDedupeIndex).filter(MemoryDedupeIndex.dedupe_scope_path == scope_path).delete(
-                    synchronize_session=False
-                )
-                session.query(MemoryRetrievalHint).filter(MemoryRetrievalHint.file_path.like(f"{scope_path}/%")).delete(
-                    synchronize_session=False
-                )
+                session.query(MemoryIndex).filter(_scope_path_filter(scope_path)).delete(synchronize_session=False)
 
             if memory_index_records:
                 session.add_all(MemoryIndex(**item) for item in memory_index_records)
-
-            if directory_index_records:
-                session.add_all(MemoryDirectoryIndex(**item) for item in directory_index_records)
-
-            if timeline_records:
-                session.add_all(MemoryTimelineIndex(**item) for item in timeline_records)
-
-            if dedupe_records:
-                session.add_all(MemoryDedupeIndex(**item) for item in dedupe_records)
-
-            if retrieval_records:
-                session.add_all(MemoryRetrievalHint(**item) for item in retrieval_records)
 
             session.commit()
 
@@ -66,7 +29,7 @@ class MemoryMetadataRepository(RepositoryBase):
         user_id: str,
         agent_id: str | None,
         project_id: str | None,
-        kind: str | None,
+        memory_type: str | None,
         path_prefix: str | None,
         updated_after: str | None,
         cursor: str | None,
@@ -80,8 +43,8 @@ class MemoryMetadataRepository(RepositoryBase):
                 query = query.filter(MemoryIndex.agent_id == agent_id)
             if project_id is not None:
                 query = query.filter(MemoryIndex.project_id == project_id)
-            if kind:
-                query = query.filter(MemoryIndex.kind == kind)
+            if memory_type:
+                query = query.filter(MemoryIndex.memory_type == memory_type)
             if path_prefix:
                 query = query.filter(MemoryIndex.file_path.like(f"{path_prefix}%"))
             if updated_after:
@@ -101,7 +64,8 @@ class MemoryMetadataRepository(RepositoryBase):
     def get_memory_by_id(memory_id: str, *, user_id: str, agent_id: str | None, project_id: str | None) -> dict | None:
         with get_db() as session:
             query = session.query(MemoryIndex).filter(
-                MemoryIndex.memory_id == memory_id, MemoryIndex.user_id == user_id
+                MemoryIndex.memory_id == memory_id,
+                MemoryIndex.user_id == user_id,
             )
             if agent_id is None:
                 query = query.filter(MemoryIndex.agent_id.is_(None))
@@ -129,19 +93,15 @@ class MemoryMetadataRepository(RepositoryBase):
     def _memory_index_to_dict(item: MemoryIndex) -> dict:
         return {
             "memory_id": item.memory_id,
-            "memory_class": item.memory_class,
-            "kind": item.kind,
+            "memory_type": item.memory_type,
+            "memory_level": item.memory_level,
             "user_id": item.user_id,
             "agent_id": item.agent_id,
             "project_id": item.project_id,
             "scope_type": item.scope_type,
-            "scope_path": item.scope_path,
             "directory_path": item.directory_path,
             "file_path": item.file_path,
-            "title": item.title,
-            "topic": item.topic,
-            "source_type": item.source_type,
-            "visibility": item.visibility,
+            "filename": item.filename,
             "status": item.status,
             "tags": item.tags or [],
             "file_sha256": item.file_sha256,
@@ -152,6 +112,13 @@ class MemoryMetadataRepository(RepositoryBase):
             "indexed_at": item.indexed_at.isoformat() if item.indexed_at else None,
             "refreshed_by_task_id": item.refreshed_by_task_id,
         }
+
+
+def _scope_path_filter(scope_path: str):
+    normalized = str(scope_path or "").strip().strip("/")
+    if not normalized:
+        return True
+    return or_(MemoryIndex.file_path == normalized, MemoryIndex.file_path.like(f"{normalized}/%"))
 
 
 def _sort_expr():

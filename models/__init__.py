@@ -11,20 +11,17 @@ from .engine import engine, get_db
 from .failure_pattern import FailurePattern
 from .learning_signal import LearningSignal
 from .mcp import McpServer
-from .memory_metadata import (
-    MemoryDedupeIndex,
-    MemoryDirectoryIndex,
-    MemoryIndex,
-    MemoryRetrievalHint,
-    MemoryTimelineIndex,
-)
-from .memory_conversation import MemoryConversation
-from .memory_write_task import MemoryWriteTask
 from .memory import MemoryBase, MemoryRecord
+from .memory_conversation import MemoryConversation
 from .memory_learning_log import MemoryLearningLog
 from .memory_learning_params import MemoryLearningParams
+from .memory_metadata import (
+    MemoryIndex,
+    MemoryRetrievalHint,
+)
 from .memory_retrieval_log import MemoryRetrievalLog, MemoryRetrievalResult
 from .memory_tags import MemoryTagAssociation, UserCustomTag
+from .memory_write_task import MemoryWriteTask
 from .message import ConversationMessage, MessageTokenUsage
 from .model import Model
 from .permission import Permission
@@ -58,16 +55,13 @@ __all__ = [
     "McpUser",
     "MemoryBase",
     "MemoryConversation",
-    "MemoryDedupeIndex",
-    "MemoryDirectoryIndex",
     "MemoryIndex",
     "MemoryLearningLog",
     "MemoryLearningParams",
     "MemoryRecord",
     "MemoryRetrievalHint",
-    "MemoryTimelineIndex",
-    "MemoryWriteTask",
     "MemoryTagAssociation",
+    "MemoryWriteTask",
     "MessageTokenUsage",
     "Model",
     "Permission",
