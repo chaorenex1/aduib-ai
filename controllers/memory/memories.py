@@ -27,18 +27,6 @@ async def list_memories(_query: Annotated[MemoryListQuery, Depends()]):
     )
 
 
-@router.get("/by-path")
-@api_endpoint()
-async def get_memory_by_path(_query: Annotated[MemoryByPathQuery, Depends()]):
-    """Read a memory or project/session material file by canonical path."""
-    return MemoryReadService.get_memory_by_path(
-        _query.path,
-        user_id=_query.user_id,
-        agent_id=_query.agent_id,
-        project_id=_query.project_id,
-    )
-
-
 @router.get("/{memory_id}/content")
 @api_endpoint()
 async def get_memory_content(memory_id: str, _query: Annotated[MemoryScope, Depends()]):
