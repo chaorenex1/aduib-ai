@@ -2,3 +2,5 @@
 .idea/
 .github/
 /__pycache__/
+.claude/
+.git-rewrite/
