@@ -116,7 +116,11 @@ class NavigationManager:
         update_ctx: MemoryUpdateContext,
         patch_plan: PatchPlanResult,
     ) -> MetadataRefreshResult:
-        return self.refresh_metadata_from_inputs(task_id=update_ctx.task_id, patch_plan=patch_plan)
+        return self.refresh_metadata_from_inputs(
+            task_id=update_ctx.task_id,
+            patch_plan=patch_plan,
+            expected_user_id=update_ctx.user_id,
+        )
 
     @classmethod
     def refresh_metadata_from_inputs(
@@ -124,6 +128,7 @@ class NavigationManager:
         *,
         task_id: str,
         patch_plan: PatchPlanResult,
+        expected_user_id: str | None = None,
     ) -> MetadataRefreshResult:
         metadata_scopes = sorted({item.scope_path for item in patch_plan.metadata_targets})
         projection = {
@@ -131,8 +136,19 @@ class NavigationManager:
             "memory_index": [],
         }
         for scope_path in metadata_scopes:
-            projection = cls._extend_scope_projection(projection=projection, scope_path=scope_path, task_id=task_id)
+            cls._validate_scope_user(path=scope_path, expected_user_id=expected_user_id)
+            projection = cls._extend_scope_projection(
+                projection=projection,
+                scope_path=scope_path,
+                task_id=task_id,
+                expected_user_id=expected_user_id,
+            )
         cls._persist_metadata_projection(task_id=task_id, projection=projection)
+        cls._refresh_find_navigation_index(
+            task_id=task_id,
+            scope_paths=metadata_scopes,
+            expected_user_id=expected_user_id,
+        )
         return MetadataRefreshResult(
             task_id=task_id,
             metadata_scopes=metadata_scopes,
@@ -264,6 +280,7 @@ class NavigationManager:
         projection: dict[str, list[dict]],
         scope_path: str,
         task_id: str,
+        expected_user_id: str | None = None,
     ) -> dict[str, list[dict]]:
         tree = CommittedMemoryTree.build_tree(path=scope_path, include_dirs=True, include_content=True, max_depth=None)
         files = [item for item in tree.get("tree") or [] if item["type"] == "file"]
@@ -271,7 +288,12 @@ class NavigationManager:
             path = file_item["path"]
             metadata, _body = parse_markdown_document(file_item.get("content") or "")
             projection["memory_index"].append(
-                cls._build_memory_index_record(path=path, metadata=metadata, task_id=task_id)
+                cls._build_memory_index_record(
+                    path=path,
+                    metadata=metadata,
+                    task_id=task_id,
+                    expected_user_id=expected_user_id,
+                )
             )
         return projection
 
@@ -282,15 +304,17 @@ class NavigationManager:
         path: str,
         metadata: dict[str, Any],
         task_id: str,
+        expected_user_id: str | None = None,
     ) -> dict[str, Any]:
         scope_type, user_id = cls._resolve_scope(path)
+        cls._validate_resolved_user(path=path, resolved_user_id=user_id, expected_user_id=expected_user_id)
         raw_content = storage_manager.read_text(cls._to_scoped_path(path))
         filename = path.rsplit("/", 1)[-1]
         return {
             "memory_id": metadata.get("memory_id") or f"mem_{sha256(path.encode('utf-8')).hexdigest()[:16]}",
             "memory_type": cls._resolve_memory_type(path),
             "memory_level": cls._resolve_memory_level(path),
-            "user_id": user_id or metadata.get("user_id"),
+            "user_id": expected_user_id or user_id or metadata.get("user_id"),
             "project_id": metadata.get("project_id"),
             "scope_type": scope_type,
             "directory_path": path.rsplit("/", 1)[0],
@@ -335,6 +359,33 @@ class NavigationManager:
     @staticmethod
     def _to_scoped_path(relative_path: str) -> str:
         return "/".join(part for part in [config.MEMORY_TREE_ROOT_DIR, relative_path] if part)
+
+    @staticmethod
+    def _refresh_find_navigation_index(
+        *,
+        task_id: str,
+        scope_paths: list[str],
+        expected_user_id: str | None = None,
+    ) -> None:
+        from runtime.memory.find_index import MemoryFindIndex
+
+        MemoryFindIndex.refresh_scope_navigation_index(
+            task_id=task_id,
+            scope_paths=scope_paths,
+            expected_user_id=expected_user_id,
+        )
+
+    @classmethod
+    def _validate_scope_user(cls, *, path: str, expected_user_id: str | None) -> None:
+        if not expected_user_id:
+            return
+        _scope_type, resolved_user_id = cls._resolve_scope(path)
+        cls._validate_resolved_user(path=path, resolved_user_id=resolved_user_id, expected_user_id=expected_user_id)
+
+    @staticmethod
+    def _validate_resolved_user(*, path: str, resolved_user_id: str | None, expected_user_id: str | None) -> None:
+        if expected_user_id and resolved_user_id != expected_user_id:
+            raise ValueError(f"path user mismatch for {path}: {resolved_user_id} != {expected_user_id}")
 
     @staticmethod
     def _persist_metadata_projection(*, task_id: str, projection: dict) -> None:

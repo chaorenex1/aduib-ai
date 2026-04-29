@@ -182,6 +182,25 @@ class MemoryByPathQuery(MemoryScope):
     path: str = Field(..., min_length=1)
 
 
+class MemoryFindRequest(MemorySchema):
+    query: str = Field(..., min_length=1)
+    include_types: list[str] = Field(default_factory=list)
+    top_k: int = Field(10, ge=1, le=50)
+    score_threshold: float = Field(0.35, ge=0.0, le=1.0)
+
+
+class MemoryFindResultItem(MemorySchema):
+    abstract: str = Field(..., min_length=1)
+    score: float = Field(..., ge=0.0, le=1.0)
+    memory_type: str = Field(..., min_length=1)
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class MemoryFindResponse(MemorySchema):
+    query: str = Field(..., min_length=1)
+    results: list[MemoryFindResultItem] = Field(default_factory=list)
+
+
 class MemorySearchRequest(MemoryActorScope):
     query: str = Field(..., min_length=1)
     mode: Literal["online", "recent", "global"] = "online"

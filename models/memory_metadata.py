@@ -55,6 +55,36 @@ class MemoryIndex(Base):
     refreshed_by_task_id = Column(String(64), nullable=True, comment="Last memory_write_task.task_id")
 
 
+class MemoryNavigationIndex(Base):
+    """Navigation-summary metadata that maps `find` vector docs back to committed files."""
+
+    __tablename__ = "memory_navigation_index"
+    __table_args__ = (
+        UniqueConstraint("file_path", name="uq_memory_navigation_index_file_path"),
+        UniqueConstraint("vector_doc_id", name="uq_memory_navigation_index_vector_doc_id"),
+        Index("idx_memory_navigation_index_user_level", "user_id", "memory_level"),
+        Index("idx_memory_navigation_index_branch_path", "branch_path"),
+        Index("idx_memory_navigation_index_project_id", "project_id"),
+        Index("idx_memory_navigation_index_memory_updated_at", "memory_updated_at"),
+        {"comment": "Derived navigation summary metadata for programmer-memory find indexes"},
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True, comment="DB row id")
+    memory_id = Column(String(120), nullable=False, comment="Stable memory id from file frontmatter or path hash")
+    user_id = Column(String(100), nullable=False, comment="Owning user id")
+    project_id = Column(String(255), nullable=True, comment="Owning project id when applicable")
+    memory_type = Column(String(32), nullable=False, comment="Memory schema name")
+    memory_level = Column(String(8), nullable=False, comment="l0 | l1")
+    branch_path = Column(String(1024), nullable=False, comment="Committed branch directory path")
+    file_path = Column(String(1024), nullable=False, comment="Committed overview.md or summary.md path")
+    vector_doc_id = Column(String(120), nullable=False, comment="Milvus document id for this navigation document")
+    abstract_text = Column(Text, nullable=False, comment="Full overview.md or summary.md body text")
+    tags = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"), comment="Projected tags array")
+    memory_updated_at = Column(DateTime(timezone=True), nullable=True, comment="Frontmatter updated_at from file")
+    indexed_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, comment="Projection refresh time")
+    refreshed_by_task_id = Column(String(64), nullable=True, comment="Last memory_write_task.task_id")
+
+
 class MemoryRetrievalHint(Base):
     """Retrieval-oriented hints derived from committed memories, not the source of truth."""
 

@@ -17,6 +17,7 @@ from .memory_learning_log import MemoryLearningLog
 from .memory_learning_params import MemoryLearningParams
 from .memory_metadata import (
     MemoryIndex,
+    MemoryNavigationIndex,
     MemoryRetrievalHint,
 )
 from .memory_retrieval_log import MemoryRetrievalLog, MemoryRetrievalResult
@@ -58,6 +59,7 @@ __all__ = [
     "MemoryIndex",
     "MemoryLearningLog",
     "MemoryLearningParams",
+    "MemoryNavigationIndex",
     "MemoryRecord",
     "MemoryRetrievalHint",
     "MemoryTagAssociation",
