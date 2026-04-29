@@ -27,7 +27,11 @@ class AgentMemory:
         if not long_term_memory:
             await self.short_term_memory.add_memory(message, compact_session)
         else:
-            await self.long_term_memory.add_memory(message)
+            # Legacy long-term writes used runtime.memory.manager.store(); keep them blocked
+            # while the old runtime memory pipeline is being removed.
+            # await self.long_term_memory.add_memory(message)
+            return ""
+        return ""
 
     async def retrieve_context(
         self, query: str, long_term_memory: bool = True, compact_session: bool = False
@@ -44,7 +48,9 @@ class AgentMemory:
     async def clear_memory(self) -> None:
         """Clear memory."""
         await self.short_term_memory.delete_memory()
-        await self.long_term_memory.delete_memory()
+        # Legacy long-term deletes used runtime.memory.manager.delete_memories_by_agent();
+        # keep them blocked together with the retired write pipeline.
+        # await self.long_term_memory.delete_memory()
 
     async def clear_short_term_memory(self):
         """Clear interaction memory."""

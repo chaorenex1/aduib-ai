@@ -9,8 +9,7 @@ from models.document import KnowledgeDocument
 from models.engine import get_db
 from models.memory import MemoryBase, MemoryRecord
 from runtime.generator.generator import LLMGenerator
-from runtime.memory.manager import MemoryManager
-from runtime.memory.types import Memory, MemoryClassType
+from runtime.memory.types import MemoryClassType
 
 logger = logging.getLogger(__name__)
 
@@ -83,19 +82,25 @@ class InsightDistiller:
                 result.skipped += 1
                 continue
 
-            semantic_memory = Memory(
-                type=MemoryClassType.SEMANTIC,
-                content=insight,
-                user_id=user_id,
-                domain=topic_domain or "",
-                source="distillation",
-                topic=topic_name,
-                tags=[],
+            # Legacy semantic-memory writes used runtime.memory.manager.store(); keep the
+            # old path commented out until distillation is migrated to the new pipeline.
+            # semantic_memory = Memory(
+            #     type=MemoryClassType.SEMANTIC,
+            #     content=insight,
+            #     user_id=user_id,
+            #     domain=topic_domain or "",
+            #     source="distillation",
+            #     topic=topic_name,
+            #     tags=[],
+            # )
+            # manager = MemoryManager(user_id=user_id)
+            # await manager.store(semantic_memory)
+            logger.warning(
+                "InsightDistiller skipped legacy memory write for topic %s/%s",
+                topic_domain,
+                topic_name,
             )
-            manager = MemoryManager(user_id=user_id)
-            await manager.store(semantic_memory)
-            logger.info("InsightDistiller: created insight for topic %s/%s", topic_domain, topic_name)
-            result.insights_created += 1
+            result.skipped += 1
 
         return result
 

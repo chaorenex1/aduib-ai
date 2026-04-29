@@ -115,6 +115,22 @@ class MemoryMetadataRepository(RepositoryBase):
             return [MemoryMetadataRepository._navigation_index_to_dict(item) for item in items]
 
     @staticmethod
+    def list_l0_l1_navigation_rows(user_id: str, include_types: list[str] | None = None) -> list[dict]:
+        with get_db() as session:
+            query = session.query(MemoryNavigationIndex).filter(
+                MemoryNavigationIndex.user_id == user_id,
+                MemoryNavigationIndex.memory_level.in_(("l0", "l1")),
+            )
+            if include_types:
+                query = query.filter(MemoryNavigationIndex.memory_type.in_(include_types))
+            items = query.order_by(
+                MemoryNavigationIndex.memory_level.asc(),
+                MemoryNavigationIndex.memory_updated_at.desc().nullslast(),
+                MemoryNavigationIndex.file_path.asc(),
+            ).all()
+            return [MemoryMetadataRepository._navigation_index_to_dict(item) for item in items]
+
+    @staticmethod
     def list_l1_navigation_rows_by_branch_paths(
         *,
         user_id: str,
@@ -133,6 +149,37 @@ class MemoryMetadataRepository(RepositoryBase):
                 query = query.filter(MemoryNavigationIndex.memory_type.in_(include_types))
             items = query.order_by(MemoryNavigationIndex.branch_path.asc(), MemoryNavigationIndex.file_path.asc()).all()
             return [MemoryMetadataRepository._navigation_index_to_dict(item) for item in items]
+
+    @staticmethod
+    def list_l2_rows_by_branch_paths(
+        user_id: str,
+        branch_paths: list[str],
+        include_types: list[str] | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        normalized_branch_paths = [item for item in {str(path).strip().strip("/") for path in branch_paths} if item]
+        if not normalized_branch_paths:
+            return []
+        with get_db() as session:
+            filters = [
+                _scope_path_filter(MemoryIndex.file_path, branch_path) for branch_path in normalized_branch_paths
+            ]
+            query = session.query(MemoryIndex).filter(
+                MemoryIndex.user_id == user_id,
+                MemoryIndex.memory_level == "l2",
+                or_(*filters),
+            )
+            if include_types:
+                query = query.filter(MemoryIndex.memory_type.in_(include_types))
+            query = query.order_by(
+                MemoryIndex.directory_path.asc(),
+                _memory_sort_expr().desc(),
+                MemoryIndex.file_path.asc(),
+            )
+            if limit is not None:
+                query = query.limit(limit)
+            items = query.all()
+            return [MemoryMetadataRepository._memory_index_to_dict(item) for item in items]
 
     @staticmethod
     def list_navigation_rows_for_scope(scope_paths: list[str]) -> list[dict]:

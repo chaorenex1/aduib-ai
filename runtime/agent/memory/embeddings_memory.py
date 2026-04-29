@@ -26,20 +26,18 @@ class LongTermEmbeddingsMemory(MemoryBase):
             user_id=user_id,
         )
 
-    async def add_memory(self, message: str) -> None:
-        from runtime.memory.types import Memory, MemorySource
-
-        memory = Memory(
-            content=message,
-            user_id=self.user_id,
-            agent_id=self.agent_id or "",
-            source=MemorySource.AGENT_TASK,
-        )
-        try:
-            memory_id = await self._manager.store(memory)
-            logger.info("Memory stored: id=%s, user=%s", memory_id, self.user_id)
-        except Exception:
-            logger.exception("Failed to store memory for user=%s", self.user_id)
+    async def add_memory(self, _message: str) -> None:
+        # Legacy long-term writes used runtime.memory.manager.store(); keep the old
+        # path commented out so new business code cannot keep writing through it.
+        # from runtime.memory.types import Memory, MemorySource
+        # memory = Memory(
+        #     content=message,
+        #     user_id=self.user_id,
+        #     agent_id=self.agent_id or "",
+        #     source=MemorySource.AGENT_TASK,
+        # )
+        # memory_id = await self._manager.store(memory)
+        logger.warning("Skipped legacy long-term memory write for user=%s", self.user_id)
 
     async def get_long_term_memory(self, query: str) -> list[MemoryRetrieveResult]:
         from runtime.memory.types import MemoryRetrieve
@@ -58,9 +56,12 @@ class LongTermEmbeddingsMemory(MemoryBase):
             logger.exception("Failed to retrieve memories for user=%s", self.user_id)
             return []
 
-    async def get_short_term_memory(self, compact_session=False) -> list[dict[str, Any]]:
+    async def get_short_term_memory(self, _compact_session=False) -> list[dict[str, Any]]:
         # Short-term memory is managed by RedisMemory, not this class.
         return []
 
     async def delete_memory(self) -> None:
-        self._manager.delete_memories_by_agent(self.user_id)
+        # Legacy long-term deletes used runtime.memory.manager.delete_memories_by_agent();
+        # keep the old path commented out together with legacy writes.
+        # self._manager.delete_memories_by_agent(self.user_id)
+        logger.warning("Skipped legacy long-term memory delete for user=%s", self.user_id)

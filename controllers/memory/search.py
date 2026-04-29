@@ -2,12 +2,19 @@
 
 from fastapi import APIRouter
 
-from controllers.common.base import api_endpoint, not_implemented
+from controllers.common.base import api_endpoint
 from controllers.common.error import UnauthorizedError
-from controllers.memory.schemas import MemoryFindRequest, MemoryFindResponse, MemorySearchRequest
+from controllers.memory.schemas import (
+    MemoryFindRequest,
+    MemoryFindResponse,
+    MemorySearchRequest,
+    MemorySearchResponse,
+)
 from libs.context import get_current_user_id
 from runtime.memory.find import MemoryFindRuntime
 from runtime.memory.find_types import MemoryFindRequestDTO
+from runtime.memory.search import MemorySearchRuntime
+from runtime.memory.search_types import MemorySearchRequestDTO
 
 router = APIRouter(prefix="/memories", tags=["Programmer Memory"])
 
@@ -25,10 +32,13 @@ async def find_memories(payload: MemoryFindRequest):
 
 @router.post("/search")
 @api_endpoint()
-async def search_memories(_payload: MemorySearchRequest):
-    """Unified online retrieval entrypoint."""
+async def search_memories(payload: MemorySearchRequest):
+    """Run session-aware memory retrieval for the current user."""
 
-    not_implemented("search memories")
+    user_id = _require_current_user_id()
+    request = MemorySearchRequestDTO.model_validate(payload.model_dump())
+    response = MemorySearchRuntime.search_for_current_user(user_id=user_id, payload=request)
+    return MemorySearchResponse.model_validate(response.model_dump())
 
 
 def _require_current_user_id() -> str:

@@ -5,6 +5,8 @@ from typing import Literal
 from fastapi import UploadFile
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from configs import config
+
 
 class MemorySchema(BaseModel):
     """Base schema with strict payload validation."""
@@ -201,14 +203,42 @@ class MemoryFindResponse(MemorySchema):
     results: list[MemoryFindResultItem] = Field(default_factory=list)
 
 
-class MemorySearchRequest(MemoryActorScope):
+class MemorySearchRequest(MemorySchema):
+    query: str = Field(..., min_length=1, max_length=config.MEMORY_SEARCH_QUERY_MAX_CHARS)
+    session: list[ConversationMessagePayload] = Field(
+        ...,
+        min_length=1,
+        max_length=config.MEMORY_SEARCH_MAX_SESSION_MESSAGES,
+    )
+    include_types: list[str] = Field(default_factory=list, max_length=config.MEMORY_SEARCH_INCLUDE_TYPES_MAX)
+    top_k: int = Field(config.MEMORY_SEARCH_TOP_K_DEFAULT, ge=1, le=config.MEMORY_SEARCH_TOP_K_MAX)
+    score_threshold: float = Field(
+        config.MEMORY_SEARCH_SCORE_THRESHOLD_DEFAULT,
+        ge=0.0,
+        le=1.0,
+    )
+
+    @model_validator(mode="after")
+    def validate_search_payload_limits(self) -> "MemorySearchRequest":
+        for message in self.session:
+            if len(message.content_parts) > config.MEMORY_SEARCH_CONTENT_PARTS_MAX:
+                raise ValueError("memory search session message exceeds content_parts limit")
+            for part in message.content_parts:
+                if part.type == "text" and part.text and len(part.text) > config.MEMORY_SEARCH_TEXT_PART_MAX_CHARS:
+                    raise ValueError("memory search text content exceeds max length")
+        return self
+
+
+class MemorySearchResultItem(MemorySchema):
+    abstract: str = Field(..., min_length=1)
+    score: float = Field(..., ge=0.0, le=1.0)
+    memory_type: str = Field(..., min_length=1)
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class MemorySearchResponse(MemorySchema):
     query: str = Field(..., min_length=1)
-    mode: Literal["online", "recent", "global"] = "online"
-    session_id: str | None = None
-    include_types: list[str] = Field(default_factory=list)
-    top_k: int = Field(10, ge=1, le=100)
-    rerank: bool = True
-    hotness_boost: bool = True
+    results: list[MemorySearchResultItem] = Field(default_factory=list)
 
 
 class MemoryCreateRequest(MemorySchema):

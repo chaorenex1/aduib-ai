@@ -8,7 +8,8 @@ from runtime.memory.types import MemorySignalType
 
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "service" / "learning_signal_service.py"
 _SPEC = importlib.util.spec_from_file_location("learning_signal_service_module", _MODULE_PATH)
-assert _SPEC is not None and _SPEC.loader is not None
+assert _SPEC is not None
+assert _SPEC.loader is not None
 _MODULE = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_MODULE)
 LearningSignalService = _MODULE.LearningSignalService
@@ -33,7 +34,8 @@ class _FakeContext:
 def _load_module(module_name: str, relative_path: str):
     module_path = Path(__file__).resolve().parents[1] / relative_path
     spec = importlib.util.spec_from_file_location(module_name, module_path)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -148,6 +150,56 @@ def test_long_term_memory_returns_structured_results(monkeypatch) -> None:
         ("memory-1", "alpha", 0.8),
         ("memory-2", "beta", 0.4),
     ]
+
+
+def test_long_term_memory_add_memory_skips_legacy_store(monkeypatch) -> None:
+    fake_manager_module = types.ModuleType("runtime.memory.manager")
+
+    class _FakeMemoryManager:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def store(self, memory):
+            raise AssertionError("legacy store should stay blocked")
+
+    fake_manager_module.MemoryManager = _FakeMemoryManager
+    monkeypatch.setitem(sys.modules, "runtime.memory.manager", fake_manager_module)
+
+    embeddings_memory_module = _load_module(
+        "embeddings_memory_add_memory_test_module",
+        "runtime/agent/memory/embeddings_memory.py",
+    )
+    long_term_memory = embeddings_memory_module.LongTermEmbeddingsMemory(
+        user_id="user-1",
+        agent_id="agent-1",
+    )
+
+    asyncio.run(long_term_memory.add_memory("remember this"))
+
+
+def test_long_term_memory_delete_memory_skips_legacy_delete(monkeypatch) -> None:
+    fake_manager_module = types.ModuleType("runtime.memory.manager")
+
+    class _FakeMemoryManager:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def delete_memories_by_agent(self, user_id: str) -> None:
+            raise AssertionError("legacy delete should stay blocked")
+
+    fake_manager_module.MemoryManager = _FakeMemoryManager
+    monkeypatch.setitem(sys.modules, "runtime.memory.manager", fake_manager_module)
+
+    embeddings_memory_module = _load_module(
+        "embeddings_memory_delete_memory_test_module",
+        "runtime/agent/memory/embeddings_memory.py",
+    )
+    long_term_memory = embeddings_memory_module.LongTermEmbeddingsMemory(
+        user_id="user-1",
+        agent_id="agent-1",
+    )
+
+    asyncio.run(long_term_memory.delete_memory())
 
 
 def test_prompt_markup_builds_and_extracts_memory_tags() -> None:
