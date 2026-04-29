@@ -27,34 +27,36 @@ def _build_tool() -> QueryMemoryTool:
 async def test_query_memory_tool_returns_structured_results(monkeypatch):
     tool = _build_tool()
 
-    monkeypatch.setattr(tool, "_resolve_user_id", lambda tool_parameters: "u1")
+    async def fake_retrieve_context(*, query: str, long_term_memory: bool):
+        assert query == "用户偏好"
+        assert long_term_memory is True
+        return {
+            "long_term": [
+                SimpleNamespace(
+                    memory_id="m1",
+                    content="用户偏好中文输出",
+                    score=0.91,
+                    metadata={"domain": "preference"},
+                ),
+                SimpleNamespace(memory_id="m2", content="用户喜欢简洁回答", score=0.82, metadata={}),
+            ]
+        }
 
-    async def fake_retrieve_memories(**kwargs):
-        assert kwargs["query"] == "用户偏好"
-        assert kwargs["user_id"] == "u1"
-        assert kwargs["retrieve_type"] == "llm"
-        assert kwargs["top_k"] == 5
-        assert kwargs["score_threshold"] == 0.6
-        assert kwargs["filters"] == {}
-        return [
-            SimpleNamespace(memory_id="m1", content="用户偏好中文输出", score=0.91, metadata={"domain": "preference"}),
-            SimpleNamespace(memory_id="m2", content="用户喜欢简洁回答", score=0.82, metadata={}),
-        ]
-
-    monkeypatch.setattr(tool, "_retrieve_memories", fake_retrieve_memories)
+    agent_manager = SimpleNamespace(memory_manager=SimpleNamespace(retrieve_context=fake_retrieve_context))
 
     result = await tool._invoke(
         {
             "query": "用户偏好",
+            "user_id": "u1",
+            "agent_manager": agent_manager,
         },
         message_id="msg-1",
     )
 
     assert result.success is True
     assert result.data["query"] == "用户偏好"
-    assert result.data["retrieve_type"] == "llm"
     assert result.data["total"] == 2
-    assert result.data["results"][0]["memory_id"] == "m1"
+    assert result.data["results"][0].memory_id == "m1"
     assert result.meta["message_id"] == "msg-1"
     assert result.meta["user_id"] == "u1"
 
@@ -66,19 +68,22 @@ async def test_query_memory_tool_validates_query():
     result = await tool._invoke({"query": ""})
 
     assert result.success is False
-    assert result.error == "'query' must be a non-empty string"
+    assert result.error == "'query' is required"
 
 
 @pytest.mark.anyio
-async def test_query_memory_tool_requires_user_id(monkeypatch):
+async def test_query_memory_tool_allows_empty_user_id():
     tool = _build_tool()
-    monkeypatch.setattr(
-        tool,
-        "_resolve_user_id",
-        lambda tool_parameters: (_ for _ in ()).throw(ValueError("'user_id' is required")),
-    )
 
-    result = await tool._invoke({"query": "test"})
+    async def fake_retrieve_context(*, query: str, long_term_memory: bool):
+        assert query == "test"
+        assert long_term_memory is True
+        return {"long_term": []}
 
-    assert result.success is False
-    assert result.error == "'user_id' is required"
+    agent_manager = SimpleNamespace(memory_manager=SimpleNamespace(retrieve_context=fake_retrieve_context))
+
+    result = await tool._invoke({"query": "test", "agent_manager": agent_manager})
+
+    assert result.success is True
+    assert result.data["total"] == 0
+    assert result.meta["user_id"] == ""

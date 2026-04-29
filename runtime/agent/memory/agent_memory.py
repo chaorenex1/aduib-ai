@@ -3,6 +3,7 @@ from typing import Any
 from models import Agent
 from runtime.agent.memory.embeddings_memory import LongTermEmbeddingsMemory
 from runtime.agent.memory.redis_memory import ShortTermRedisMemory
+from runtime.memory.manager import LegacyMemoryWriteDisabledError
 
 
 class AgentMemory:
@@ -26,12 +27,13 @@ class AgentMemory:
         """Add memory to the agent's memory. If the number of turns exceeds the limit, add to long term memory."""
         if not long_term_memory:
             await self.short_term_memory.add_memory(message, compact_session)
-        else:
-            # Legacy long-term writes used runtime.memory.manager.store(); keep them blocked
-            # while the old runtime memory pipeline is being removed.
-            # await self.long_term_memory.add_memory(message)
             return ""
-        return ""
+        # Legacy long-term writes used runtime.memory.manager.store(); keep them blocked
+        # while the old runtime memory pipeline is being removed.
+        # await self.long_term_memory.add_memory(message)
+        raise LegacyMemoryWriteDisabledError(
+            "Long-term agent memory writes are disabled until migrated to the new memory pipeline."
+        )
 
     async def retrieve_context(
         self, query: str, long_term_memory: bool = True, compact_session: bool = False
@@ -51,6 +53,9 @@ class AgentMemory:
         # Legacy long-term deletes used runtime.memory.manager.delete_memories_by_agent();
         # keep them blocked together with the retired write pipeline.
         # await self.long_term_memory.delete_memory()
+        raise LegacyMemoryWriteDisabledError(
+            "Long-term agent memory deletes are disabled until migrated to the new memory pipeline."
+        )
 
     async def clear_short_term_memory(self):
         """Clear interaction memory."""

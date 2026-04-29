@@ -4,6 +4,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 from runtime.memory.types import MemorySignalType
 
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "service" / "learning_signal_service.py"
@@ -88,7 +90,6 @@ def test_emit_memory_signals_builds_batch(monkeypatch) -> None:
             user_id="user-1",
             signal_type=MemorySignalType.MEMORY_EXPOSED,
             memory_ids=["memory-1", "", "memory-2"],
-            agent_id="agent-1",
             context={"query_hash": "abc123"},
             value=0.1,
             value_by_source={"memory-1": 0.8},
@@ -98,7 +99,6 @@ def test_emit_memory_signals_builds_batch(monkeypatch) -> None:
     assert captured == [
         {
             "user_id": "user-1",
-            "agent_id": "agent-1",
             "signal_type": MemorySignalType.MEMORY_EXPOSED,
             "source_id": "memory-1",
             "value": 0.8,
@@ -106,7 +106,6 @@ def test_emit_memory_signals_builds_batch(monkeypatch) -> None:
         },
         {
             "user_id": "user-1",
-            "agent_id": "agent-1",
             "signal_type": MemorySignalType.MEMORY_EXPOSED,
             "source_id": "memory-2",
             "value": 0.1,
@@ -131,6 +130,7 @@ def test_long_term_memory_returns_structured_results(monkeypatch) -> None:
             ]
 
     fake_manager_module.MemoryManager = _FakeMemoryManager
+    fake_manager_module.LegacyMemoryWriteDisabledError = RuntimeError
     monkeypatch.setitem(sys.modules, "runtime.memory.manager", fake_manager_module)
 
     embeddings_memory_module = _load_module(
@@ -152,7 +152,7 @@ def test_long_term_memory_returns_structured_results(monkeypatch) -> None:
     ]
 
 
-def test_long_term_memory_add_memory_skips_legacy_store(monkeypatch) -> None:
+def test_long_term_memory_add_memory_raises_legacy_write_disabled(monkeypatch) -> None:
     fake_manager_module = types.ModuleType("runtime.memory.manager")
 
     class _FakeMemoryManager:
@@ -163,6 +163,7 @@ def test_long_term_memory_add_memory_skips_legacy_store(monkeypatch) -> None:
             raise AssertionError("legacy store should stay blocked")
 
     fake_manager_module.MemoryManager = _FakeMemoryManager
+    fake_manager_module.LegacyMemoryWriteDisabledError = RuntimeError
     monkeypatch.setitem(sys.modules, "runtime.memory.manager", fake_manager_module)
 
     embeddings_memory_module = _load_module(
@@ -174,10 +175,14 @@ def test_long_term_memory_add_memory_skips_legacy_store(monkeypatch) -> None:
         agent_id="agent-1",
     )
 
-    asyncio.run(long_term_memory.add_memory("remember this"))
+    with pytest.raises(
+        embeddings_memory_module.LegacyMemoryWriteDisabledError,
+        match="writes are disabled",
+    ):
+        asyncio.run(long_term_memory.add_memory("remember this"))
 
 
-def test_long_term_memory_delete_memory_skips_legacy_delete(monkeypatch) -> None:
+def test_long_term_memory_delete_memory_raises_legacy_delete_disabled(monkeypatch) -> None:
     fake_manager_module = types.ModuleType("runtime.memory.manager")
 
     class _FakeMemoryManager:
@@ -188,6 +193,7 @@ def test_long_term_memory_delete_memory_skips_legacy_delete(monkeypatch) -> None
             raise AssertionError("legacy delete should stay blocked")
 
     fake_manager_module.MemoryManager = _FakeMemoryManager
+    fake_manager_module.LegacyMemoryWriteDisabledError = RuntimeError
     monkeypatch.setitem(sys.modules, "runtime.memory.manager", fake_manager_module)
 
     embeddings_memory_module = _load_module(
@@ -199,7 +205,38 @@ def test_long_term_memory_delete_memory_skips_legacy_delete(monkeypatch) -> None
         agent_id="agent-1",
     )
 
-    asyncio.run(long_term_memory.delete_memory())
+    with pytest.raises(
+        embeddings_memory_module.LegacyMemoryWriteDisabledError,
+        match="deletes are disabled",
+    ):
+        asyncio.run(long_term_memory.delete_memory())
+
+
+def test_long_term_memory_retrieval_failure_raises(monkeypatch) -> None:
+    fake_manager_module = types.ModuleType("runtime.memory.manager")
+
+    class _FakeMemoryManager:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def retrieve_memories(self, retrieve):
+            raise ValueError(f"boom:{retrieve.query}")
+
+    fake_manager_module.MemoryManager = _FakeMemoryManager
+    fake_manager_module.LegacyMemoryWriteDisabledError = RuntimeError
+    monkeypatch.setitem(sys.modules, "runtime.memory.manager", fake_manager_module)
+
+    embeddings_memory_module = _load_module(
+        "embeddings_memory_retrieval_failure_test_module",
+        "runtime/agent/memory/embeddings_memory.py",
+    )
+    long_term_memory = embeddings_memory_module.LongTermEmbeddingsMemory(
+        user_id="user-1",
+        agent_id="agent-1",
+    )
+
+    with pytest.raises(RuntimeError, match="Long-term memory retrieval failed"):
+        asyncio.run(long_term_memory.get_long_term_memory("broken"))
 
 
 def test_prompt_markup_builds_and_extracts_memory_tags() -> None:

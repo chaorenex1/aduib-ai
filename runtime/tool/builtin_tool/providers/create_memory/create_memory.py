@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from libs.context import get_current_user_id
+from runtime.memory.manager import LegacyMemoryWriteDisabledError
 from runtime.tool.builtin_tool.tool import BuiltinTool
 from runtime.tool.entities import ToolInvokeResult
 
@@ -19,9 +20,15 @@ class CreateMemoryTool(BuiltinTool):
             agent_manager: AgentManager = tool_parameters.get("agent_manager")
             short_term = tool_parameters.get("short_term", False)
             if short_term:
-                agent_manager.memory_manager.add_memory(content)
+                await agent_manager.memory_manager.add_memory(content)
             else:
-                agent_manager.memory_manager.add_memory(content, long_term_memory=True)
+                # Legacy long-term writes used runtime.memory.manager.store(); keep the
+                # old path blocked until the createMemory tool is migrated.
+                # await agent_manager.memory_manager.add_memory(content, long_term_memory=True)
+                raise LegacyMemoryWriteDisabledError(
+                    "Long-term memory creation via createMemory is disabled until migrated "
+                    "to the new memory pipeline."
+                )
 
             return ToolInvokeResult(
                 name=self.entity.name,

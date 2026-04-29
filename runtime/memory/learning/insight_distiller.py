@@ -9,6 +9,7 @@ from models.document import KnowledgeDocument
 from models.engine import get_db
 from models.memory import MemoryBase, MemoryRecord
 from runtime.generator.generator import LLMGenerator
+from runtime.memory.manager import LegacyMemoryWriteDisabledError
 from runtime.memory.types import MemoryClassType
 
 logger = logging.getLogger(__name__)
@@ -95,12 +96,10 @@ class InsightDistiller:
             # )
             # manager = MemoryManager(user_id=user_id)
             # await manager.store(semantic_memory)
-            logger.warning(
-                "InsightDistiller skipped legacy memory write for topic %s/%s",
-                topic_domain,
-                topic_name,
+            raise LegacyMemoryWriteDisabledError(
+                "InsightDistiller produced a semantic insight, but the legacy memory write path is disabled "
+                f"for topic {topic_domain}/{topic_name}."
             )
-            result.skipped += 1
 
         return result
 

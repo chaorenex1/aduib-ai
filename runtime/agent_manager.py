@@ -35,6 +35,7 @@ from runtime.entities import (
 )
 from runtime.entities.llm_entities import ChatCompletionRequest, LLMRequest, LLMResponse, LLMStreamResponse
 from runtime.entities.message_entities import ThinkingOptions
+from runtime.memory.manager import LegacyMemoryWriteDisabledError
 from runtime.memory.types import MemorySignalType
 from runtime.model_execution import AiModel
 from runtime.model_manager import ModelManager
@@ -271,7 +272,12 @@ class AgentManager:
 
     def cleanup_memory(self) -> None:
         """Clean up memory for a session"""
-        self.memory_manager.cleanup_memory()
+        # Legacy cleanup would delegate to async long-term memory deletion through
+        # AgentMemory.clear_memory(); keep the old path blocked until migrated.
+        # self.memory_manager.cleanup_memory()
+        raise LegacyMemoryWriteDisabledError(
+            "AgentManager.cleanup_memory() is disabled until legacy long-term memory cleanup is migrated."
+        )
 
     @staticmethod
     def extract_response_text(raw_response: LLMResponse) -> str:
@@ -313,8 +319,18 @@ class AgentManager:
                         # long term memory
                         if self.agent.enabled_memory != 1:
                             return
-                        await self.memory_manager.add_memory(response_text, long_term_memory=True, compact_session=True)
+                        # Legacy long-term writes used runtime.memory.manager.store(); keep
+                        # the old path blocked until this caller is migrated.
+                        # await self.memory_manager.add_memory(
+                        #     response_text, long_term_memory=True, compact_session=True
+                        # )
+                        raise LegacyMemoryWriteDisabledError(
+                            "AgentManager long-term post-response memory writes are disabled until migrated "
+                            "to the new memory pipeline."
+                        )
                         logger.info("Memory compacted for session %s due to context length.", session_id)
+        except LegacyMemoryWriteDisabledError:
+            raise
         except Exception as ex:
             logger.warning("Post-response memory management failed: %s", ex)
 
@@ -334,7 +350,11 @@ class AgentManager:
             return
 
         try:
-            context = await ctx.memory.retrieve_context(user_prompt, long_term_memory=self.agent.enabled_memory != 1 or ctx.memory is None, compact_session=True)
+            context = await ctx.memory.retrieve_context(
+                user_prompt,
+                long_term_memory=self.agent.enabled_memory != 1 or ctx.memory is None,
+                compact_session=True,
+            )
             short_term_memory = context.get("short_term", "")
 
             # Handle compact session memory (direct string from Redis)
@@ -362,6 +382,8 @@ class AgentManager:
             memory_block = build_memory_prompt_block(long_term_memories)
             if memory_block:
                 self.append_memory_block_to_latest_user_prompt(request, memory_block)
+        except RuntimeError:
+            raise
         except Exception:
             logger.warning("Failed to inject memory into user prompt", exc_info=True)
 
@@ -370,7 +392,11 @@ class AgentManager:
         """Build a prompt block for compact session memory (direct injection)."""
         if not compact_session:
             return ""
-        return f"<system-reminder-compact-session>\nSession Summary:\n{compact_session}\n</system-reminder-compact-session>"
+        return (
+            "<system-reminder-compact-session>\n"
+            f"Session Summary:\n{compact_session}\n"
+            "</system-reminder-compact-session>"
+        )
 
     def get_or_create_tool_collector(
         self, session_id: str, request: LLMRequest
@@ -378,7 +404,7 @@ class AgentManager:
         if session_id in self.tool_collector_cache:
             return self.tool_collector_cache[session_id]
         else:
-            if isinstance(request, ChatCompletionRequest) or isinstance(request, ResponseRequest):
+            if isinstance(request, (ChatCompletionRequest, ResponseRequest)):
                 self.tool_collector_cache[session_id] = ResponsesStreamingToolCallCollector()
             elif isinstance(request, AnthropicMessageRequest):
                 self.tool_collector_cache[session_id] = StreamingToolCallCollector()
@@ -428,6 +454,19 @@ class AgentManager:
         RequestAdapter(request).ensure_tools(self.tools)
 
     @staticmethod
+    def _log_background_memory_task(task: asyncio.Task[object]) -> None:
+        try:
+            task.result()
+        except Exception as ex:
+            logger.warning("Background memory write failed: %s", ex)
+
+    def _schedule_tool_result_memory_write(self, content: str) -> None:
+        task = asyncio.create_task(
+            self.memory_manager.add_memory("Tool Result: " + content, long_term_memory=False)
+        )
+        task.add_done_callback(self._log_background_memory_task)
+
+    @staticmethod
     def ensure_response_input_list(request: ResponseRequest) -> list:
         return RequestAdapter.ensure_response_input_list(request)
 
@@ -454,9 +493,7 @@ class AgentManager:
                     content_list.append(TextPromptMessageContent(text=f"Error: {tool_result.error}"))
                 request.messages.append(ToolPromptMessage(tool_call_id=tool_result.tool_call_id, content=content_list))
 
-                self.memory_manager.add_memory(
-                    "Tool Result: " + self.content_to_text(content_list), long_term_memory=False
-                )
+                self._schedule_tool_result_memory_write(self.content_to_text(content_list))
             elif isinstance(request, AnthropicMessageRequest):
                 from runtime.entities import AnthropicTextBlock, AnthropicToolResultBlock
 
@@ -482,9 +519,7 @@ class AgentManager:
                     )
                 )
 
-                self.memory_manager.add_memory(
-                    "Tool Result: " + self.content_to_text(content_list), long_term_memory=False
-                )
+                self._schedule_tool_result_memory_write(self.content_to_text(content_list))
             elif isinstance(request, ResponseRequest):
                 from runtime.entities import ResponseInputItem, ResponseOutputFunctionCallOutput
 
@@ -500,7 +535,7 @@ class AgentManager:
                     )
                 )
 
-                self.memory_manager.add_memory("Tool Result: " + content, long_term_memory=False)
+                self._schedule_tool_result_memory_write(content)
 
     def convert_response_to_tools(self, response: LLMResponse) -> list[ToolInvokeParams]:
         """Convert response to Tools"""
