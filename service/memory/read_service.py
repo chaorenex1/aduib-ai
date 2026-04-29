@@ -13,7 +13,6 @@ class MemoryReadService:
     def list_memories(
         *,
         user_id: str,
-        agent_id: str | None,
         project_id: str | None,
         memory_type: str | None,
         path_prefix: str | None,
@@ -21,10 +20,9 @@ class MemoryReadService:
         cursor: str | None = None,
         limit: int = 20,
     ) -> dict:
-        _validate_path_in_scope(path_prefix=path_prefix, user_id=user_id, agent_id=agent_id)
+        _validate_path_in_scope(path_prefix=path_prefix, user_id=user_id)
         records = MemoryMetadataRepository.list_memory_index(
             user_id=user_id,
-            agent_id=agent_id,
             project_id=project_id,
             memory_type=memory_type,
             path_prefix=path_prefix,
@@ -40,11 +38,10 @@ class MemoryReadService:
         ).model_dump(mode="python", exclude_none=True)
 
     @staticmethod
-    def get_memory(memory_id: str, *, user_id: str, agent_id: str | None, project_id: str | None) -> dict:
+    def get_memory(memory_id: str, *, user_id: str, project_id: str | None) -> dict:
         record = MemoryMetadataRepository.get_memory_by_id(
             memory_id,
             user_id=user_id,
-            agent_id=agent_id,
             project_id=project_id,
         )
         if record is None:
@@ -52,12 +49,11 @@ class MemoryReadService:
         return MemoryReadRecord.model_validate(record).model_dump(mode="python", exclude_none=True)
 
     @staticmethod
-    def get_memory_by_path(path: str, *, user_id: str, agent_id: str | None, project_id: str | None) -> dict:
-        _validate_path_in_scope(path_prefix=path, user_id=user_id, agent_id=agent_id)
+    def get_memory_by_path(path: str, *, user_id: str, project_id: str | None) -> dict:
+        _validate_path_in_scope(path_prefix=path, user_id=user_id)
         record = MemoryMetadataRepository.get_memory_by_path(
             path,
             user_id=user_id,
-            agent_id=agent_id,
             project_id=project_id,
         )
         if record is None:
@@ -65,11 +61,10 @@ class MemoryReadService:
         return MemoryReadRecord.model_validate(record).model_dump(mode="python", exclude_none=True)
 
     @staticmethod
-    def get_memory_content(memory_id: str, *, user_id: str, agent_id: str | None, project_id: str | None) -> dict:
+    def get_memory_content(memory_id: str, *, user_id: str, project_id: str | None) -> dict:
         record = MemoryMetadataRepository.get_memory_by_id(
             memory_id,
             user_id=user_id,
-            agent_id=agent_id,
             project_id=project_id,
         )
         if record is None:
@@ -84,13 +79,11 @@ class MemoryReadService:
         ).model_dump(mode="python", exclude_none=True)
 
 
-def _validate_path_in_scope(*, path_prefix: str | None, user_id: str, agent_id: str | None) -> None:
+def _validate_path_in_scope(*, path_prefix: str | None, user_id: str) -> None:
     if not path_prefix:
         return
     path = str(path_prefix or "").replace("\\", "/").strip("/")
     allowed_prefixes = [f"users/{user_id}/"]
-    if agent_id:
-        allowed_prefixes.append(f"agent/{agent_id}/")
     if not any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in allowed_prefixes):
         raise MemoryReadNotFoundError("memory path not found")
 

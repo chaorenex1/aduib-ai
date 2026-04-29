@@ -4,7 +4,7 @@ description: |
   what does not.
   This is a templated memory: markdown content is rendered from structured fields and
   the raw fields can be persisted in a MEMORY_FIELDS block.
-directory: "agent/{agent_id}/memories/skill"
+directory: "users/{user_id}/agent/memories/skill"
 filename_template: "{skill_name}.md"
 
 content_template: |

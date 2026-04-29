@@ -50,8 +50,7 @@ class StaticPrefetchBuilder:
         paths: list[str] = []
         if self.user_id:
             paths.extend(path.format(user_id=self.user_id) for path in USER_PREFETCH_PATH_TEMPLATES)
-        if self.agent_id:
-            paths.extend(path.format(agent_id=self.agent_id) for path in AGENT_PREFETCH_PATH_TEMPLATES)
+            paths.extend(path.format(user_id=self.user_id) for path in AGENT_PREFETCH_PATH_TEMPLATES)
         return paths
 
     def _build_directory_view(self, path: str) -> DirectoryViewRecord:

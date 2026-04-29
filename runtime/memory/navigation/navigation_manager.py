@@ -283,15 +283,14 @@ class NavigationManager:
         metadata: dict[str, Any],
         task_id: str,
     ) -> dict[str, Any]:
-        scope_type, user_id, agent_id = cls._resolve_scope(path)
+        scope_type, user_id = cls._resolve_scope(path)
         raw_content = storage_manager.read_text(cls._to_scoped_path(path))
         filename = path.rsplit("/", 1)[-1]
         return {
             "memory_id": metadata.get("memory_id") or f"mem_{sha256(path.encode('utf-8')).hexdigest()[:16]}",
             "memory_type": cls._resolve_memory_type(path),
             "memory_level": cls._resolve_memory_level(path),
-            "user_id": user_id,
-            "agent_id": agent_id,
+            "user_id": user_id or metadata.get("user_id"),
             "project_id": metadata.get("project_id"),
             "scope_type": scope_type,
             "directory_path": path.rsplit("/", 1)[0],
@@ -309,13 +308,15 @@ class NavigationManager:
         }
 
     @staticmethod
-    def _resolve_scope(path: str) -> tuple[str, str | None, str | None]:
+    def _resolve_scope(path: str) -> tuple[str, str | None]:
         parts = [part for part in path.split("/") if part]
+        if len(parts) >= 5 and parts[0] == "users" and parts[2] == "agent" and parts[3] == "memories":
+            return "agent", parts[1]
         if len(parts) >= 2 and parts[0] == "users":
-            return "user", parts[1], None
+            return "user", parts[1]
         if len(parts) >= 2 and parts[0] == "agent":
-            return "agent", None, parts[1]
-        return "unknown", None, None
+            return "agent", None
+        return "unknown", None
 
     @staticmethod
     def _resolve_memory_type(path: str) -> str:

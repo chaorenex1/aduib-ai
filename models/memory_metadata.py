@@ -31,7 +31,6 @@ class MemoryIndex(Base):
     memory_level = Column(String(8), nullable=False, comment="l0 | l1 | l2")
 
     user_id = Column(String(100), nullable=False, comment="Owning user id")
-    agent_id = Column(String(100), nullable=True, comment="Owning agent id when applicable")
     project_id = Column(String(255), nullable=True, comment="Owning project id when applicable")
 
     scope_type = Column(String(32), nullable=False, comment="user | agent")
@@ -72,7 +71,6 @@ class MemoryRetrievalHint(Base):
     memory_id = Column(String(120), nullable=False, comment="Stable memory id from file frontmatter")
 
     user_id = Column(String(100), nullable=False, comment="Owning user id")
-    agent_id = Column(String(100), nullable=True, comment="Owning agent id when applicable")
     project_id = Column(String(255), nullable=True, comment="Owning project id when applicable")
 
     kind = Column(String(32), nullable=False, comment="Concrete file kind")

@@ -2,7 +2,7 @@ name: pattern
 description: |
   Pattern memory - captures under what circumstances to follow what process.
   Use for reusable workflows, methods, and solution paths for programmer tasks.
-directory: "agent/{agent_id}/memories/pattern"
+directory: "users/{user_id}/agent/memories/pattern"
 filename_template: "{pattern_name}.md"
 
 fields:

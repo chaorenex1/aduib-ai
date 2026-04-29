@@ -191,7 +191,6 @@ def _build_document_metadata(
         "memory_id": current_metadata.get("memory_id")
         or _build_memory_id(task_id=task_id, target_path=operation.target_path),
         "user_id": prepared.user_id,
-        "agent_id": prepared.agent_id,
         "project_id": prepared.project_id,
         "title": title,
         "created_at": current_metadata.get("created_at") or now,

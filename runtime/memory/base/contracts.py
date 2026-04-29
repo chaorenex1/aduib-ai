@@ -700,7 +700,6 @@ class MemoryReadRecord(MemoryContract):
     memory_type: str = Field(..., min_length=1)
     memory_level: str = Field(..., min_length=1)
     user_id: str | None = None
-    agent_id: str | None = None
     project_id: str | None = None
     scope_type: str = Field(..., min_length=1)
     directory_path: str = Field(..., min_length=1)

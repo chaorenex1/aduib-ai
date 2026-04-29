@@ -27,7 +27,6 @@ class MemoryMetadataRepository(RepositoryBase):
     def list_memory_index(
         *,
         user_id: str,
-        agent_id: str | None,
         project_id: str | None,
         memory_type: str | None,
         path_prefix: str | None,
@@ -37,10 +36,6 @@ class MemoryMetadataRepository(RepositoryBase):
     ) -> list[dict]:
         with get_db() as session:
             query = session.query(MemoryIndex).filter(MemoryIndex.user_id == user_id)
-            if agent_id is None:
-                query = query.filter(MemoryIndex.agent_id.is_(None))
-            else:
-                query = query.filter(MemoryIndex.agent_id == agent_id)
             if project_id is not None:
                 query = query.filter(MemoryIndex.project_id == project_id)
             if memory_type:
@@ -61,29 +56,21 @@ class MemoryMetadataRepository(RepositoryBase):
             return [MemoryMetadataRepository._memory_index_to_dict(item) for item in items]
 
     @staticmethod
-    def get_memory_by_id(memory_id: str, *, user_id: str, agent_id: str | None, project_id: str | None) -> dict | None:
+    def get_memory_by_id(memory_id: str, *, user_id: str, project_id: str | None) -> dict | None:
         with get_db() as session:
             query = session.query(MemoryIndex).filter(
                 MemoryIndex.memory_id == memory_id,
                 MemoryIndex.user_id == user_id,
             )
-            if agent_id is None:
-                query = query.filter(MemoryIndex.agent_id.is_(None))
-            else:
-                query = query.filter(MemoryIndex.agent_id == agent_id)
             if project_id is not None:
                 query = query.filter(MemoryIndex.project_id == project_id)
             item = query.first()
             return MemoryMetadataRepository._memory_index_to_dict(item) if item else None
 
     @staticmethod
-    def get_memory_by_path(path: str, *, user_id: str, agent_id: str | None, project_id: str | None) -> dict | None:
+    def get_memory_by_path(path: str, *, user_id: str, project_id: str | None) -> dict | None:
         with get_db() as session:
             query = session.query(MemoryIndex).filter(MemoryIndex.file_path == path, MemoryIndex.user_id == user_id)
-            if agent_id is None:
-                query = query.filter(MemoryIndex.agent_id.is_(None))
-            else:
-                query = query.filter(MemoryIndex.agent_id == agent_id)
             if project_id is not None:
                 query = query.filter(MemoryIndex.project_id == project_id)
             item = query.first()
@@ -96,7 +83,6 @@ class MemoryMetadataRepository(RepositoryBase):
             "memory_type": item.memory_type,
             "memory_level": item.memory_level,
             "user_id": item.user_id,
-            "agent_id": item.agent_id,
             "project_id": item.project_id,
             "scope_type": item.scope_type,
             "directory_path": item.directory_path,

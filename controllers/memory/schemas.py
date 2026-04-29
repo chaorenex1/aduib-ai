@@ -14,6 +14,11 @@ class MemorySchema(BaseModel):
 
 class MemoryScope(MemorySchema):
     user_id: str = Field(..., min_length=1)
+    project_id: str | None = Field(None, min_length=1)
+
+
+class MemoryActorScope(MemorySchema):
+    user_id: str = Field(..., min_length=1)
     agent_id: str | None = Field(None, min_length=1)
     project_id: str | None = Field(None, min_length=1)
 
@@ -125,7 +130,7 @@ class ProjectGetQuery(MemorySchema):
     user_id: str = Field(..., min_length=1)
 
 
-class TaskCreateRequest(MemoryScope):
+class TaskCreateRequest(MemoryActorScope):
     trigger_type: str = Field(..., min_length=1)
     source_ref: SourceRef
 
@@ -177,7 +182,7 @@ class MemoryByPathQuery(MemoryScope):
     path: str = Field(..., min_length=1)
 
 
-class MemorySearchRequest(MemoryScope):
+class MemorySearchRequest(MemoryActorScope):
     query: str = Field(..., min_length=1)
     mode: Literal["online", "recent", "global"] = "online"
     session_id: str | None = None
@@ -245,12 +250,12 @@ class MemoryUsageContext(MemorySchema):
     kind: str = Field(..., min_length=1)
 
 
-class MemoryUsageCreateRequest(MemoryScope):
+class MemoryUsageCreateRequest(MemoryActorScope):
     session_id: str = Field(..., min_length=1)
     used_contexts: list[MemoryUsageContext] = Field(default_factory=list)
 
 
-class MemoryFeedbackCreateRequest(MemoryScope):
+class MemoryFeedbackCreateRequest(MemoryActorScope):
     memory_id: str = Field(..., min_length=1)
     feedback_type: Literal["helpful", "not_helpful", "incorrect", "outdated", "ranking_issue"]
     value: int | float | None = None

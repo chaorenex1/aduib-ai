@@ -3,7 +3,7 @@ description: |
   Solution memory - captures the scenario description or clarification frame for an
   underspecified problem.
   This memory answers what context must be recognized or elicited before action.
-directory: "agent/{agent_id}/memories/solution"
+directory: "users/{user_id}/agent/memories/solution"
 filename_template: "{solution_name}.md"
 
 fields:

@@ -22,10 +22,10 @@ CANDIDATE_DISCOVERY_ACTION_SCHEMA = {
     "reasoning": "short reason",
     "search_query": {
         "query": "short path/title search query",
-        "path_scopes": ["users/<user_id>/memories", "agent/<agent_id>/memories"],
+        "path_scopes": ["users/<user_id>/memories", "users/<user_id>/agent/memories"],
         "reason": "why these terms identify candidate memories",
     },
-    "candidate_paths": ["users/<user_id>/memories/<memory_type>/<file>.md"],
+    "candidate_paths": ["users/<user_id>/agent/memories/<memory_type>/<file>.md"],
 }
 
 USER_PREFETCH_PATH_TEMPLATES = (
@@ -38,10 +38,10 @@ USER_PREFETCH_PATH_TEMPLATES = (
     "users/{user_id}/memories/ops",
 )
 AGENT_PREFETCH_PATH_TEMPLATES = (
-    "agent/{agent_id}/memories/solution",
-    "agent/{agent_id}/memories/pattern",
-    "agent/{agent_id}/memories/tool",
-    "agent/{agent_id}/memories/skill",
+    "users/{user_id}/agent/memories/solution",
+    "users/{user_id}/agent/memories/pattern",
+    "users/{user_id}/agent/memories/tool",
+    "users/{user_id}/agent/memories/skill",
 )
 
 
@@ -197,9 +197,7 @@ def describe_summary_file(file_path: str) -> tuple[str, str, str | None, Literal
 def candidate_search_roots(*, user_id: str | None, agent_id: str | None) -> list[str]:
     roots: list[str] = []
     if user_id:
-        roots.append(f"users/{user_id}/memories")
-    if agent_id:
-        roots.append(f"agent/{agent_id}/memories")
+        roots.append(f"users/{user_id}/agent/memories")
     return roots
 
 
@@ -209,16 +207,16 @@ def is_candidate_memory_path(file_path: str) -> bool:
         return False
     parts = [part for part in normalized.split("/") if part]
     return (len(parts) >= 5 and parts[0] == "users" and parts[2] == "memories") or (
-        len(parts) >= 5 and parts[0] == "agent" and parts[2] == "memories"
+        len(parts) >= 6 and parts[0] == "users" and parts[2] == "agent" and parts[3] == "memories"
     )
 
 
 def classify_branch_scope(branch_path: str) -> tuple[str, str | None]:
     parts = [part for part in str(branch_path or "").split("/") if part]
+    if len(parts) >= 5 and parts[0] == "users" and parts[2] == "agent" and parts[3] == "memories":
+        return "agent_memory", parts[4]
     if len(parts) >= 4 and parts[0] == "users" and parts[2] == "memories":
         return "user_memory", parts[3]
-    if len(parts) >= 4 and parts[0] == "agent" and parts[2] == "memories":
-        return "agent_memory", parts[3]
     if len(parts) >= 3 and parts[0] == "users" and parts[2] == "project":
         return "project", "project"
     return "unknown", None

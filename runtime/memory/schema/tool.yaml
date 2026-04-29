@@ -3,7 +3,7 @@ description: |
   Tool usage memory - captures how a tool is used, what works well, and what does not.
   This is a templated memory: markdown content is rendered from structured fields and
   the raw fields can be persisted in a MEMORY_FIELDS block.
-directory: "agent/{agent_id}/memories/tool"
+directory: "users/{user_id}/agent/memories/tool"
 filename_template: "{tool_name}.md"
 
 content_template: |
