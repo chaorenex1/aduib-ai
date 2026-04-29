@@ -2,7 +2,6 @@
 
 from .conversation_repository import ConversationRepository
 from .conversation_source_service import ConversationSourceService
-from .memory_service import MemoryService
 from .read_service import MemoryReadService
 from .repository import MemoryWriteTaskRepository, SessionMessageRepository
 from .write_task_service import MEMORY_WRITE_TASK_NAME, MemoryWriteTaskService
@@ -12,7 +11,6 @@ __all__ = [
     "ConversationRepository",
     "ConversationSourceService",
     "MemoryReadService",
-    "MemoryService",
     "MemoryWriteTaskRepository",
     "MemoryWriteTaskService",
     "SessionMessageRepository",

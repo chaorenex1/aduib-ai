@@ -5,9 +5,6 @@ from controllers.memory.schemas import (
     ConversationCreateRequest,
     ConversationGetQuery,
     ConversationSourceResponse,
-    MemoryCreateRequest,
-    MemoryRetrieveRequest,
-    MemoryRetrieveResponse,
     ProjectImportRequest,
     TaskCreateRequest,
 )
@@ -19,11 +16,8 @@ from .contracts import (
     ConversationSourceGetQuery,
     ConversationSourceMetadata,
     ConversationSourceView,
-    MemoryRetrievedMemory,
-    MemoryRetrieveQuery,
     MemorySourceRef,
     MemoryTaskCreateCommand,
-    MemoryWriteCommand,
 )
 from .enums import MemoryTriggerType
 
@@ -94,26 +88,6 @@ def conversation_view_to_response(view: ConversationSourceView | dict[str, objec
     )
 
 
-async def memory_create_request_to_command(payload: MemoryCreateRequest) -> MemoryWriteCommand:
-    file_content: str | None = None
-    file_name: str | None = None
-    if payload.file is not None:
-        raw = await payload.file.read()
-        file_name = getattr(payload.file, "filename", None)
-        file_content = raw if isinstance(raw, str) else raw.decode("utf-8", errors="replace")
-
-    return MemoryWriteCommand(
-        content=payload.content or None,
-        file_content=file_content,
-        file_name=file_name,
-        project_id=payload.project_id,
-        user_id=payload.user_id,
-        agent_id=payload.agent_id,
-        summary_enabled=payload.summary_enabled,
-        memory_source=payload.memory_source,
-    )
-
-
 def task_create_request_to_command(payload: TaskCreateRequest) -> MemoryTaskCreateCommand:
     return MemoryTaskCreateCommand(
         trigger_type=MemoryTriggerType(payload.trigger_type),
@@ -146,28 +120,3 @@ def project_import_request_to_task_command(
             },
         ),
     )
-
-
-def memory_retrieve_request_to_query(payload: MemoryRetrieveRequest) -> MemoryRetrieveQuery:
-    return MemoryRetrieveQuery(
-        query=payload.query,
-        user_id=payload.user_id,
-        agent_id=payload.agent_id,
-        project_id=payload.project_id,
-        retrieve_type=payload.retrieve_type,
-        top_k=payload.top_k,
-        score_threshold=payload.score_threshold,
-        filters=payload.filters,
-    )
-
-
-def retrieved_memories_to_response(items: list[MemoryRetrievedMemory]) -> list[MemoryRetrieveResponse]:
-    return [
-        MemoryRetrieveResponse.from_memory(
-            content=item.content,
-            memory_id=item.memory_id,
-            score=item.score,
-            metadata=item.metadata,
-        )
-        for item in items
-    ]

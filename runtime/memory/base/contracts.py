@@ -127,30 +127,12 @@ class MemoryTaskCreateCommand(MemoryContract):
     source_ref: MemorySourceRef
 
 
-class MemoryRetrieveQuery(MemoryContract):
-    query: str = Field(..., min_length=1)
-    user_id: str = Field(..., min_length=1)
-    agent_id: str | None = None
-    project_id: str | None = None
-    retrieve_type: str = Field(..., min_length=1)
-    top_k: int = 5
-    score_threshold: float = 0.6
-    filters: dict[str, Any] = Field(default_factory=dict)
-
-
 class ArchivedSourceRef(MemoryContract):
     path: str = Field(..., min_length=1)
     type: str = Field(..., min_length=1)
     storage: str = Field("default", min_length=1)
     content_sha256: str | None = None
     size_bytes: int | None = None
-
-
-class MemoryRetrievedMemory(MemoryContract):
-    content: str
-    memory_id: str = Field(..., min_length=1)
-    score: float = 0.0
-    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class MemoryWriteAccepted(MemoryContract):

@@ -9,6 +9,7 @@ from models import Agent, get_db
 from runtime.agent.adapters import RequestAdapter, ResponseTextExtractor, ToolCallAdapter
 from runtime.agent.agent_type import AgentExecutionContext
 from runtime.agent.buffered_stream_response import BufferedStreamResponse
+from runtime.agent.memory.agent_memory import LegacyAgentMemoryAccessDisabledError
 from runtime.agent.memory.prompt_markup import (
     build_memory_prompt_block,
     extract_selected_memory_ids_from_prompt,
@@ -35,7 +36,6 @@ from runtime.entities import (
 )
 from runtime.entities.llm_entities import ChatCompletionRequest, LLMRequest, LLMResponse, LLMStreamResponse
 from runtime.entities.message_entities import ThinkingOptions
-from runtime.memory.manager import LegacyMemoryWriteDisabledError
 from runtime.memory.types import MemorySignalType
 from runtime.model_execution import AiModel
 from runtime.model_manager import ModelManager
@@ -272,11 +272,12 @@ class AgentManager:
 
     def cleanup_memory(self) -> None:
         """Clean up memory for a session"""
-        # Legacy cleanup would delegate to async long-term memory deletion through
-        # AgentMemory.clear_memory(); keep the old path blocked until migrated.
+        # Legacy cleanup would delegate to the retired durable-memory deletion
+        # path through AgentMemory.clear_memory(); keep the old path blocked
+        # until migrated.
         # self.memory_manager.cleanup_memory()
-        raise LegacyMemoryWriteDisabledError(
-            "AgentManager.cleanup_memory() is disabled until legacy long-term memory cleanup is migrated."
+        raise LegacyAgentMemoryAccessDisabledError(
+            "AgentManager.cleanup_memory() is disabled until retired legacy memory cleanup is migrated."
         )
 
     @staticmethod
@@ -316,20 +317,20 @@ class AgentManager:
                         await self.memory_manager.clear_short_term_memory()
                         # short term compact session
                         await self.memory_manager.add_memory(summary, long_term_memory=False, compact_session=True)
-                        # long term memory
+                        # retired legacy memory
                         if self.agent.enabled_memory != 1:
                             return
-                        # Legacy long-term writes used runtime.memory.manager.store(); keep
-                        # the old path blocked until this caller is migrated.
+                        # Legacy durable-memory writes used
+                        # runtime.memory.manager.store(); keep the old path
+                        # blocked until this caller is migrated.
                         # await self.memory_manager.add_memory(
                         #     response_text, long_term_memory=True, compact_session=True
                         # )
-                        raise LegacyMemoryWriteDisabledError(
-                            "AgentManager long-term post-response memory writes are disabled until migrated "
-                            "to the new memory pipeline."
+                        raise LegacyAgentMemoryAccessDisabledError(
+                            "AgentManager legacy post-response memory writes are disabled."
                         )
                         logger.info("Memory compacted for session %s due to context length.", session_id)
-        except LegacyMemoryWriteDisabledError:
+        except LegacyAgentMemoryAccessDisabledError:
             raise
         except Exception as ex:
             logger.warning("Post-response memory management failed: %s", ex)
@@ -352,7 +353,11 @@ class AgentManager:
         try:
             context = await ctx.memory.retrieve_context(
                 user_prompt,
-                long_term_memory=self.agent.enabled_memory != 1 or ctx.memory is None,
+                # Legacy durable-memory prompt retrieval used the deleted runtime
+                # memory stack; keep the old access path commented out during
+                # cleanup.
+                # long_term_memory=self.agent.enabled_memory != 1 or ctx.memory is None,
+                long_term_memory=False,
                 compact_session=True,
             )
             short_term_memory = context.get("short_term", "")
@@ -364,7 +369,7 @@ class AgentManager:
                     self.append_memory_block_to_latest_user_prompt(request, memory_block)
                 return
 
-            # Handle long-term memory with embeddings
+            # The retired legacy memory block stays empty after the cleanup.
             long_term_memories = context.get("long_term", [])
             if not long_term_memories:
                 return

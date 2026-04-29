@@ -5,7 +5,7 @@ from runtime.memory.types import MemoryRetrieveResult
 
 class MemoryBase(ABC):
     """
-    Base class for memory. Memory is used to store information.
+    Compatibility interface for the surviving agent memory surfaces.
     """
 
     @abstractmethod
@@ -14,6 +14,7 @@ class MemoryBase(ABC):
 
     @abstractmethod
     async def get_long_term_memory(self, query: str) -> list[MemoryRetrieveResult]:
+        """Retained for legacy-compatible implementations that still expose the old hook."""
         raise NotImplementedError("Get memory method not implemented.")
 
     @abstractmethod

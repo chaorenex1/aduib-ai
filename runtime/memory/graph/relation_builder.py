@@ -64,9 +64,12 @@ class RelationBuilder:
             if memory_id and unique_entity_ids:
                 memory_ref = MemoryRef(
                     id=memory_id,
-                    memory_type="semantic",  # 默认为语义记忆
+                    memory_type="graph_ref",
+                    user_id="",
+                    project_id=None,
+                    agent_id=None,
+                    memory_domain="",
                     summary="",
-                    importance=0.5,
                 )
                 await self._graph.add_memory_ref(memory_ref, unique_entity_ids)
 
@@ -75,8 +78,8 @@ class RelationBuilder:
 
             return actual_entities_added, relations_added
 
-        except Exception as e:
-            logger.error(f"构建三元组到图谱失败: {e}")
+        except Exception:
+            logger.exception("构建三元组到图谱失败")
             return 0, 0
 
     async def build_from_text(
@@ -98,6 +101,6 @@ class RelationBuilder:
         try:
             triples = await extractor.extract_from_text(text)
             return await self.build_from_triples(triples, memory_id)
-        except Exception as e:
-            logger.error(f"从文本构建图谱失败: {e}")
+        except Exception:
+            logger.exception("从文本构建图谱失败")
             return 0, 0

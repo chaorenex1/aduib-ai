@@ -22,7 +22,7 @@ class MemoryRef(BaseModel):
     """轻量记忆引用节点，存储于图数据库中。"""
 
     id: str
-    memory_type: str  # episodic/semantic/procedural/perceptual
+    memory_type: str  # Memory schema name or graph fallback label.
     user_id: str
     project_id: Optional[str]
     agent_id: Optional[str]
@@ -267,7 +267,7 @@ class KnowledgeGraphLayer:
             result.append(
                 MemoryRef(
                     id=mid,
-                    memory_type=row.get("memory_type", "semantic"),
+                    memory_type=row.get("memory_type", "graph_ref"),
                     user_id=row.get("user_id", ""),
                     project_id=row.get("project_id"),
                     agent_id=row.get("agent_id"),
@@ -301,7 +301,7 @@ class KnowledgeGraphLayer:
             result.append(
                 MemoryRef(
                     id=mid,
-                    memory_type=row.get("memory_type", "semantic"),
+                    memory_type=row.get("memory_type", "graph_ref"),
                     user_id=row.get("user_id", ""),
                     project_id=row.get("project_id"),
                     agent_id=row.get("agent_id"),
