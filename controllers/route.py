@@ -37,9 +37,12 @@ from .knowledge import knowledge
 api_router.include_router(knowledge.router)
 
 # agent
-from .agent import agent
+from .agent import agent, messages, sessions, tooling
 
 api_router.include_router(agent.router)
+api_router.include_router(messages.router)
+api_router.include_router(sessions.router)
+api_router.include_router(tooling.router)
 
 # task cache (Orchestrator integration)
 from .task_cache import task_cache
