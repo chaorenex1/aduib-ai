@@ -71,13 +71,26 @@ uv run ruff check --fix .
 ## High-Level Architecture
 
 ### Application Initialization Flow
-The application follows a factory pattern:
+The application uses a custom `AduibAIApp` (subclass of FastAPI) with a factory pattern:
 - `app.py` - Entry point that imports the factory
-- `app_factory.py` - Creates and configures the FastAPI app
-  - Initializes logging, cache, storage, snowflake ID generator
-  - Sets up event manager for async event processing
-  - Configures RPC service registration with Nacos discovery
-  - Wires up middleware (trace ID, API key context, logging)
+- `app_factory.py` - Creates and configures the app
+  - `AduibAIApp` stores `app_home`, `workdir`, `config`, and `extensions` dict
+  - Middleware stack (in order): `TraceIdContextMiddleware` → `ApiKeyContextMiddleware` → `PerformanceMetricsMiddleware` (and `LoggingMiddleware` in debug mode)
+  - `init_apps()` initializes cache, storage, event manager, and ClickHouse
+
+**Lifespan startup sequence** (`app_factory.lifespan`):
+1. RPC service registration with Nacos discovery (background task)
+2. Event manager start
+3. Memory write task queue start (`MemoryWriteTaskQueueRuntime`)
+4. Ensure default admin account exists (`UserService.ensure_admin_exists`)
+5. Register builtin agents and start cron scheduler
+6. Initialize `AgentManager("supervisor_agent_v3")`
+
+**Lifespan shutdown sequence**:
+1. Stop event manager
+2. Stop cron scheduler
+3. Stop memory write task queue
+4. Close database connections
 
 ### Core Architectural Layers
 
@@ -123,6 +136,7 @@ The application follows a factory pattern:
 - Tool types: BUILTIN (CurrentTime, CurrentWeather) and MCP (dynamic server integration)
 - Memory integration: short-term conversation history + long-term embedding retrieval
 - Recursive tool calling with callback management
+- **Policy resolvers**: `StreamingPolicyResolver` and `ThinkingPolicyResolver` determine streaming mode and thinking behavior per request
 
 **RAG Pipeline** (`runtime/rag_manager.py`, `runtime/rag/`):
 - **Extract**: FileResource → Extractor (Text, Markdown, HTML, ConversationMessage)
@@ -140,8 +154,33 @@ The application follows a factory pattern:
 - Events: `qa_rag_from_conversation_message`, `paragraph_rag_from_web_memo`, `agent_from_conversation_message`
 - Started in app lifespan, stopped on shutdown
 
-### QA Memory System
+### Memory System
 
+#### Memory Write Pipeline (New)
+A state-machine-based pipeline for persisting structured memory from conversations:
+
+**Architecture**: Trigger (`MEMORY_API` or `SESSION_COMMIT`) → Async Task Queue → State Machine → Committed
+
+**Phases** (`runtime/memory/write_state_machine.py`):
+1. `PREPARE_EXTRACT_CONTEXT` — Archive source material, build conversation snapshot
+2. `EXTRACT_OPERATIONS` — `ReActOrchestrator` plans memory changes (write/edit/delete/ignore) via LLM reasoning with tool use (ls/read/find)
+3. `MEMORY_UPDATER` — Resolve document operations, build patch plan, apply mutations, refresh navigation/metadata
+4. `COMMITTED` — Finalize with rollback support
+
+**Memory Types** (`runtime/memory/base/enums.py`):
+`entity`, `event`, `pattern`, `preference`, `profile`, `review`, `skill`, `solution`, `task`, `tool`, `verification`, `deployment`, `incident`, `rollback`, `runbook`
+
+**Contracts**: All memory structures use strict Pydantic contracts in `runtime/memory/base/contracts.py` (`MemoryContract` base with `extra="forbid"`)
+
+**Task Queue**: `MemoryWriteTaskQueueRuntime` manages an `AsyncTaskQueue` with configurable workers for async memory writes.
+
+#### Memory Retrieval
+`MemoryRetrievalService` (`runtime/agent/memory_retrieval_service.py`) provides the read path:
+- Agent mode: `MemorySearchRuntime.search_for_current_user()` with session context (last 8 messages)
+- Non-agent mode: `MemoryFindRuntime.find_for_current_user()`
+- Results formatted as XML `<memory>` tags injected into the prompt
+
+#### QA Memory System (Legacy)
 A specialized subsystem for automatic Q&A learning from execution feedback:
 
 **Architecture**: MCP Wrapper → QA Memory Service → Milvus + Embeddings
@@ -181,6 +220,76 @@ Native support for Claude models via transformation layer:
 - Request transformation: OpenAI format → Anthropic format (system message extraction)
 - Error handling: Auth, rate limit, model not found, server errors with retry strategies
 - Test with: `uv run pytest tests/anthropic/ -v`
+
+## Frontend Project
+
+The frontend lives in a **separate repository** at `~/Documents/aduib-app/memexos-bot` (sibling to this backend). It is a React + TypeScript + Vite + Electron monorepo that consumes this FastAPI backend.
+
+### Tech Stack
+
+- **Framework**: React 19 + TypeScript 5 + Vite 5
+- **Desktop**: Electron 31 + electron-vite 2
+- **Monorepo**: pnpm 9.x workspace + Turborepo 2
+- **UI**: Tailwind CSS 3.4 + shadcn/ui
+- **State**: Zustand 4
+- **Data Fetching**: TanStack Query 5 + Axios 1
+- **Routing**: React Router 6 (browser for web, hash for desktop)
+
+### Workspace Structure
+
+```
+apps/
+  web/         # PC Web + Mobile Web SPA (@app/web)
+  web-ssr/     # Next.js 14 SSR/SSG (@app/web-ssr)
+  desktop/     # Electron Desktop (@app/desktop)
+packages/
+  ui/          # shadcn/ui component library (@repo/ui)
+  store/       # Zustand state management (@repo/store)
+  request/     # Axios + TanStack Query layer (@repo/request)
+  platform/    # Platform abstraction (@repo/platform)
+  hooks/       # Shared React hooks (@repo/hooks)
+  theme/       # Design tokens + CSS variables (@repo/theme)
+  ...
+```
+
+**Dependency direction**: `apps → packages` only; packages never import from apps. Packages internal hierarchy: `types ← constants ← utils ← hooks/store/request/...`
+
+### Common Commands (run from frontend root)
+
+```bash
+# Install
+pnpm install
+
+# Development
+pnpm dev:web         # http://localhost:5173
+pnpm dev:ssr         # http://localhost:3000
+pnpm dev:desktop     # Electron window
+
+# Build
+pnpm build:web
+pnpm build:desktop
+
+# Quality
+pnpm lint
+pnpm typecheck
+pnpm format
+
+# Testing
+pnpm test            # Vitest
+pnpm test:e2e        # Playwright
+```
+
+### Key Constraints
+
+- **pnpm strict isolation**: Any package imported in source must be listed in that workspace's own `package.json` (no hoisting reliance)
+- **Electron security**: Renderer cannot directly access Node APIs; all Node capabilities go through preload + IPC with Zod validation
+- **Platform abstraction**: Cross-platform code imports from `@repo/platform`, which dispatches to `web/` or `desktop/` implementations at runtime
+- **Tailwind v3.4 only** (do not upgrade to v4); all apps reference `@repo/tailwind-config/preset`
+- **Next.js SSR**: Must explicitly list all `@repo/*` packages in `transpilePackages` because packages ship TS source (no build step)
+
+### Full Frontend Guidance
+
+The frontend has its own `CLAUDE.md` at `~/Documents/aduib-app/memexos-bot/CLAUDE.md` with exhaustive architecture details, Electron security rules, scaffolding commands, and workspace constraints.
 
 ## Coding Conventions
 
