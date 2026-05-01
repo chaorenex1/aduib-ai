@@ -1,1 +1,3 @@
-CLAUDE.md
+# AGENTS
+
+See `CLAUDE.md`.
