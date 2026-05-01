@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from models import Agent
-from runtime.entities import ChatCompletionRequest, PromptMessageRole, SystemPromptMessage, UserPromptMessage
+from runtime.entities import ChatCompletionRequest, PromptMessageRole, UserPromptMessage
 from runtime.entities.message_entities import ThinkingOptions
 from runtime.tool.builtin_tool.tool import BuiltinTool
 from runtime.tool.entities import ToolInvokeResult
@@ -75,27 +75,20 @@ class SubagentTool(BuiltinTool):
         if context:
             user_prompt = f"Context:\n{context.strip()}\n\nTask:\n{user_prompt}"
 
-        messages: list = []
-        if getattr(target_agent, "prompt_template", None):
-            messages.append(
-                SystemPromptMessage(
-                    role=PromptMessageRole.SYSTEM,
-                    content=str(target_agent.prompt_template).strip(),
-                )
-            )
-        messages.append(
+        messages: list = [
             UserPromptMessage(
                 role=PromptMessageRole.USER,
                 content=user_prompt,
             )
-        )
+        ]
+        agent_parameters = getattr(target_agent, "agent_parameters", {}) or {}
         return ChatCompletionRequest(
             model=str(target_agent.model_id or ""),
             messages=messages,
             stream=True,
-            include_reasoning=target_agent.agent_parameters.get("enable_thinking", False),
-            enable_thinking=target_agent.agent_parameters.get("enable_thinking", False),
-            thinking=ThinkingOptions(type="enabled") if target_agent.agent_parameters.get("thinking", False) else None,
+            include_reasoning=agent_parameters.get("enable_thinking", False),
+            enable_thinking=agent_parameters.get("enable_thinking", False),
+            thinking=ThinkingOptions(type="enabled") if agent_parameters.get("thinking", False) else None,
         )
 
     def _resolve_target_agent(self, tool_parameters: dict[str, Any]) -> Agent:

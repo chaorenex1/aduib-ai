@@ -102,13 +102,11 @@ def test_subagent_tool_builds_chat_request_with_system_prompt():
     )
 
     assert request.model == "test-model"
-    assert request.stream is False
-    assert len(request.messages) == 2
-    assert request.messages[0].role == PromptMessageRole.SYSTEM
-    assert request.messages[0].content == "You are a worker."
-    assert request.messages[1].role == PromptMessageRole.USER
-    assert "Context:\n关注最近 24 小时的 error" in request.messages[1].content
-    assert "Task:\n分析日志" in request.messages[1].content
+    assert request.stream is True
+    assert len(request.messages) == 1
+    assert request.messages[0].role == PromptMessageRole.USER
+    assert "Context:\n关注最近 24 小时的 error" in request.messages[0].content
+    assert "Task:\n分析日志" in request.messages[0].content
 
 
 @pytest.mark.anyio

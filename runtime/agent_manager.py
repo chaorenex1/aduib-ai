@@ -1,7 +1,10 @@
 import asyncio
 import json
 import logging
+import os
+import platform
 from collections.abc import AsyncGenerator, Sequence
+from datetime import date
 from typing import Any, Optional, Union
 
 from component.storage.base_storage import storage_manager
@@ -39,6 +42,13 @@ from runtime.entities.message_entities import ThinkingOptions
 from runtime.memory.types import MemorySignalType
 from runtime.model_execution import AiModel
 from runtime.model_manager import ModelManager
+from runtime.prompting.adapters import (
+    AnthropicMessagesPromptAdapter,
+    OpenAIChatPromptAdapter,
+    OpenAIResponsesPromptAdapter,
+)
+from runtime.prompting.integration.build_for_agent import build_agent_continued_turn, build_agent_first_turn
+from runtime.prompting.runtime.session_state_store import PromptSessionStateStore
 from runtime.protocol._openai_anthropic import StreamingToolCallCollector
 from runtime.protocol._openai_responses import ResponsesStreamingToolCallCollector
 from runtime.tool.base.tool import Tool
@@ -73,6 +83,7 @@ class AgentManager:
         self.tool_manager = ToolManager()
         self.tools = self.get_agent_tools(self.agent)
         self.response_generator = ResponseGenerator(self.model_manager, self._build_response_callbacks)
+        self.prompt_session_state_store = PromptSessionStateStore()
         self.tool_collector_cache: dict[
             str, Union[StreamingToolCallCollector, ResponsesStreamingToolCallCollector]
         ] = {}
@@ -99,10 +110,8 @@ class AgentManager:
         except Exception:
             pass
         ctx: AgentExecutionContext = self._build_agent_execution_context(user_id=user_id)
-
-        self.inject_agent_system_prompt(request)
+        request = await self._compile_agent_prompt(request, ctx)
         self._apply_agent_request_overrides(request)
-        await self.inject_memory_into_user_prompt(request, ctx)
 
         # Inject tools into request (protocol-aware, in-place)
         self.add_tools_to_request(request)
@@ -116,6 +125,129 @@ class AgentManager:
         if not prompt_template:
             return
         RequestAdapter(request).prepend_system_prompt(prompt_template)
+
+    async def _compile_agent_prompt(self, request: LLMRequest, ctx: AgentExecutionContext) -> LLMRequest:
+        if not isinstance(request, (ChatCompletionRequest, AnthropicMessageRequest, ResponseRequest)):
+            self.inject_agent_system_prompt(request)
+            await self.inject_memory_into_user_prompt(request, ctx)
+            return request
+        session_state = self.prompt_session_state_store.load(ctx.session_id) if ctx.session_id is not None else {}
+        memory_attachment = await self.build_memory_attachment(request, ctx)
+        extras = self._build_prompt_extras(
+            request, ctx, memory_attachment=memory_attachment, session_state=session_state
+        )
+
+        if session_state.get("turn_count"):
+            compiled, trace = build_agent_continued_turn(
+                request=request,
+                agent=self.agent,
+                ctx=ctx,
+                tools=self.tools,
+                session_state=session_state,
+                extras=extras,
+            )
+        else:
+            compiled, trace = build_agent_first_turn(
+                request=request,
+                agent=self.agent,
+                ctx=ctx,
+                tools=self.tools,
+                session_state=session_state,
+                extras=extras,
+            )
+
+        request = self._apply_compiled_prompt(request, compiled)
+        self._save_prompt_session_state(ctx, session_state=session_state, trace_id=trace.trace_id, extras=extras)
+        return request
+
+    def _build_prompt_extras(
+        self,
+        request: LLMRequest,
+        ctx: AgentExecutionContext,
+        *,
+        memory_attachment: str | None,
+        session_state: dict[str, object],
+    ) -> dict[str, object]:
+        parameters = getattr(self.agent, "agent_parameters", {}) or {}
+        env_info = {"platform": platform.system()}
+        if parameters.get("include_env_info") is True:
+            env_info["workspace_name"] = os.path.basename(os.getcwd())
+            env_info["shell"] = os.environ.get("SHELL") or os.environ.get("COMSPEC") or "unknown"
+        subagent_types = list(session_state.get("subagent_types", []))
+        if (
+            "subagent" in {tool.entity.name for tool in self.tools if getattr(tool, "entity", None)}
+            and "subagent" not in subagent_types
+        ):
+            subagent_types.append("subagent")
+        turn_goal = RequestAdapter(request).latest_user_text()
+        return {
+            "current_date": date.today().isoformat(),
+            "turn_goal": turn_goal,
+            "session_goal": str(session_state.get("session_goal") or "") or None,
+            "permission_mode": parameters.get("permission_mode"),
+            "workspace_rules": parameters.get("workspace_rules"),
+            "workflow_charter": parameters.get("workflow_charter"),
+            "output_contract": parameters.get("output_contract"),
+            "language": parameters.get("language"),
+            "output_style": parameters.get("output_style"),
+            "env_info": env_info,
+            "session_guidance": parameters.get("session_guidance")
+            or ["Use tools only when needed, verify results, and keep the tool loop concise."],
+            "scratchpad_path": parameters.get("scratchpad_path"),
+            "token_budget": parameters.get("thinking_budget") or parameters.get("budget_tokens"),
+            "brief_enabled": bool(parameters.get("brief")),
+            "frc": parameters.get("frc"),
+            "summarize_tool_results": True,
+            "mcp_instructions": parameters.get("mcp_instructions"),
+            "memory_attachment": memory_attachment,
+            "execution_topology": "single_agent",
+            "subagent_types": subagent_types,
+        }
+
+    def _apply_compiled_prompt(self, request: LLMRequest, compiled) -> LLMRequest:
+        if isinstance(request, ChatCompletionRequest):
+            return OpenAIChatPromptAdapter().apply(request, compiled)
+        if isinstance(request, AnthropicMessageRequest):
+            return AnthropicMessagesPromptAdapter().apply(request, compiled)
+        if isinstance(request, ResponseRequest):
+            return OpenAIResponsesPromptAdapter().apply(request, compiled)
+        return request
+
+    def _save_prompt_session_state(
+        self,
+        ctx: AgentExecutionContext,
+        *,
+        session_state: dict[str, object],
+        trace_id: str,
+        extras: dict[str, object],
+    ) -> None:
+        if ctx.session_id is None:
+            return
+        next_state = dict(session_state)
+        next_state["turn_count"] = int(session_state.get("turn_count", 0) or 0) + 1
+        next_state["last_trace_id"] = trace_id
+        next_state["session_goal"] = (
+            session_state.get("session_goal")
+            or extras.get("session_goal")
+            or self._summarize_session_goal(extras.get("turn_goal"))
+        )
+        next_state["subagent_types"] = extras.get("subagent_types", session_state.get("subagent_types", []))
+        extra_state = dict(session_state.get("extra", {}))
+        volatile_keys = {"current_date", "turn_goal", "memory_attachment"}
+        for key, value in extras.items():
+            if key in volatile_keys:
+                continue
+            if value not in (None, "", [], {}):
+                extra_state[key] = value
+        next_state["extra"] = extra_state
+        self.prompt_session_state_store.save(ctx.session_id, next_state)
+
+    @staticmethod
+    def _summarize_session_goal(value: object) -> str | None:
+        text = " ".join(str(value or "").strip().split())
+        if not text:
+            return None
+        return text[:200]
 
     def _apply_agent_request_overrides(self, request: LLMRequest) -> None:
         if not self._is_supervisor_agent():
@@ -345,10 +477,10 @@ class AgentManager:
             agent=self.agent, agent_id=self.agent.id, user_id=user_id, session_id=session_id, memory=memory
         )
 
-    async def inject_memory_into_user_prompt(self, request: LLMRequest, ctx: AgentExecutionContext) -> None:
+    async def build_memory_attachment(self, request: LLMRequest, ctx: AgentExecutionContext) -> str | None:
         user_prompt = self.get_latest_user_prompt_text(request)
         if not user_prompt.strip():
-            return
+            return None
 
         try:
             context = await ctx.memory.retrieve_context(
@@ -365,14 +497,12 @@ class AgentManager:
             # Handle compact session memory (direct string from Redis)
             if short_term_memory and isinstance(short_term_memory, str):
                 memory_block = self._build_compact_memory_block(short_term_memory)
-                if memory_block:
-                    self.append_memory_block_to_latest_user_prompt(request, memory_block)
-                return
+                return memory_block or None
 
             # The retired legacy memory block stays empty after the cleanup.
             long_term_memories = context.get("long_term", [])
             if not long_term_memories:
-                return
+                return None
 
             from service.learning_signal_service import LearningSignalService
 
@@ -385,12 +515,17 @@ class AgentManager:
             )
 
             memory_block = build_memory_prompt_block(long_term_memories)
-            if memory_block:
-                self.append_memory_block_to_latest_user_prompt(request, memory_block)
+            return memory_block or None
         except RuntimeError:
             raise
         except Exception:
             logger.warning("Failed to inject memory into user prompt", exc_info=True)
+        return None
+
+    async def inject_memory_into_user_prompt(self, request: LLMRequest, ctx: AgentExecutionContext) -> None:
+        memory_block = await self.build_memory_attachment(request, ctx)
+        if memory_block:
+            self.append_memory_block_to_latest_user_prompt(request, memory_block)
 
     @staticmethod
     def _build_compact_memory_block(compact_session: str) -> str:
@@ -421,9 +556,9 @@ class AgentManager:
         agent: Agent
         if agent_id is not None:
             with get_db() as db:
-                    agent = db.query(Agent).filter(Agent.name == agent_id).first()
-                    if not agent:
-                        raise ValueError(f"Agent with id or name '{agent_id}' not found")
+                agent = db.query(Agent).filter(Agent.name == agent_id).first()
+                if not agent:
+                    raise ValueError(f"Agent with id or name '{agent_id}' not found")
         else:
             raise ValueError("agent_id is required in the request")
         return agent
@@ -466,9 +601,7 @@ class AgentManager:
             logger.warning("Background memory write failed: %s", ex)
 
     def _schedule_tool_result_memory_write(self, content: str) -> None:
-        task = asyncio.create_task(
-            self.memory_manager.add_memory("Tool Result: " + content, long_term_memory=False)
-        )
+        task = asyncio.create_task(self.memory_manager.add_memory("Tool Result: " + content, long_term_memory=False))
         task.add_done_callback(self._log_background_memory_task)
 
     @staticmethod
