@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 api_key_context = ContextVarWrapper.create("api_key")
 trace_id_context = ContextVarWrapper.create("trace_id")
 user_context = DictContextVar.create("current_user")
+request_meta_context = DictContextVar.create("request_meta")
 app_context = ContextVarWrapper.create("app")
 
 
@@ -36,6 +37,15 @@ def get_app():
 
 def get_app_home():
     return getattr(app_context, "app_home", None)
+
+
+def get_request_audit_metadata() -> dict[str, str | None]:
+    request_meta = request_meta_context.get(default={}) or {}
+    return {
+        "trace_id": trace_id_context.get(default=None),
+        "request_ip": request_meta.get("request_ip"),
+        "user_agent": request_meta.get("user_agent"),
+    }
 
 
 def verify_api_key_in_db(
@@ -124,11 +134,19 @@ class TraceIdContextMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         trace_id = trace_uuid()
+        request_ip = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
         logger.info("%Using Trace ID: {trace_id}")
 
         # Use temporary_set for automatic cleanup
         with trace_id_context.temporary_set(trace_id):
-            return await call_next(request)
+            with request_meta_context.temporary_set(
+                {
+                    "request_ip": request_ip,
+                    "user_agent": user_agent,
+                }
+            ):
+                return await call_next(request)
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):

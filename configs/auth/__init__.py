@@ -19,9 +19,14 @@ class AuthConfig(BaseSettings):
         default="HS256",
     )
 
-    AUTH_EXPIRE_MINUTES: int = Field(
-        description="JWT token expiration in minutes",
-        default=60 * 24 * 7,  # 7 days
+    AUTH_ACCESS_TOKEN_EXPIRE_MINUTES: Optional[int] = Field(
+        description="Access token expiration in minutes",
+        default=43200,
+    )
+
+    AUTH_REFRESH_TOKEN_EXPIRE_MINUTES: int = Field(
+        description="Refresh token expiration in minutes",
+        default=43200,
     )
 
     AUTH_REGISTRATION_ENABLED: bool = Field(

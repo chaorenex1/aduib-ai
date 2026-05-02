@@ -2,7 +2,7 @@ import datetime
 from typing import Any, Optional
 
 from libs.context import get_current_user_id
-from models import AgentPlan, AgentTodo, ConversationMessage, EventLog, get_db
+from models import AgentPlan, AgentTodo, ConversationMessage, get_db
 from service.error.error import PlanStateError
 
 PLAN_STATUSES = {"draft", "active", "completed", "cancelled", "archived"}

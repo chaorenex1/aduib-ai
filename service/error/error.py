@@ -2,47 +2,68 @@ from .base import BaseServiceError
 
 
 class ApiKeyNotFound(BaseServiceError):
-    pass
+    status_code = 404
+    code = "api_key_not_found"
 
 
 class ModelNotFound(BaseServiceError):
-    pass
+    status_code = 404
+    code = "model_not_found"
 
 
 class ModelProviderNotFound(BaseServiceError):
-    pass
+    status_code = 404
+    code = "model_provider_not_found"
 
 
 class FileNotFound(BaseServiceError):
-    pass
+    status_code = 404
+    code = "file_not_found"
 
 
 class UserNotFound(BaseServiceError):
-    pass
+    status_code = 404
+    code = "user_not_found"
 
 
 class UserAlreadyExists(BaseServiceError):
-    pass
+    status_code = 409
+    code = "user_already_exists"
 
 
 class InvalidCredentials(BaseServiceError):
-    pass
+    status_code = 401
+    code = "invalid_credentials"
 
 
 class UserDisabled(BaseServiceError):
-    pass
+    status_code = 403
+    code = "user_disabled"
 
 
 class RegistrationDisabled(BaseServiceError):
-    pass
+    status_code = 403
+    code = "registration_disabled"
+
+
+class InvalidRefreshToken(BaseServiceError):
+    status_code = 401
+    code = "invalid_refresh_token"
+
+
+class RefreshTokenRevoked(BaseServiceError):
+    status_code = 401
+    code = "refresh_token_revoked"
 
 
 class InsufficientPermissions(BaseServiceError):
-    pass
+    status_code = 403
+    code = "insufficient_permissions"
 
 
 class AgentNotFoundError(BaseServiceError):
-    pass
+    status_code = 404
+    code = "agent_not_found"
 
 
 class PlanStateError(ValueError):

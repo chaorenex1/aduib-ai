@@ -1,5 +1,6 @@
 from .anyio_compat import run_async
 from .api_key import generate_api_key, hash_api_key, verify_api_key
+from .date import now_local
 from .encoders import jsonable_encoder
 from .memory_doc_utils import inject_frontmatter
 from .module_import_helper import (
@@ -26,6 +27,7 @@ __all__ = [
     "load_yaml_file",
     "load_yaml_files",
     "message_uuid",
+    "now_local",
     "random_uuid",
     "run_async",
     "trace_uuid",

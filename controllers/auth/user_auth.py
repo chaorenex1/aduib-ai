@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from controllers.common.base import api_endpoint
-from controllers.params import ChangePasswordRequest, LoginRequest, RefreshTokenRequest, RegisterRequest
+from controllers.params import ChangePasswordRequest, LoginRequest, LogoutRequest, RefreshTokenRequest, RegisterRequest
 from libs.deps import CurrentUserDep
 from service.user_service import UserService
 
@@ -18,7 +18,12 @@ async def register(payload: RegisterRequest):
 @router.post("/login")
 @api_endpoint()
 async def login(payload: LoginRequest):
-    result = UserService.login(payload.username, payload.password)
+    result = UserService.login(
+        payload.username,
+        payload.password,
+        client_type=payload.client_type,
+        device_label=payload.device_label,
+    )
     return result
 
 
@@ -29,17 +34,17 @@ async def refresh_token(payload: RefreshTokenRequest):
     return result
 
 
+@router.post("/logout")
+@api_endpoint()
+async def logout(payload: LogoutRequest, current_user: CurrentUserDep):
+    UserService.logout(payload.refresh_token, current_user["user_id"])
+    return {"message": "Logged out successfully"}
+
+
 @router.get("/me")
 @api_endpoint()
 async def get_current_user(current_user: CurrentUserDep):
-    user = UserService.get_user_by_id(current_user["user_id"])
-    return {
-        "user_id": user.id,
-        "username": user.username,
-        "email": user.email,
-        "role": user.role,
-        "status": user.status,
-    }
+    return UserService.get_user_auth_profile(current_user["user_id"])
 
 
 @router.put("/password")

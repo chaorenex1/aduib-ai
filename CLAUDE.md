@@ -296,14 +296,31 @@ The frontend has its own `CLAUDE.md` at `~/Documents/aduib-app/memexos-bot/CLAUD
 - **Python version**: 3.11+
 - **Indentation**: 4 spaces
 - **Type hints**: Required on public functions
+- **Annotations style**: Prefer `from __future__ import annotations` plus modern typing syntax such as `str | None`, `dict[str, Any]`, and `Literal[...]`
 - **Naming**:
   - Functions/variables: `snake_case`
   - Classes: `PascalCase`
   - Config keys: `SCREAMING_SNAKE_CASE`
 - **Line length**: 120 characters
 - **Quotes**: Double quotes
+- **Pydantic contracts**: Prefer small, explicit request/response/command models with `Field(...)`, `default_factory=...`, and `ConfigDict(extra="forbid")` for strict payloads
+- **Dict usage**: Do not let anonymous `dict[str, Any]` become long-lived business-layer data structures; use `dict` mainly at protocol boundaries, dynamic metadata bags, JSON-schema-like payloads, or raw adapter inputs that cannot be strongly typed yet
+- **Boundary tightening**: Convert external payloads and loose runtime state into named Pydantic contracts / typed context objects as early as practical; do not keep passing raw payload dicts through service and runtime orchestration layers
+- **DTO boundaries**: Keep controller schemas, service/runtime contracts, and mapper functions separate instead of reusing one model across every layer
+- **Controller style**: Keep controllers thin; define `APIRouter` per module, validate with Pydantic DTOs, wrap JSON endpoints with `@api_endpoint(...)`, and delegate business logic to services
+- **Code organization**: Prefer using `class` to organize service/manager/runtime business orchestration; keep business flow out of loose top-level functions
+- **Function placement**: Module-level functions are still fine for pure helpers such as mappers, builders, validators, serializers, and protocol converters
+- **Service style**: Services are usually stateless `@classmethod` / `@staticmethod` containers; keep orchestration there, not in controllers or infrastructure adapters
+- **Persistence style**: Use repository helpers or `with get_db() as session:` blocks for DB work; avoid long-lived sessions or hidden implicit session state
+- **Datetime style**: Default to current-timezone timestamps for normal application time values; do not use `datetime.UTC` as the regular source of timestamps unless an external protocol or storage boundary explicitly requires UTC conversion
+- **Fallback policy**: Default to fail-fast behavior in business logic; do not hide missing required data with `or {}`, `or []`, `return {}`, `return []`, or broad silent fallback branches unless the behavior is an explicitly intended compatibility or cleanup path
+- **Fallback placement**: Compatibility fallback belongs in mappers, adapters, protocol converters, or other boundary-layer normalization code; cleanup / audit / telemetry may use best-effort handling, but normal service/runtime orchestration should prefer explicit errors over silent degradation
+- **Serialization style**: Prefer Pydantic v2 APIs like `model_validate(...)` and `model_dump(mode="python" | "json", exclude_none=True)` at layer boundaries
+- **Helper placement**: Extract pure validation/normalization/display helpers into private module-level functions when they are reused or keep service methods too large
 - **Import style**: Lazy imports for heavy runtime components (inside methods) to avoid circular dependencies
 - **Error handling**: Raise `BaseServiceError` subclasses from services, catch in controllers
+- **ORM organization**: Group SQLAlchemy models by domain; prefer defining same-domain related tables in the same model file instead of splitting every table into its own file
+- **ORM style**: Keep SQLAlchemy models declarative and explicit: define `__tablename__`, `__table_args__`, column comments, and indexes close to the model
 
 ## Testing Guidelines
 

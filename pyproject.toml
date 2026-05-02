@@ -37,7 +37,7 @@ dependencies = [
     "spacy",
     "beautifulsoup4>=4.13.4",
     "PyJWT",
-    "clickhouse-connect"
+    "clickhouse-connect",
 ]
 [project.optional-dependencies]
 depcated = [

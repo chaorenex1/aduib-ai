@@ -248,9 +248,15 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+    client_type: str | None = Field(default=None, max_length=32)
+    device_label: str | None = Field(default=None, max_length=128)
 
 
 class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
     refresh_token: str
 
 
@@ -262,4 +268,3 @@ class ChangePasswordRequest(BaseModel):
 class CreateApiKeyRequest(BaseModel):
     name: str
     description: Optional[str] = None
-
