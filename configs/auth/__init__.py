@@ -9,11 +9,6 @@ class AuthConfig(BaseSettings):
     Configuration settings for authentication
     """
 
-    AUTH_ENABLED: bool = Field(
-        description="Whether authentication is enabled",
-        default=False,
-    )
-
     AUTH_SECRET_KEY: Optional[str] = Field(
         description="Secret key for JWT tokens",
         default=None,
