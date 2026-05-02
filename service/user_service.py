@@ -4,10 +4,8 @@ from typing import Any, Optional
 
 from configs import config
 from libs.context import get_request_audit_metadata
-from models.auth_refresh_session import AuthRefreshSession
-from models.auth_user import AuthAuditLog, AuthPermission, AuthRole, AuthRolePermission, AuthUserRole, User
+from models.auth_user import AuthAuditLog, AuthPermission, AuthRefreshSession, AuthRole, AuthRolePermission, AuthUserRole, User
 from models.engine import get_db, get_session
-from sqlalchemy.exc import SQLAlchemyError
 from service.error.error import (
     InvalidCredentials,
     InvalidRefreshToken,
@@ -69,8 +67,7 @@ class UserService:
                     "request_ip",
                     "user_agent",
                     "reason",
-                    "roles",
-                    "permissions",
+                    "grants",
                 }
             }
             audit_row = AuthAuditLog(
@@ -85,8 +82,7 @@ class UserService:
                 request_ip=UserService._serialize_audit_value(fields.get("request_ip")),
                 user_agent=UserService._serialize_audit_value(fields.get("user_agent")),
                 reason=UserService._serialize_audit_value(fields.get("reason")),
-                roles=UserService._serialize_audit_value(fields.get("roles")),
-                permissions=UserService._serialize_audit_value(fields.get("permissions")),
+                permissions=UserService._serialize_audit_value(fields.get("grants")),
                 details=UserService._serialize_audit_value(details) if details else None,
             )
             audit_session.add(audit_row)
@@ -100,60 +96,36 @@ class UserService:
                 audit_session.close()
 
     @staticmethod
-    def _legacy_permissions_for_roles(roles: list[str]) -> list[str]:
-        if "admin" in roles:
-            return ["admin:*", "setting:read", "user:read"]
-        return []
+    def _load_access_grants(session, user_id: int) -> list[str]:
+        role_rows = (
+            session.query(AuthRole.id)
+            .join(AuthUserRole, AuthUserRole.role_id == AuthRole.id)
+            .filter(AuthUserRole.user_id == user_id, AuthRole.status == "active")
+            .all()
+        )
+        role_ids = [role_id for (role_id,) in role_rows]
+        if not role_ids:
+            return []
+        permission_rows = (
+            session.query(AuthPermission.code)
+            .join(AuthRolePermission, AuthRolePermission.permission_id == AuthPermission.id)
+            .filter(AuthRolePermission.role_id.in_(role_ids))
+            .all()
+        )
+        return sorted({code for (code,) in permission_rows})
 
     @classmethod
-    def _build_auth_profile(cls, session, user: User) -> dict[str, Any]:
-        fallback_roles = [user.role] if user.role else []
-        fallback_permissions = cls._legacy_permissions_for_roles(fallback_roles)
-
-        try:
-            role_rows = (
-                session.query(AuthRole.id, AuthRole.code)
-                .join(AuthUserRole, AuthUserRole.role_id == AuthRole.id)
-                .filter(AuthUserRole.user_id == user.id, AuthRole.status == "active")
-                .all()
-            )
-            role_ids = [role_id for role_id, _ in role_rows]
-            roles = [code for _, code in role_rows]
-
-            permission_rows = []
-            if role_ids:
-                permission_rows = (
-                    session.query(AuthPermission.code)
-                    .join(AuthRolePermission, AuthRolePermission.permission_id == AuthPermission.id)
-                    .filter(AuthRolePermission.role_id.in_(role_ids))
-                    .all()
-                )
-            permissions = sorted({code for (code,) in permission_rows})
-        except SQLAlchemyError as exc:
-            cls._audit_auth_event(
-                logging.WARNING,
-                "auth_profile_fallback",
-                user_id=user.id,
-                username=user.username,
-                reason=exc.__class__.__name__,
-            )
-            roles = fallback_roles
-            permissions = fallback_permissions
-
-        if not roles:
-            roles = fallback_roles
-        if not permissions:
-            permissions = fallback_permissions
-
-        primary_role = roles[0] if roles else (user.role or "user")
+    def _build_public_auth_profile(cls, session, user: User) -> dict[str, Any]:
+        grants = cls._load_access_grants(session, user.id)
         return {
             "user_id": user.id,
             "username": user.username,
             "email": user.email,
+            "user_type": user.user_type,
             "status": user.status,
-            "role": primary_role,
-            "roles": roles,
-            "permissions": permissions,
+            "access": {
+                "grants": grants,
+            },
         }
 
     @staticmethod
@@ -263,6 +235,7 @@ class UserService:
                 username=username,
                 password_hash=hash_password(password),
                 email=email,
+                user_type="user",
             )
             session.add(user)
             session.commit()
@@ -309,8 +282,8 @@ class UserService:
                     device_label=device_label,
                 )
                 raise InvalidCredentials("Invalid username or password")
-            profile = UserService._build_auth_profile(session, user)
-            access_token = create_access_token(user.id, user.username, profile["role"])
+            profile = UserService._build_public_auth_profile(session, user)
+            access_token = create_access_token(user.id, user.username, profile["user_type"])
             refresh_token = UserService._issue_refresh_session(
                 session,
                 user.id,
@@ -323,8 +296,7 @@ class UserService:
                 "login_success",
                 user_id=user.id,
                 username=user.username,
-                roles=profile["roles"],
-                permissions=profile["permissions"],
+                grants=profile["access"]["grants"],
                 client_type=client_type,
                 device_label=device_label,
             )
@@ -365,8 +337,8 @@ class UserService:
             refresh_session.last_used_at = now
             refresh_session.revoked_at = now
 
-            profile = UserService._build_auth_profile(session, user)
-            access_token = create_access_token(user.id, user.username, profile["role"])
+            profile = UserService._build_public_auth_profile(session, user)
+            access_token = create_access_token(user.id, user.username, profile["user_type"])
             new_refresh_token = UserService._issue_refresh_session(
                 session,
                 user.id,
@@ -379,7 +351,7 @@ class UserService:
                 "refresh_success",
                 user_id=user.id,
                 username=user.username,
-                roles=profile["roles"],
+                grants=profile["access"]["grants"],
                 refresh_jti=payload.get("jti"),
                 client_type=refresh_session.client_type,
                 device_label=refresh_session.device_label,
@@ -388,10 +360,11 @@ class UserService:
             "access_token": access_token,
             "refresh_token": new_refresh_token,
             "token_type": "bearer",
+            **profile,
         }
 
     @staticmethod
-    def logout(refresh_token_str: str, current_user_id: int) -> bool:
+    def logout(refresh_token_str: str, current_user_id: int) -> dict[str, Any]:
         """Revoke one refresh-token session for the current user."""
         with get_db() as session:
             payload, refresh_session = UserService._load_refresh_session(
@@ -408,6 +381,10 @@ class UserService:
                     refresh_jti=payload.get("jti"),
                 )
                 raise InvalidRefreshToken("Invalid refresh token")
+            user = session.query(User).filter(User.id == current_user_id, User.deleted == 0).first()
+            if not user:
+                raise UserNotFound("User not found")
+            profile = UserService._build_public_auth_profile(session, user)
             if refresh_session.status != "revoked":
                 refresh_session.status = "revoked"
                 refresh_session.revoked_at = now_local()
@@ -420,7 +397,10 @@ class UserService:
                 client_type=refresh_session.client_type,
                 device_label=refresh_session.device_label,
             )
-        return True
+        return {
+            "logged_out": True,
+            **profile,
+        }
 
     @staticmethod
     def get_user_by_id(user_id: int) -> Optional[User]:
@@ -437,7 +417,7 @@ class UserService:
             user = session.query(User).filter(User.id == user_id, User.deleted == 0).first()
             if not user:
                 raise UserNotFound("User not found")
-            return UserService._build_auth_profile(session, user)
+            return UserService._build_public_auth_profile(session, user)
 
     @staticmethod
     def update_password(user_id: int, old_password: str, new_password: str) -> bool:
@@ -469,7 +449,7 @@ class UserService:
         from configs import config
 
         with get_db() as session:
-            admin = session.query(User).filter(User.role == "admin", User.deleted == 0).first()
+            admin = session.query(User).filter(User.user_type == "admin", User.deleted == 0).first()
             if admin:
                 logger.info("Admin account already exists: %s", admin.username)
                 return
@@ -478,14 +458,14 @@ class UserService:
         with get_db() as session:
             existing = session.query(User).filter(User.username == username, User.deleted == 0).first()
             if existing:
-                existing.role = "admin"
+                existing.user_type = "admin"
                 session.commit()
-                logger.info("Promoted existing user '%s' to admin role", username)
+                logger.info("Promoted existing user '%s' to admin account type", username)
                 return
             user = User(
                 username=username,
                 password_hash=hash_password(password),
-                role="admin",
+                user_type="admin",
             )
             session.add(user)
             session.commit()

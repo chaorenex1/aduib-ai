@@ -38,13 +38,13 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def create_access_token(user_id: int, username: str, role: str) -> str:
+def create_access_token(user_id: int, username: str, user_type: str) -> str:
     """Create a JWT access token."""
     now = now_local()
     payload = {
         "sub": str(user_id),
         "username": username,
-        "role": role,
+        "user_type": user_type,
         "type": "access",
         "iat": now,
         "exp": now + datetime.timedelta(minutes=_access_token_expire_minutes()),

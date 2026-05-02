@@ -1,8 +1,7 @@
-import datetime
-
 from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 
 from models.base import Base
+from utils.date import now_local
 
 
 class User(Base):
@@ -14,13 +13,13 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False, comment="username")
     password_hash = Column(String, nullable=False, comment="bcrypt password hash")
     email = Column(String, nullable=True, comment="user email")
-    role = Column(String, default="user", comment="user role: admin or user")
+    user_type = Column(String, default="user", comment="account type: admin or user")
     status = Column(String, default="active", comment="user status: active or disabled")
-    created_at = Column(DateTime, default=datetime.datetime.now, comment="user create time")
+    created_at = Column(DateTime, default=now_local, comment="user create time")
     updated_at = Column(
         DateTime,
-        default=datetime.datetime.now,
-        onupdate=datetime.datetime.now,
+        default=now_local,
+        onupdate=now_local,
         comment="user update time",
     )
     deleted = Column(Integer, default=0, comment="user delete flag")
@@ -38,11 +37,11 @@ class AuthRole(Base):
     name = Column(String(128), nullable=False, comment="role name")
     description = Column(Text, nullable=True, comment="role description")
     status = Column(String(32), nullable=False, default="active", comment="role status: active or disabled")
-    created_at = Column(DateTime, default=datetime.datetime.now, comment="role create time")
+    created_at = Column(DateTime, default=now_local, comment="role create time")
     updated_at = Column(
         DateTime,
-        default=datetime.datetime.now,
-        onupdate=datetime.datetime.now,
+        default=now_local,
+        onupdate=now_local,
         comment="role update time",
     )
 
@@ -59,11 +58,11 @@ class AuthPermission(Base):
     name = Column(String(128), nullable=False, comment="permission name")
     description = Column(Text, nullable=True, comment="permission description")
     group_name = Column(String(128), nullable=True, comment="permission group name")
-    created_at = Column(DateTime, default=datetime.datetime.now, comment="permission create time")
+    created_at = Column(DateTime, default=now_local, comment="permission create time")
     updated_at = Column(
         DateTime,
-        default=datetime.datetime.now,
-        onupdate=datetime.datetime.now,
+        default=now_local,
+        onupdate=now_local,
         comment="permission update time",
     )
 
@@ -80,7 +79,7 @@ class AuthUserRole(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True, comment="user-role relation id")
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False, comment="user id")
     role_id = Column(Integer, ForeignKey("auth_role.id"), nullable=False, comment="role id")
-    created_at = Column(DateTime, default=datetime.datetime.now, comment="relation create time")
+    created_at = Column(DateTime, default=now_local, comment="relation create time")
 
 
 class AuthRolePermission(Base):
@@ -95,7 +94,7 @@ class AuthRolePermission(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True, comment="role-permission relation id")
     role_id = Column(Integer, ForeignKey("auth_role.id"), nullable=False, comment="role id")
     permission_id = Column(Integer, ForeignKey("auth_permission.id"), nullable=False, comment="permission id")
-    created_at = Column(DateTime, default=datetime.datetime.now, comment="relation create time")
+    created_at = Column(DateTime, default=now_local, comment="relation create time")
 
 
 class AuthRefreshSession(Base):
@@ -112,7 +111,7 @@ class AuthRefreshSession(Base):
     status = Column(String, nullable=False, default="active", comment="session status: active/revoked/expired")
     client_type = Column(String, nullable=True, comment="client type, e.g. web/desktop")
     device_label = Column(String, nullable=True, comment="optional device label")
-    created_at = Column(DateTime, default=datetime.datetime.now, comment="session create time")
+    created_at = Column(DateTime, default=now_local, comment="session create time")
     expires_at = Column(DateTime, nullable=False, comment="refresh token expiry time")
     last_used_at = Column(DateTime, nullable=True, comment="last successful refresh time")
     revoked_at = Column(DateTime, nullable=True, comment="session revoked time")
@@ -141,4 +140,4 @@ class AuthAuditLog(Base):
     roles = Column(Text, nullable=True, comment="serialized roles")
     permissions = Column(Text, nullable=True, comment="serialized permissions")
     details = Column(Text, nullable=True, comment="serialized extra details")
-    created_at = Column(DateTime, default=datetime.datetime.now, comment="audit create time")
+    created_at = Column(DateTime, default=now_local, comment="audit create time")

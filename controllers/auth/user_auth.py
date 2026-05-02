@@ -12,7 +12,7 @@ router = APIRouter(tags=["auth"], prefix="/auth")
 @api_endpoint()
 async def register(payload: RegisterRequest):
     user = UserService.register(payload.username, payload.password, payload.email)
-    return {"user_id": user.id, "username": user.username}
+    return {"user_id": user.id, "username": user.username, "user_type": user.user_type}
 
 
 @router.post("/login")
@@ -37,8 +37,7 @@ async def refresh_token(payload: RefreshTokenRequest):
 @router.post("/logout")
 @api_endpoint()
 async def logout(payload: LogoutRequest, current_user: CurrentUserDep):
-    UserService.logout(payload.refresh_token, current_user["user_id"])
-    return {"message": "Logged out successfully"}
+    return UserService.logout(payload.refresh_token, current_user["user_id"])
 
 
 @router.get("/me")

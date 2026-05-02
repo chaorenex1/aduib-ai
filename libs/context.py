@@ -85,7 +85,7 @@ async def verify_jwt_in_request(request: Request) -> dict:
     return {
         "user_id": int(payload["sub"]),
         "username": payload.get("username"),
-        "role": payload.get("role"),
+        "user_type": payload.get("user_type"),
     }
 
 
@@ -111,7 +111,7 @@ class ApiKeyContextMiddleware(BaseHTTPMiddleware):
                 user_info: dict[str, Any] = {
                     "user_id": int(payload["sub"]),
                     "username": payload.get("username"),
-                    "role": payload.get("role"),
+                    "user_type": payload.get("user_type"),
                 }
                 with user_context.temporary_set(user_info):
                     return await call_next(request)

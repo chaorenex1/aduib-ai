@@ -31,8 +31,8 @@ class ApiKeyService:
                 else:
                     return {
                         "user_id": str(user.id),
-                        "user_name": user.username,
-                        "role": user.role,
+                        "username": user.username,
+                        "user_type": user.user_type,
                     }
             else:
                 raise ApiKeyNotFound("Api Key not correct")

@@ -2,7 +2,7 @@ from .agent import Agent, AgentSession
 from .agent_plan import AgentPlan
 from .agent_todo import AgentTodo
 from .api_key import ApiKey
-from .auth_user import AuthAuditLog, AuthPermission, AuthRole, AuthRolePermission, AuthUserRole, User,AuthRefreshSession
+from .auth_user import AuthAuditLog, AuthPermission, AuthRefreshSession, AuthRole, AuthRolePermission, AuthUserRole, User
 from .base import Base
 from .browser import BrowserHistory
 from .cron_job import CronJob
