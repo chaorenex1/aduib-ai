@@ -26,6 +26,9 @@ user_context = DictContextVar.create("current_user")
 request_meta_context = DictContextVar.create("request_meta")
 app_context = ContextVarWrapper.create("app")
 
+# Paths that don't require API Key authentication
+SKIP_PATHS = {"/v1/auth/login", "/v1/auth/register", "/v1/auth/refresh", "/docs", "/openapi.json", "/health"}
+
 
 def get_current_user_id():
     return getattr(user_context, "user_id", None)
@@ -62,10 +65,6 @@ def verify_api_key_in_db(
             ApiKeyService.validate_api_key(api_key)
     except ApiKeyNotFound:
         raise ApiNotCurrentlyAvailableError()
-
-
-# Paths that don't require API Key authentication
-SKIP_PATHS = {"/v1/auth/login", "/v1/auth/register", "/v1/auth/refresh", "/docs", "/openapi.json", "/health"}
 
 
 async def verify_jwt_in_request(request: Request) -> dict:

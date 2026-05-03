@@ -50,6 +50,12 @@ def create_app_with_configs() -> AduibAIApp:
         app.app_home = os.getenv("USER.HOME", str(pathlib.Path.home())) + f"/.{config.APP_NAME.lower()}"
         app.workdir = app.app_home + "/workdir"
     app.include_router(api_router, prefix="/v1")
+    if config.DEBUG:
+        log.warning("Running in debug mode, this is not recommended for production use.")
+        app.add_middleware(LoggingMiddleware)
+    app.add_middleware(TraceIdContextMiddleware)
+    app.add_middleware(ApiKeyContextMiddleware)
+    app.add_middleware(PerformanceMetricsMiddleware)
     if config.all_cors_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -58,12 +64,6 @@ def create_app_with_configs() -> AduibAIApp:
             allow_methods=["*"],
             allow_headers=["*"],
         )
-    if config.DEBUG:
-        log.warning("Running in debug mode, this is not recommended for production use.")
-        app.add_middleware(LoggingMiddleware)
-    app.add_middleware(TraceIdContextMiddleware)
-    app.add_middleware(ApiKeyContextMiddleware)
-    app.add_middleware(PerformanceMetricsMiddleware)
     return app
 
 
