@@ -12,7 +12,12 @@ router = APIRouter(tags=["auth"], prefix="/auth")
 @api_endpoint()
 async def register(payload: RegisterRequest):
     user = UserService.register(payload.username, payload.password, payload.email)
-    return {"user_id": user.id, "username": user.username, "user_type": user.user_type}
+    return {
+        "user_id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "user_type": user.user_type,
+    }
 
 
 @router.post("/login")

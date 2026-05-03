@@ -11,6 +11,7 @@ class User(Base):
     }
     id = Column(Integer, primary_key=True, index=True, comment="user id")
     username = Column(String, unique=True, index=True, nullable=False, comment="username")
+    display_name = Column(String(64), nullable=False, comment="user display name")
     password_hash = Column(String, nullable=False, comment="bcrypt password hash")
     email = Column(String, nullable=True, comment="user email")
     user_type = Column(String, default="user", comment="account type: admin or user")

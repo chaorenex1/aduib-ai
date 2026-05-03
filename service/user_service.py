@@ -1,5 +1,7 @@
 import json
 import logging
+import secrets
+import string
 from typing import Any, Optional
 
 from configs import config
@@ -31,6 +33,10 @@ logger = logging.getLogger(__name__)
 
 class UserService:
     """User authentication service."""
+
+    DISPLAY_NAME_PREFIX = "Mimir_"
+    DISPLAY_NAME_RANDOM_LENGTH = 8
+    DISPLAY_NAME_ALPHABET = string.ascii_lowercase + string.digits
 
     @staticmethod
     def _serialize_audit_value(value: Any) -> str | None:
@@ -120,6 +126,7 @@ class UserService:
         return {
             "user_id": user.id,
             "username": user.username,
+            "display_name": user.display_name,
             "email": user.email,
             "user_type": user.user_type,
             "status": user.status,
@@ -127,6 +134,11 @@ class UserService:
                 "grants": grants,
             },
         }
+
+    @classmethod
+    def _generate_display_name(cls) -> str:
+        suffix = "".join(secrets.choice(cls.DISPLAY_NAME_ALPHABET) for _ in range(cls.DISPLAY_NAME_RANDOM_LENGTH))
+        return f"{cls.DISPLAY_NAME_PREFIX}{suffix}"
 
     @staticmethod
     def _issue_refresh_session(session, user_id: int, *, client_type: str | None = None, device_label: str | None = None) -> str:
@@ -233,6 +245,7 @@ class UserService:
                 raise UserAlreadyExists(f"用户名 '{username}' 已存在")
             user = User(
                 username=username,
+                display_name=UserService._generate_display_name(),
                 password_hash=hash_password(password),
                 email=email,
                 user_type="user",
@@ -459,11 +472,14 @@ class UserService:
             existing = session.query(User).filter(User.username == username, User.deleted == 0).first()
             if existing:
                 existing.user_type = "admin"
+                if not existing.display_name:
+                    existing.display_name = UserService._generate_display_name()
                 session.commit()
                 logger.info("Promoted existing user '%s' to admin account type", username)
                 return
             user = User(
                 username=username,
+                display_name=UserService._generate_display_name(),
                 password_hash=hash_password(password),
                 user_type="admin",
             )
