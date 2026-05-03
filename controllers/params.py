@@ -1,3 +1,4 @@
+import re
 import time
 import uuid
 from decimal import Decimal
@@ -6,6 +7,11 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from utils import random_uuid
+
+USERNAME_PATTERN = r"^[A-Za-z0-9]{6,10}$"
+PASSWORD_PATTERN = r"^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[#$:,.&*])[A-Za-z\d#$:,.&*]{8,12}$"
+USERNAME_REGEX = re.compile(USERNAME_PATTERN)
+PASSWORD_REGEX = re.compile(PASSWORD_PATTERN)
 
 
 class CreateModelRequest(BaseModel):
@@ -240,9 +246,25 @@ class TaskHistoryResponse(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=6, max_length=128)
+    username: str
+    password: str
     email: Optional[str] = None
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        if not USERNAME_REGEX.fullmatch(value):
+            raise ValueError("username must be 6-10 characters of letters and digits only")
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if not PASSWORD_REGEX.fullmatch(value):
+            raise ValueError(
+                "password must be 8-12 characters and include uppercase, lowercase, digit, and one of #$:,.&*"
+            )
+        return value
 
 
 class LoginRequest(BaseModel):
@@ -262,7 +284,16 @@ class LogoutRequest(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     old_password: str
-    new_password: str = Field(..., min_length=6, max_length=128)
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        if not PASSWORD_REGEX.fullmatch(value):
+            raise ValueError(
+                "password must be 8-12 characters and include uppercase, lowercase, digit, and one of #$:,.&*"
+            )
+        return value
 
 
 class CreateApiKeyRequest(BaseModel):
