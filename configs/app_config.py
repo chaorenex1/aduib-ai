@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 from .auth import AuthConfig
 from .cache.redis_config import RedisConfig
 from .clickhouse.clickhouse_config import ClickhouseConfig
+from .cors import CorsConfig
 from .db import DBConfig
 from .deploy import DeploymentConfig, ServiceConfig
 from .graph import GraphConfig
@@ -89,6 +90,7 @@ class AduibAiConfig(
     MemorySettingsConfig,
     AuthConfig,
     ToolConfig,
+    CorsConfig,
 ):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./aduib_ai/)

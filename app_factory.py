@@ -7,6 +7,7 @@ import time
 from collections.abc import AsyncIterator
 
 from fastapi.routing import APIRoute
+from starlette.middleware.cors import CORSMiddleware
 
 from aduib_app import AduibAIApp
 from component.cache.redis_cache import init_cache
@@ -49,6 +50,14 @@ def create_app_with_configs() -> AduibAIApp:
         app.app_home = os.getenv("USER.HOME", str(pathlib.Path.home())) + f"/.{config.APP_NAME.lower()}"
         app.workdir = app.app_home + "/workdir"
     app.include_router(api_router, prefix="/v1")
+    if config.all_cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=config.all_cors_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
     if config.DEBUG:
         log.warning("Running in debug mode, this is not recommended for production use.")
         app.add_middleware(LoggingMiddleware)

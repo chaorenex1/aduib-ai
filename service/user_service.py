@@ -226,11 +226,11 @@ class UserService:
     def register(username: str, password: str, email: Optional[str] = None) -> User:
         """Register a new user."""
         if not config.AUTH_REGISTRATION_ENABLED:
-            raise RegistrationDisabled("Registration is currently disabled")
+            raise RegistrationDisabled("注册功能已被停用")
         with get_db() as session:
             existing = session.query(User).filter(User.username == username, User.deleted == 0).first()
             if existing:
-                raise UserAlreadyExists(f"Username '{username}' already exists")
+                raise UserAlreadyExists(f"用户名 '{username}' 已存在")
             user = User(
                 username=username,
                 password_hash=hash_password(password),
@@ -261,7 +261,7 @@ class UserService:
                     client_type=client_type,
                     device_label=device_label,
                 )
-                raise InvalidCredentials("Invalid username or password")
+                raise InvalidCredentials("用户名或密码错误")
             if user.status != "active":
                 UserService._audit_auth_event(
                     logging.WARNING,
@@ -271,7 +271,7 @@ class UserService:
                     client_type=client_type,
                     device_label=device_label,
                 )
-                raise UserDisabled("User account is disabled")
+                raise UserDisabled("账号已被禁用")
             if not verify_password(password, user.password_hash):
                 UserService._audit_auth_event(
                     logging.WARNING,
@@ -281,7 +281,7 @@ class UserService:
                     client_type=client_type,
                     device_label=device_label,
                 )
-                raise InvalidCredentials("Invalid username or password")
+                raise InvalidCredentials("用户名或密码错误")
             profile = UserService._build_public_auth_profile(session, user)
             access_token = create_access_token(user.id, user.username, profile["user_type"])
             refresh_token = UserService._issue_refresh_session(
@@ -383,7 +383,7 @@ class UserService:
                 raise InvalidRefreshToken("Invalid refresh token")
             user = session.query(User).filter(User.id == current_user_id, User.deleted == 0).first()
             if not user:
-                raise UserNotFound("User not found")
+                raise UserNotFound("用户名错误")
             profile = UserService._build_public_auth_profile(session, user)
             if refresh_session.status != "revoked":
                 refresh_session.status = "revoked"
@@ -408,7 +408,7 @@ class UserService:
         with get_db() as session:
             user = session.query(User).filter(User.id == user_id, User.deleted == 0).first()
             if not user:
-                raise UserNotFound("User not found")
+                raise UserNotFound("用户名错误")
         return user
 
     @staticmethod
@@ -416,7 +416,7 @@ class UserService:
         with get_db() as session:
             user = session.query(User).filter(User.id == user_id, User.deleted == 0).first()
             if not user:
-                raise UserNotFound("User not found")
+                raise UserNotFound("用户名错误")
             return UserService._build_public_auth_profile(session, user)
 
     @staticmethod
@@ -425,9 +425,9 @@ class UserService:
         with get_db() as session:
             user = session.query(User).filter(User.id == user_id, User.deleted == 0).first()
             if not user:
-                raise UserNotFound("User not found")
+                raise UserNotFound("用户名错误")
             if not verify_password(old_password, user.password_hash):
-                raise InvalidCredentials("Old password is incorrect")
+                raise InvalidCredentials("旧密码错误")
             user.password_hash = hash_password(new_password)
             session.commit()
         return True
@@ -438,7 +438,7 @@ class UserService:
         with get_db() as session:
             user = session.query(User).filter(User.id == user_id, User.deleted == 0).first()
             if not user:
-                raise UserNotFound("User not found")
+                raise UserNotFound("用户名错误")
             user.status = "disabled"
             session.commit()
         return True
