@@ -5,7 +5,12 @@ from controllers.memory.schemas import (
     ConversationCreateRequest,
     ConversationGetQuery,
     ConversationSourceResponse,
+    ProjectBranchResponse,
+    ProjectCreateRequest,
     ProjectImportRequest,
+    ProjectRecentResponse,
+    ProjectResponse,
+    ProjectUpdateRequest,
     TaskCreateRequest,
 )
 
@@ -20,6 +25,13 @@ from .contracts import (
     MemoryTaskCreateCommand,
 )
 from .enums import MemoryTriggerType
+from .project_contracts import (
+    ProjectBranchCreateCommand,
+    ProjectBranchRecord,
+    ProjectCreateCommand,
+    ProjectUpdateCommand,
+    ProjectView,
+)
 
 
 def conversation_create_request_to_command(
@@ -120,3 +132,50 @@ def project_import_request_to_task_command(
             },
         ),
     )
+
+
+def project_create_request_to_command(payload: ProjectCreateRequest) -> ProjectCreateCommand:
+    return ProjectCreateCommand(
+        name=payload.name,
+        description=payload.description or "",
+        mode=payload.mode,
+        status=payload.status or "planning",
+        branches=[
+            ProjectBranchCreateCommand(name=branch.name, local_path=branch.localPath) for branch in payload.branches
+        ],
+    )
+
+
+def project_update_request_to_command(payload: ProjectUpdateRequest) -> ProjectUpdateCommand:
+    return ProjectUpdateCommand(
+        name=payload.name,
+        description=payload.description,
+        status=payload.status,
+        branches=[
+            ProjectBranchRecord(id=branch.id, name=branch.name, local_path=branch.localPath)
+            for branch in payload.branches
+        ]
+        if payload.branches is not None
+        else None,
+    )
+
+
+def project_view_to_response(view: ProjectView | dict[str, object]) -> ProjectResponse:
+    if isinstance(view, dict):
+        view = ProjectView.model_validate(view)
+    return ProjectResponse(
+        id=view.id,
+        name=view.name,
+        description=view.description,
+        mode=view.mode,
+        status=view.status,
+        updatedAt=view.updated_at,
+        branches=[
+            ProjectBranchResponse(id=branch.id, name=branch.name, localPath=branch.local_path)
+            for branch in view.branches
+        ],
+    )
+
+
+def recent_project_id_to_response(project_id: str | None) -> ProjectRecentResponse:
+    return ProjectRecentResponse(projectId=project_id)

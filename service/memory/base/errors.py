@@ -66,3 +66,12 @@ class ConversationSourceConflictError(ConversationSourceError):
 class ConversationSourceCorruptedError(ConversationSourceError):
     status_code = 500
     code = "conversation_source_corrupted"
+
+
+class MemoryProjectError(MemoryServiceError):
+    code = "memory_project_error"
+
+
+class MemoryProjectNotFoundError(MemoryProjectError):
+    status_code = 404
+    code = "memory_project_not_found"

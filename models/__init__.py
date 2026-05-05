@@ -2,7 +2,15 @@ from .agent import Agent, AgentSession
 from .agent_plan import AgentPlan
 from .agent_todo import AgentTodo
 from .api_key import ApiKey
-from .auth_user import AuthAuditLog, AuthPermission, AuthRefreshSession, AuthRole, AuthRolePermission, AuthUserRole, User
+from .auth_user import (
+    AuthAuditLog,
+    AuthPermission,
+    AuthRefreshSession,
+    AuthRole,
+    AuthRolePermission,
+    AuthUserRole,
+    User,
+)
 from .base import Base
 from .browser import BrowserHistory
 from .cron_job import CronJob
@@ -17,6 +25,7 @@ from .memory_metadata import (
     MemoryNavigationIndex,
     MemoryRetrievalHint,
 )
+from .memory_project import MemoryProject, MemoryProjectRecent
 from .memory_tags import MemoryTagAssociation, UserCustomTag
 from .memory_write_task import MemoryWriteTask
 from .message import ConversationMessage, MessageTokenUsage
@@ -59,6 +68,8 @@ __all__ = [
     "MemoryConversation",
     "MemoryIndex",
     "MemoryNavigationIndex",
+    "MemoryProject",
+    "MemoryProjectRecent",
     "MemoryRetrievalHint",
     "MemoryTagAssociation",
     "MemoryWriteTask",

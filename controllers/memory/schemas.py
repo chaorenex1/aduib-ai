@@ -127,8 +127,51 @@ class ProjectImportRequest(MemorySchema):
     metadata: MemoryMetadata | None = None
 
 
-class ProjectGetQuery(MemorySchema):
-    user_id: str = Field(..., min_length=1)
+class ProjectBranchCreateRequest(MemorySchema):
+    name: str = Field(..., min_length=1, max_length=120)
+    localPath: str = Field(..., min_length=1, max_length=1000)
+
+
+class ProjectBranchResponse(ProjectBranchCreateRequest):
+    id: str = Field(..., min_length=1)
+
+
+class ProjectCreateRequest(MemorySchema):
+    name: str = Field(..., min_length=1, max_length=120)
+    description: str | None = Field(None, max_length=2000)
+    mode: Literal["web", "desktop"]
+    status: Literal["planning", "active", "done"] | None = None
+    branches: list[ProjectBranchCreateRequest] = Field(default_factory=list)
+
+
+class ProjectUpdateRequest(MemorySchema):
+    name: str | None = Field(None, min_length=1, max_length=120)
+    description: str | None = Field(None, max_length=2000)
+    status: Literal["planning", "active", "done"] | None = None
+    branches: list[ProjectBranchResponse] | None = None
+
+
+class ProjectListQuery(MemorySchema):
+    search: str | None = None
+    mode: Literal["web", "desktop", "all"] | None = None
+
+
+class ProjectResponse(MemorySchema):
+    id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1, max_length=120)
+    description: str = Field("", max_length=2000)
+    mode: Literal["web", "desktop"]
+    status: Literal["planning", "active", "done"]
+    updatedAt: str = Field(..., min_length=1)
+    branches: list[ProjectBranchResponse] = Field(default_factory=list)
+
+
+class ProjectRecentRequest(MemorySchema):
+    projectId: str | None = Field(None, min_length=1)
+
+
+class ProjectRecentResponse(MemorySchema):
+    projectId: str | None = None
 
 
 class TaskCreateRequest(MemoryActorScope):
